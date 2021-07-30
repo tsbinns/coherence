@@ -4,7 +4,7 @@ import numpy as np
 
 def annotations_get_bad(annot):
     i = np.flatnonzero(np.char.startswith(annot.description, 'BAD'))
-    return annot[i]
+    return annot[i], i
 
 
 def annotations_replace_dc(raw):
@@ -17,7 +17,7 @@ def annotations_replace_dc(raw):
 
 def crop_artefacts(raw):
     raw = annotations_replace_dc(raw)
-    bad = annotations_get_bad(raw.annotations)
+    bad, bad_idx = annotations_get_bad(raw.annotations)
     start = 0
     stop = bad.onset[0]
     cropped_raw = raw.copy().crop(start, stop)
@@ -36,11 +36,13 @@ def crop_artefacts(raw):
         if 0 < start < stop < raw._last_time:
             cropped_raw = mne.concatenate_raws([cropped_raw, raw.copy().crop(start, stop)])
             print((start, stop))
+    cropped_raw.annotations = cropped_raw.annotations.pop(bad_idx)
+
     return cropped_raw
 
 
 def epoch_data(raw, epoch_len, include_shuffled=False):
-    epoched = mne.make_fixed_length_epochs(raw, 2)
+    epoched = mne.make_fixed_length_epochs(raw, epoch_len)
     epoched.load_data()
 
     if include_shuffled:
@@ -55,15 +57,15 @@ def epoch_data(raw, epoch_len, include_shuffled=False):
     return epoched.add_channels([epoched_shuffled])
 
 
-def process(raw, annotations=None, channels=None, resample=None,
-            bandpass=None, notch=None, epoch_len=None, include_shuffled=False,
+def process(raw, annotations=None, channels=None, resample=None, highpass=None,
+            lowpass=None, notch=None, epoch_len=None, include_shuffled=False,
             verbose=True):
     # Adds annotations and removes artefacts
     if annotations != None:
         no_annots = raw._annotations
         raw.set_annotations(annotations)
         raw = crop_artefacts(raw)
-        raw._annotations = no_annots
+        #raw._annotations = no_annots
         if verbose:
             print("Setting annotations and removing artefacts")
 
@@ -84,37 +86,33 @@ def process(raw, annotations=None, channels=None, resample=None,
     # Rereferencing
     raw.load_data()
     raw.set_eeg_reference(ch_type='ecog')
-    raw = mne.set_bipolar_reference(raw, 'LFP_L_1_STN_BS', 'LFP_L_8_STN_BS')
+    raw = mne.set_bipolar_reference(raw, 'LFP_L_1_STN_BS', 'LFP_L_8_STN_BS', ch_name='LFP_L_18_STN_BS')
     if verbose:
         print("Rereferencing the data")
+
+    # Notch filters data
+    if notch.all() != None:
+        raw.notch_filter(notch)
+        if verbose:
+            print("Notch filtering the data")
+    
+    # Bandpass filters data
+    if highpass != None or lowpass != None:
+        """
+        if bandpass[1] >= raw.info['sfreq']/2:
+            bandpass[1] = raw.info['sfreq']/2-1
+            if verbose:
+                print("Reducing the upper limit of the bandpass frequency to ", bandpass[1], "Hz")
+        """
+        raw.filter(highpass, lowpass)
+        if verbose:
+            print("Bandpass filtering the data")
 
     # Resamples data
     if resample != None:
         raw.resample(resample)
         if verbose:
             print("Resampling the data")
-
-    # Notch filters data
-    if notch.all() != None:
-        raw.notch_filter(notch)
-        if verbose:
-            print("Notch filtering the data")
-
-    # Bandpass filters data
-    if bandpass != None:
-        if bandpass[1] >= resample/2:
-            bandpass[1] = resample/2-1
-            if verbose:
-                print("Reducing the upper limit of the bandpass frequency to ", bandpass[1], "Hz")
-        raw.filter(bandpass[0], bandpass[1])
-        if verbose:
-            print("Bandpass filtering the data")
-
-    # Notch filters data
-    if notch.all() != None:
-        raw.notch_filter(notch)
-        if verbose:
-            print("Notch filtering the data")
 
     # Epochs data (and adds shuffled LFP data if requested)
     if epoch_len != None:
