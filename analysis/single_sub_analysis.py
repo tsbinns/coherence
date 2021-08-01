@@ -13,6 +13,7 @@ BIDS_PATH = os.path.join(MAIN_PATH, 'data')
 
 import preprocessing
 import processing
+import plotting
 
 
 """ Setup """
@@ -33,7 +34,7 @@ resample = 250 # Hz
 highpass = 3 # Hz
 lowpass = 125 # Hz
 notch = np.arange(50, lowpass+1, 50) # Hz
-epoch_len = 2 # seconds
+epoch_len = 5 # seconds
 inc_shuffled = True
 
 # Spectral analysis settings
@@ -57,3 +58,8 @@ processed = preprocessing.process(raw, annotations=annots, channels=chans, resam
                                   epoch_len=epoch_len, include_shuffled=inc_shuffled)
 psds = processing.get_psd(processed, l_freq, h_freq)
 cohs = processing.get_coherence(processed, cwt_freqs)
+
+
+""" Plotting """
+plotting.psd(psds)
+plotting.coherence(cohs)

@@ -86,6 +86,11 @@ def process(raw, annotations=None, channels=None, resample=None, highpass=None,
     # Rereferencing
     raw.load_data()
     raw.set_eeg_reference(ch_type='ecog')
+    new_names = {}
+    for name in channels:
+        if name[:4] == 'ECOG':
+            new_names[name] = name + '_CAR'
+    raw.rename_channels(new_names)
     raw = mne.set_bipolar_reference(raw, 'LFP_L_1_STN_BS', 'LFP_L_8_STN_BS', ch_name='LFP_L_18_STN_BS')
     if verbose:
         print("Rereferencing the data")
