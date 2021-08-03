@@ -26,11 +26,10 @@ def psd(psds, plot_shuffled=False, n_plots_per_page=6, freq_limit=50):
     for i, type in enumerate(types):
         types_idx.append([])
         for j, type2 in enumerate(psds['ch_type']):
-            if type2 is type:
+            if type2 == type:
                 types_idx[i].append(j)
     
     # Plotting
-    psds_i = 0 # index of the data in psds to plot
     for type_i, type in enumerate(types):
 
         n_plots = len(types_idx[type_i]) # number of plots to make for this type
@@ -38,6 +37,7 @@ def psd(psds, plot_shuffled=False, n_plots_per_page=6, freq_limit=50):
         n_rows = int(np.sqrt(n_plots_per_page)) # number of rows these pages will need
         n_cols = int(np.ceil(n_plots_per_page/n_rows)) # number of columns these pages will need
 
+        psds_i = 0 # index of the data in psds to plot
         stop = False
         for page_i in range(n_pages): # for each page of this type
 
@@ -49,22 +49,24 @@ def psd(psds, plot_shuffled=False, n_plots_per_page=6, freq_limit=50):
                 for col_i in range(n_cols): # ... and from left to right
                     if stop is False: # if there is still data to plot for this type
                         
-                        freq_limit_i = len(psds['freqs'][psds_i])
+                        data_i = types_idx[type_i][psds_i]
+
+                        freq_limit_i = len(psds['freqs'][data_i])
                         if freq_limit != None:
-                            freq_limit_i = np.argmin(np.abs(psds['freqs'][psds_i]-freq_limit))
+                            freq_limit_i = np.argmin(np.abs(psds['freqs'][data_i]-freq_limit))
 
-                        mean = np.mean(psds['psd'][psds_i][:freq_limit_i],1)
-                        std = np.std(psds['psd'][psds_i][:freq_limit_i],1)
+                        mean = np.mean(psds['psd'][data_i][:freq_limit_i],1)
+                        std = np.std(psds['psd'][data_i][:freq_limit_i],1)
 
-                        axs[row_i, col_i].fill_between(psds['freqs'][psds_i][:freq_limit_i], mean+std, mean-std,
+                        axs[row_i, col_i].fill_between(psds['freqs'][data_i][:freq_limit_i], mean+std, mean-std,
                                                        color='orange', alpha=.3)
-                        axs[row_i, col_i].plot(psds['freqs'][psds_i][:freq_limit_i], mean, color='orange', linewidth=2)
-                        axs[row_i, col_i].set_title(psds['ch_name'][psds_i])
+                        axs[row_i, col_i].plot(psds['freqs'][data_i][:freq_limit_i], mean, color='orange', linewidth=2)
+                        axs[row_i, col_i].set_title(psds['ch_name'][data_i])
                         axs[row_i, col_i].set_xlabel('Frequency (Hz)')
                         axs[row_i, col_i].set_ylabel('Power')
 
                         psds_i += 1 # moves on to the next data to plot in psds
-                        if psds_i == len(psds['ch_name']): # if there is no more data to plot for this type
+                        if data_i == types_idx[type_i][-1]: # if there is no more data to plot for this type
                             stop = True
                             extra = n_plots_per_page*n_pages - n_plots # checks if there are extra subplots than can be removed
 

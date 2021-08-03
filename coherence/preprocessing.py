@@ -49,12 +49,35 @@ def epoch_data(raw, epoch_len, include_shuffled=False):
         epoched_shuffled = epoched.copy()
         epoched_shuffled.pick_types(seeg=True)
         ch_name = epoched_shuffled.ch_names[0]
+
+        """
+        # Moves last epoch to beginning
         epoched_shuffled.rename_channels({ch_name: 'SHUFFLED_'+ch_name})
         shuffled_order = [len(epoched_shuffled.events)-1,
                           *np.arange(0,len(epoched_shuffled.events)-1)]
         epoched_shuffled = mne.concatenate_epochs([epoched_shuffled[shuffled_order]])
+        """
+        """
+        # Randomly shuffles all epochs
+        epoched_shuffled.rename_channels({ch_name: 'SHUFFLED_'+ch_name})
+        np.random.seed(seed=0)
+        shuffled_order = np.arange(0,len(epoched_shuffled.events))
+        np.random.shuffle(shuffled_order)
+        epoched_shuffled = mne.concatenate_epochs([epoched_shuffled[shuffled_order]])
+        """
+        
+        # Randomly shuffles all epochs x times to create x shuffled channels
+        np.random.seed(seed=0)
+        n_shuffles = 10
+        shuffled_order = []
+        shuffled_epochs = []
+        for i in range(n_shuffles):
+            shuffled_order = np.arange(0,len(epoched_shuffled.events))
+            np.random.shuffle(shuffled_order)
+            shuffled_epochs.append(mne.concatenate_epochs([epoched_shuffled[shuffled_order]]))
+            shuffled_epochs[i].rename_channels({ch_name: 'SHUFFLED-'+str(i)+'_'+ch_name})
     
-    return epoched.add_channels([epoched_shuffled])
+    return epoched.add_channels(shuffled_epochs) #epoched.add_channels([epoched_shuffled])
 
 
 def process(raw, annotations=None, channels=None, resample=None, highpass=None,
