@@ -61,5 +61,5 @@ cohs = processing.get_coherence(processed, cwt_freqs)
 
 
 """ Plotting """
-plotting.psd(psds)
-plotting.coherence(cohs)
+plotting.psd(psds, freq_limit=50)
+plotting.coherence(cohs, freq_limit=50)

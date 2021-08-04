@@ -9,7 +9,7 @@ def freq_band_info():
         'alpha':     [8, 12],
         'low beta':  [13, 20],
         'high beta': [20, 35],
-        'all beta':  [13, 35],
+        #'all beta':  [13, 35],
         'gamma':     [60, 90]
     }
 
