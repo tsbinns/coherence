@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def psd(psds, plot_shuffled=False, n_plots_per_page=6, freq_limit=None):
+def psd(psds, plot_shuffled=False, n_plots_per_page=6, freq_limit=None, normalise=True):
     
 
     # Discards shuffled data from being plotted, if requested
@@ -30,6 +30,10 @@ def psd(psds, plot_shuffled=False, n_plots_per_page=6, freq_limit=None):
                 types_idx[i].append(j)
     
     # Plotting
+    if normalise is True:
+        ylabel = 'Normalised Power (%)'
+    else:
+        ylabel = 'Power'
     for type_i, type in enumerate(types):
 
         n_plots = len(types_idx[type_i]) # number of plots to make for this type
@@ -51,20 +55,21 @@ def psd(psds, plot_shuffled=False, n_plots_per_page=6, freq_limit=None):
                         
                         data_i = types_idx[type_i][psds_i]
 
+                        if normalise is True:
+                            power = (psds['psd'][data_i].copy()*100)/max(psds['psd'][data_i]) # converts data to % of maximum power
+                        else:
+                            power = psds['psd'][data_i]
+                        
                         if freq_limit != None:
+                            # finds limit of frequencies to plot
                             freq_limit_i = int(np.where(psds['freqs'][psds_i] == psds['freqs'][psds_i][psds['freqs'][psds_i] >= freq_limit].min())[0])
                         else:
                             freq_limit_i = len(psds['freqs'][psds_i])
 
-                        mean = np.mean(psds['psd'][data_i][:freq_limit_i+1],1)
-                        std = np.std(psds['psd'][data_i][:freq_limit_i+1],1)
-
-                        axs[row_i, col_i].fill_between(psds['freqs'][data_i][:freq_limit_i+1], mean+std, mean-std,
-                                                       color='orange', alpha=.3)
-                        axs[row_i, col_i].plot(psds['freqs'][data_i][:freq_limit_i+1], mean, color='orange', linewidth=2)
+                        axs[row_i, col_i].plot(psds['freqs'][data_i][:freq_limit_i+1], power[:freq_limit_i+1], color='orange', linewidth=2)
                         axs[row_i, col_i].set_title(psds['ch_name'][data_i])
                         axs[row_i, col_i].set_xlabel('Frequency (Hz)')
-                        axs[row_i, col_i].set_ylabel('Power')
+                        axs[row_i, col_i].set_ylabel(ylabel)
 
                         psds_i += 1 # moves on to the next data to plot in psds
                         if data_i == types_idx[type_i][-1]: # if there is no more data to plot for this type

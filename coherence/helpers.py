@@ -17,23 +17,43 @@ def freq_band_info():
 
 
 
-def freq_band_indexes(freqs, bands):
+def freq_band_indices(freqs, bands, include_outside=False):
+
+    # If the requested bands did not align with the frequencies (e.g. a band of 3-5 was requested, but the frequencies
+    # are [0, 2, 4, 6, 8]), include_shuffled=False would not include the indices of frequency values outside the requested band
+    # (i.e. this function would return [2], corresponding to 4 Hz), whereas include_shuffled=True would include these extra
+    # indices (i.e would return [1, 2, 3], corresponding to 2, 4, and 6 Hz)
 
     keys = bands.keys()
     idxs = deepcopy(bands)
 
     for key in keys:
         band_freqs = bands[key]
+
         if len(band_freqs) == 2:
             if band_freqs[0] < band_freqs[1]:
                 if min(freqs) > band_freqs[1] or max(freqs) < band_freqs[0]: # if the frequency to index is outside the range (too low or too high)
                     idxs[key] = [np.nan, np.nan]
                     print('WARNING: The requested frequency band %d is not contained in the data.' %(band_freqs))
                 else:
-                    idxs[key][0] = int(np.where(freqs == freqs[freqs >= band_freqs[0]].min())[0]) # Finds value closest to, but higher than the requested frequency
-                    idxs[key][1] = int(np.where(freqs == freqs[freqs <= band_freqs[1]].max())[0]) # Finds value closest to, but lower than the requested frequency
+                    if min(freqs) > band_freqs[0]: # if the minimum frequency available is higher than lower band range, change it
+                        band_freqs[0] = min(freqs)
+                    if max(freqs) < band_freqs[1]: # if the maximum frequency available is lower than the higher band range, change it
+                        band_freqs[1] = max(freqs)
+                    if include_outside == False: # only gets frequencies within the band
+                        # finds value closest to, but equal to/higher than the requested frequency
+                        idxs[key][0] = int(np.where(freqs == freqs[freqs >= band_freqs[0]].min())[0])
+                        # finds value closest to, but equal to/lower than the requested frequency
+                        idxs[key][1] = int(np.where(freqs == freqs[freqs <= band_freqs[1]].max())[0])
+                    else: # gets frequencies outside the band
+                        # finds value closest to, but equal to/lower than the requested frequency
+                        idxs[key][0] = int(np.where(freqs == freqs[freqs <= band_freqs[0]].max())[0])
+                        # finds value closest to, but equal to/higher than the requested frequency
+                        idxs[key][1] = int(np.where(freqs == freqs[freqs >= band_freqs[1]].min())[0])
+
             else:
                 raise ValueError('The first frequency value must be lower than the second value.')
+                
         else:
             raise ValueError('There should be two entries for the frequency band, not %d.' %(len(band_freqs)))
 
@@ -136,7 +156,7 @@ def coherence_by_band(data):
     data['fbands_fmax'] = [] # frequency of maximum coherence in each frequency band
 
     for i in range(len(data['coh'])):
-        band_is = freq_band_indexes(data['freqs'][i], bands)
+        band_is = freq_band_indices(data['freqs'][i], bands)
         data['fbands'].append(list(bands.keys()))
         data['fbands_avg'].append([])
         data['fbands_max'].append([])

@@ -40,7 +40,9 @@ inc_shuffled = True
 # Spectral analysis settings
 l_freq = highpass
 h_freq = 100
+normalise_psd = True
 cwt_freqs = np.arange(highpass, h_freq+1)
+coh_method = 'imcoh'
 
 
 """ Loads data """
@@ -56,10 +58,10 @@ annots = None #read_annotations(ANNOT_PATH)
 processed = preprocessing.process(raw, annotations=annots, channels=chans, resample=resample,
                                   highpass=highpass, lowpass=lowpass, notch=notch,
                                   epoch_len=epoch_len, include_shuffled=inc_shuffled)
-psds = processing.get_psd(processed, l_freq, h_freq)
-cohs = processing.get_coherence(processed, cwt_freqs)
+psds = processing.get_psd(processed, l_freq, h_freq, normalise_psd, notch[0])
+cohs = processing.get_coherence(processed, cwt_freqs, coh_method)
 
 
 """ Plotting """
-plotting.psd(psds, freq_limit=50)
+plotting.psd(psds, freq_limit=50, normalise=normalise_psd)
 plotting.coherence(cohs, freq_limit=50)
