@@ -5,34 +5,67 @@ import numpy as np
 import helpers
 
 
-def normalise(psds, notch=50, window=4):
 
-    # window is window of frequencies around notch filter frequencies to exclude (e.g 50 Hz notch, 4 Hz window => 46-54 Hz exclusion)
+def normalise(psds, line_noise=50, window=5):
+    """ Normalises PSD data to the % total power.
 
-    for psd_i, psd in enumerate(psds['psd']):
+    PARAMETERS
+    ----------
+    psds : dictionary
+        A dictionary containing PSD data with keys 'psd' and 'freqs'. 'psd' is an array of shape (n_channels,
+        n_frequencies) containing power information. 'freqs' is an array of shape (n_channels, n_frequencies) containing
+        the corresponding frequencies (in Hz) for the data in 'psd'.
+    line_noise : int | float
+        The frequency (in Hz) of line noise in the recordings. 50 Hz by default.
+    window : int | float
+        The frequency (in Hz) around specific frequencies for which the power is omitted from the normalisation. The
+        specific frequencies are 0 Hz (for low-frequency noise), and the line noise (plus its harmonics, e.g. 50, 100,
+        and 150 Hz). The window is applied to both sides of these frequencies (e.g. a window of 5 Hz would result in the
+        frequencies 45-55 Hz to be ommited).
 
-        notch_freqs = np.arange(notch, psds['freqs'][psd_i][-1]+1, notch) # frequencies of line noise
-        notch_window = {} # windows around these line noise frequencies
-        for freq in notch_freqs:
-            notch_window[freq] = [freq-window, freq+window]
-        window_idc = helpers.freq_band_indices(psds['freqs'][psd_i], notch_window, include_outside=True) # indices of these windows
+    RETURNS
+    ----------
+    psds : dictionary
+        The normalised PSD data.
+    """
+
+    for psd_i, psd in enumerate(psds['psd']): # for each channel of data
+
+        exclude_freqs = np.arange(0, psds['freqs'][psd_i][-1]+1, line_noise) # low and line noise frequencies to exclude
+        exclude_window = {} # windows around these line noise frequencies
+        for freq in exclude_freqs:
+            exclude_window[freq] = [freq-window, freq+window]
+        window_idc = helpers.freq_band_indices(psds['freqs'][psd_i], exclude_window, include_outside=True) # indices... 
+        # ... of these windows
 
         exclude_idc = [] # line noise-associated frequency indices to exclude
         for wind in window_idc.values():
-            exclude_idc.extend(np.arange(wind[0], wind[1]+1))
+            if not np.isnan(np.sum(wind)):
+                exclude_idc.extend(np.arange(wind[0], wind[1]+1))
         
         keep_idc = [] # indices of frequencies to normalise data
         freq_idc = np.arange(len(psds['freqs'][psd_i])) # indices of frequencies in the data
         keep_idc = [x for x in freq_idc if x not in exclude_idc]
 
-        # Normalises data
-        psds['psd'][psd_i] = psds['psd'][psd_i] / np.sum(psds['psd'][psd_i][keep_idc])
+        # Normalises data to % total power
+        psds['psd'][psd_i] = (psds['psd'][psd_i] / np.sum(psds['psd'][psd_i][keep_idc]))*100
         
+
     return psds
 
 
 
-def get_psd(epoched, l_freq=0, h_freq=100, norm=True, notch=50):
+def get_psd(epoched, l_freq=0, h_freq=100, norm=True, line_noise=50):
+    """ Calculates the PSDs of the epoched data.
+    
+    PARAMETERS
+    ----------
+
+
+    RETURNS
+    ----------
+    
+    """
     types = epoched.get_channel_types()
     names = epoched.ch_names
     cortical = [] # index of ECoG channels
@@ -70,12 +103,12 @@ def get_psd(epoched, l_freq=0, h_freq=100, norm=True, notch=50):
 
     # Normalise PSDs
     if norm is True:
-        psd_data = normalise(psd_data, notch)
+        psd_data = normalise(psd_data, line_noise)
 
     return psd_data
 
 
-def get_coherence(epoched, cwt_freqs, method='coh'):
+def get_coherence(epoched, cwt_freqs, methods='coh'):
     types = epoched.get_channel_types()
     names = epoched.ch_names
     cortical = [] # index of ECoG channels

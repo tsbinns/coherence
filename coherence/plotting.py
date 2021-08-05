@@ -54,11 +54,6 @@ def psd(psds, plot_shuffled=False, n_plots_per_page=6, freq_limit=None, normalis
                     if stop is False: # if there is still data to plot for this type
                         
                         data_i = types_idx[type_i][psds_i]
-
-                        if normalise is True:
-                            power = (psds['psd'][data_i].copy()*100)/max(psds['psd'][data_i]) # converts data to % of maximum power
-                        else:
-                            power = psds['psd'][data_i]
                         
                         if freq_limit != None:
                             # finds limit of frequencies to plot
@@ -66,7 +61,7 @@ def psd(psds, plot_shuffled=False, n_plots_per_page=6, freq_limit=None, normalis
                         else:
                             freq_limit_i = len(psds['freqs'][psds_i])
 
-                        axs[row_i, col_i].plot(psds['freqs'][data_i][:freq_limit_i+1], power[:freq_limit_i+1], color='orange', linewidth=2)
+                        axs[row_i, col_i].plot(psds['freqs'][data_i][:freq_limit_i+1], psds['psd'][data_i][:freq_limit_i+1], color='orange', linewidth=2)
                         axs[row_i, col_i].set_title(psds['ch_name'][data_i])
                         axs[row_i, col_i].set_xlabel('Frequency (Hz)')
                         axs[row_i, col_i].set_ylabel(ylabel)
@@ -198,7 +193,7 @@ def coherence(cohs, n_plots_per_page=6, freq_limit=None):
                     axs[row_i, col_i].set_xticks((start_locs-width/2)+(width*(n_bars/2)))
                     axs[row_i, col_i].set_xticklabels(labels)
                     axs[row_i, col_i].set_ylabel('Coherence')
-                    axs[row_i, col_i].legend(loc='lower left')
+                    axs[row_i, col_i].legend(loc='best')
 
                     ylim = axs[row_i, col_i].get_ylim()
                     for fmax_i, fmax in enumerate(fmaxs):

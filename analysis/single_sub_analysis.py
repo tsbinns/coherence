@@ -27,9 +27,8 @@ datatype = 'ieeg'
 
 # Analysis
 # Preprocessing settings
-chans = ['ECOG_L_1_SMC_AT', 'ECOG_L_2_SMC_AT', 'ECOG_L_3_SMC_AT',
-         'ECOG_L_4_SMC_AT', 'ECOG_L_5_SMC_AT', 'ECOG_L_6_SMC_AT',
-         'LFP_L_1_STN_BS', 'LFP_L_8_STN_BS']
+chans = ['ECOG_L_1_SMC_AT', 'ECOG_L_2_SMC_AT', 'ECOG_L_3_SMC_AT', 'ECOG_L_4_SMC_AT', 'ECOG_L_5_SMC_AT',
+         'ECOG_L_6_SMC_AT', 'LFP_L_1_STN_BS', 'LFP_L_8_STN_BS']
 resample = 250 # Hz
 highpass = 3 # Hz
 lowpass = 125 # Hz
@@ -46,18 +45,15 @@ coh_method = 'imcoh'
 
 
 """ Loads data """
-bids_path = BIDSPath(subject=sub, session=ses, task=task, acquisition=acq,
-                     run=run, root=BIDS_PATH)
-ANNOT_PATH = os.path.join(BIDS_PATH, 'sub-'+sub, 'ses-'+ses, datatype,
-                          bids_path.basename+'_annotations.csv')
+bids_path = BIDSPath(subject=sub, session=ses, task=task, acquisition=acq, run=run, root=BIDS_PATH)
+ANNOT_PATH = os.path.join(BIDS_PATH, 'sub-'+sub, 'ses-'+ses, datatype, bids_path.basename+'_annotations.csv')
 raw = read_raw_bids(bids_path=bids_path, verbose=False)
 annots = None #read_annotations(ANNOT_PATH)
 
 
 """ Analysis """
-processed = preprocessing.process(raw, annotations=annots, channels=chans, resample=resample,
-                                  highpass=highpass, lowpass=lowpass, notch=notch,
-                                  epoch_len=epoch_len, include_shuffled=inc_shuffled)
+processed = preprocessing.process(raw, epoch_len, annotations=annots, channels=chans, resample=resample,
+                                  highpass=highpass, lowpass=lowpass, notch=notch,  include_shuffled=inc_shuffled)
 psds = processing.get_psd(processed, l_freq, h_freq, normalise_psd, notch[0])
 cohs = processing.get_coherence(processed, cwt_freqs, coh_method)
 

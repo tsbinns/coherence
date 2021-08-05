@@ -2,22 +2,52 @@ import mne
 import numpy as np
 
 
-def annotations_get_bad(annot):
-    i = np.flatnonzero(np.char.startswith(annot.description, 'BAD'))
-    return annot[i], i
-
 
 def annotations_replace_dc(raw):
+    """ Sets the 'DC Corrections' annotation to be 'BAD'
+
+    PARAMETERS
+    ----------
+    raw : MNE Raw object
+        The data whose annotations are to be changed.
+
+    RETURNS
+    ----------
+    raw : MNE Raw object
+        The data whose annotations have been changed.
+    
+    """
+
     raw.annotations.duration[raw.annotations.description == 'DC Correction/'] = 6
     raw.annotations.onset[raw.annotations.description == 'DC Correction/'] = raw.annotations.onset[
-                                                                                 raw.annotations.description == 'DC Correction/'] - 2
+        raw.annotations.description == 'DC Correction/'] - 2
     raw.annotations.description[raw.annotations.description == 'DC Correction/'] = 'BAD'
+
+
     return raw
 
 
+
 def crop_artefacts(raw):
+    """ Removes segments labelled as artefacts from the data in lieu of a way to perform this in MNE.
+    
+    PARAMETERS
+    ----------
+    raw : MNE Raw object
+        The data whose artefact segments are to be removed.
+
+    RETURNS
+    ----------
+    raw : MNE Raw object
+        The data whose artefact segments have been removed.
+    """
+
+    # Marks the 'DC Correction' annotation as 'BAD' and extracts the 'BAD' annotations
     raw = annotations_replace_dc(raw)
-    bad, bad_idx = annotations_get_bad(raw.annotations)
+    bad_idc = np.flatnonzero(np.char.startswith(raw.annotations.description, 'BAD'))
+    bad = raw.annotations[bad_idc]
+
+    # Cuts the 'BAD' segments from the data
     start = 0
     stop = bad.onset[0]
     cropped_raw = raw.copy().crop(start, stop)
@@ -36,35 +66,43 @@ def crop_artefacts(raw):
         if 0 < start < stop < raw._last_time:
             cropped_raw = mne.concatenate_raws([cropped_raw, raw.copy().crop(start, stop)])
             print((start, stop))
-    cropped_raw.annotations = cropped_raw.annotations.pop(bad_idx)
+    cropped_raw.annotations = cropped_raw.annotations.pop(bad_idc)
+
 
     return cropped_raw
 
 
-def epoch_data(raw, epoch_len, include_shuffled=False):
+
+def epoch_data(raw, epoch_len, include_shuffled=True):
+    """ Epochs the data.
+
+    PARAMETERS
+    ----------
+    raw : MNE Raw object
+        The data to be epoched.
+    epoch_len : int | float
+        The duration (in seconds) of segments to epoch the data into.
+    include_shuffled : bool
+        States whether or not new channels of LFP data should be generated in which the order of epochs is shuffled
+        randomly. When the coherence of this shuffled data is compared to genuine data, a baseline coherence is produced
+        against which genuine value can be compared. If True (default), shuffled data is generated.
+    
+    RETURNS
+    ----------
+    epoched : MNE Epoch object
+        The epoched data.    
+    """
+
+    # Epochs data
     epoched = mne.make_fixed_length_epochs(raw, epoch_len)
-    epoched.load_data()
 
+    # Optionally adds shuffled data
     if include_shuffled:
-        epoched_shuffled = epoched.copy()
-        epoched_shuffled.pick_types(seeg=True)
-        ch_name = epoched_shuffled.ch_names[0]
 
-        """
-        # Moves last epoch to beginning
-        epoched_shuffled.rename_channels({ch_name: 'SHUFFLED_'+ch_name})
-        shuffled_order = [len(epoched_shuffled.events)-1,
-                          *np.arange(0,len(epoched_shuffled.events)-1)]
-        epoched_shuffled = mne.concatenate_epochs([epoched_shuffled[shuffled_order]])
-        """
-        """
-        # Randomly shuffles all epochs
-        epoched_shuffled.rename_channels({ch_name: 'SHUFFLED_'+ch_name})
-        np.random.seed(seed=0)
-        shuffled_order = np.arange(0,len(epoched_shuffled.events))
-        np.random.shuffle(shuffled_order)
-        epoched_shuffled = mne.concatenate_epochs([epoched_shuffled[shuffled_order]])
-        """
+        epoched.load_data()
+        epoched_shuffled = epoched.copy()
+        epoched_shuffled.pick_types(dbs=True)
+        ch_name = epoched_shuffled.ch_names[0]
         
         # Randomly shuffles all epochs x times to create x shuffled channels
         np.random.seed(seed=0)
@@ -76,13 +114,51 @@ def epoch_data(raw, epoch_len, include_shuffled=False):
             np.random.shuffle(shuffled_order)
             shuffled_epochs.append(mne.concatenate_epochs([epoched_shuffled[shuffled_order]]))
             shuffled_epochs[i].rename_channels({ch_name: 'SHUFFLED-'+str(i)+'_'+ch_name})
+        
+        epoched.add_channels(shuffled_epochs)
+
     
-    return epoched.add_channels(shuffled_epochs) #epoched.add_channels([epoched_shuffled])
+    return epoched
 
 
-def process(raw, annotations=None, channels=None, resample=None, highpass=None,
-            lowpass=None, notch=None, epoch_len=None, include_shuffled=False,
-            verbose=True):
+
+def process(raw, epoch_len, annotations=None, channels=None, resample=None, highpass=None, lowpass=None, notch=None,
+            include_shuffled=True, verbose=True):
+    """ Preprocessing of the raw data in preparation for coherence analysis.
+    
+    PARAMETERS
+    ----------
+    raw : MNE Raw object
+        The data to be processed.
+    epoch_len : int | float
+        The duration (in seconds) of segments to epoch the data into.
+    annotations : MNE Annotations object | None (default)
+        The annotations to eliminate BAD segments from the data.
+    channels : list of str | None (default)
+        The names of the channels to pick from the data.
+    resample : int | float | None (default)
+        The frequency (in Hz) at which to resample the data.
+    highpass : int | float | None (default)
+        The frequency (in Hz) at which to highpass filter the data.
+    lowpass : int | float | None (default)
+        The frequency (in Hz) at which to lowpass filter the data.
+    notch : list of int | list of float | None (default)
+        The frequencies (in Hz) at which to notch filter the data.
+    include_shuffled : bool
+        States whether or not new channels of LFP data should be generated in which the order of epochs is shuffled
+        randomly. When the coherence of this shuffled data is compared to genuine data, a baseline coherence is produced
+        against which genuine value can be compared. If True (default), shuffled data is generated.
+    verbose : bool
+        States whether or not updates on the various processing stages should be given. If True (default), these updates
+        are given.
+
+    RETURNS
+    ----------
+    epoched : MNE Epoch object
+        The processed, epoched data.
+
+    """
+
     # Adds annotations and removes artefacts
     if annotations != None:
         no_annots = raw._annotations
@@ -126,12 +202,6 @@ def process(raw, annotations=None, channels=None, resample=None, highpass=None,
     
     # Bandpass filters data
     if highpass != None or lowpass != None:
-        """
-        if bandpass[1] >= raw.info['sfreq']/2:
-            bandpass[1] = raw.info['sfreq']/2-1
-            if verbose:
-                print("Reducing the upper limit of the bandpass frequency to ", bandpass[1], "Hz")
-        """
         raw.filter(highpass, lowpass)
         if verbose:
             print("Bandpass filtering the data")
@@ -147,6 +217,7 @@ def process(raw, annotations=None, channels=None, resample=None, highpass=None,
         epoched = epoch_data(raw, epoch_len, include_shuffled)
         if verbose:
             print("Epoching data")
+
 
     return epoched
 

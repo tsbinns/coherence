@@ -2,6 +2,10 @@ import numpy as np
 from copy import deepcopy
 
 
+
+
+
+
 def freq_band_info():
 
     bands = {
@@ -34,7 +38,7 @@ def freq_band_indices(freqs, bands, include_outside=False):
             if band_freqs[0] < band_freqs[1]:
                 if min(freqs) > band_freqs[1] or max(freqs) < band_freqs[0]: # if the frequency to index is outside the range (too low or too high)
                     idxs[key] = [np.nan, np.nan]
-                    print('WARNING: The requested frequency band %d is not contained in the data.' %(band_freqs))
+                    print('WARNING: The requested frequency band [%d, %d] is not contained in the data.' %(band_freqs[0], band_freqs[1]))
                 else:
                     if min(freqs) > band_freqs[0]: # if the minimum frequency available is higher than lower band range, change it
                         band_freqs[0] = min(freqs)
