@@ -48,25 +48,28 @@ def crop_artefacts(raw):
     bad = raw.annotations[bad_idc]
 
     # Cuts the 'BAD' segments from the data
-    start = 0
-    stop = bad.onset[0]
-    cropped_raw = raw.copy().crop(start, stop)
-    for n, a in enumerate(bad, 0):
-        if n + 1 < len(bad):
-            stop = bad.onset[n + 1]
-        else:
-            stop = raw._last_time
+    if bad:
+        start = 0
+        stop = bad.onset[0]
+        cropped_raw = raw.copy().crop(start, stop)
+        for n, a in enumerate(bad, 0):
+            if n + 1 < len(bad):
+                stop = bad.onset[n + 1]
+            else:
+                stop = raw._last_time
 
-        new_start = bad.onset[n] + bad.duration[n]
-        if new_start > start:
-            start = new_start
+            new_start = bad.onset[n] + bad.duration[n]
+            if new_start > start:
+                start = new_start
 
-        if stop > raw._last_time:
-            stop = raw._last_time
-        if 0 < start < stop < raw._last_time:
-            cropped_raw = mne.concatenate_raws([cropped_raw, raw.copy().crop(start, stop)])
-            print((start, stop))
-    cropped_raw.annotations = cropped_raw.annotations.pop(bad_idc)
+            if stop > raw._last_time:
+                stop = raw._last_time
+            if 0 < start < stop < raw._last_time:
+                cropped_raw = mne.concatenate_raws([cropped_raw, raw.copy().crop(start, stop)])
+                print((start, stop))
+        cropped_raw.annotations = cropped_raw.annotations.pop(bad_idc)
+    else:
+        cropped_raw = raw
 
 
     return cropped_raw
@@ -179,7 +182,7 @@ def process(raw, epoch_len, annotations=None, channels=None, resample=None, high
     new_types = {}
     for name in names:
         if name[:3] == 'LFP':
-            new_types[name] = 'seeg'
+            new_types[name] = 'dbs'
     raw.set_channel_types(new_types)
 
     # Rereferencing

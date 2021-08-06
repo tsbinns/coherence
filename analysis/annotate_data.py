@@ -18,7 +18,7 @@ sub = '004'
 ses = 'EphysMedOff01'
 task = 'Rest'
 acq = 'StimOff'
-run = '02'
+run = '01'
 datatype = 'ieeg'
 
 

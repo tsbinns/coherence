@@ -2,6 +2,7 @@ from mne.io.brainvision.brainvision import _parse_impedance_ranges
 import mne.time_frequency as tf
 import mne.connectivity as con
 import numpy as np
+import pandas as pd
 import helpers
 
 
@@ -29,7 +30,7 @@ def normalise(psds, line_noise=50, window=5):
         The normalised PSD data.
     """
 
-    for psd_i, psd in enumerate(psds['psd']): # for each channel of data
+    for psd_i in range(len(psds['psd'])): # for each channel of data
 
         exclude_freqs = np.arange(0, psds['freqs'][psd_i][-1]+1, line_noise) # low and line noise frequencies to exclude
         exclude_window = {} # windows around these line noise frequencies
@@ -74,29 +75,24 @@ def get_psd(epoched, l_freq=0, h_freq=100, norm=True, line_noise=50):
         if type == 'ecog':
             cortical.append(i)
             types[i] = 'cortical'
-        elif type == 'seeg':
+        elif type == 'dbs':
             deep.append(i)
             types[i] = 'deep'
     used_channels = [*cortical, *deep]
-
-    psd_data = {'ch_name': [names[i] for i in used_channels],
-                'ch_type': [types[i] for i in used_channels],
-                'psd':     [],
-                'freqs':   []}
+    ch_names = [names[i] for i in used_channels]
+    ch_types = [types[i] for i in used_channels]
 
     freqs = np.arange(l_freq, h_freq+1)
     psds = tf.tfr_morlet(epoched, freqs, n_cycles=9, return_itc=False, average=False)
 
-    """
-    psds, freqs = tf.psd_welch(epoched)
-    psds = np.log10(psds) * 10.
-    psds = psds.mean(0)
-    """
-
     psds = psds.data.mean(-1) # averages over time points in each epoch
     psds = np.transpose(psds, (1,2,0)) # changes dimensions to channels x freqs x epochs
-    psd_data['psd'] = psds.mean(-1) # averages over epochs
-    psd_data['freqs'] = np.tile(freqs, [len(used_channels),1])
+    psds = psds.mean(-1) # averages over epochs
+    freqs = np.tile(freqs, [len(used_channels),1])
+
+    # Collects data
+    psd_data = list(zip(ch_names, ch_types, freqs, psds))
+    psd_data = pd.DataFrame(data=psd_data, columns=['ch_name', 'ch_type', 'freqs', 'psd'])
 
     # Average shuffled LFP values
     psd_data = helpers.average_shuffled(psd_data, ['psd', 'freqs'])
@@ -105,10 +101,17 @@ def get_psd(epoched, l_freq=0, h_freq=100, norm=True, line_noise=50):
     if norm is True:
         psd_data = normalise(psd_data, line_noise)
 
-    return psd_data
+    # Gets keys in psd
+    psd_keys = {
+        'x': ['ch_name', 'ch_type', 'freqs'], # independent & control variables
+        'y': ['psd'] # dependent variables
+        }
 
 
-def get_coherence(epoched, cwt_freqs, methods='coh'):
+    return psd_data, psd_keys
+
+
+def get_coherence(epoched, cwt_freqs, methods=['coh', 'imcoh']):
     types = epoched.get_channel_types()
     names = epoched.ch_names
     cortical = [] # index of ECoG channels
@@ -117,28 +120,43 @@ def get_coherence(epoched, cwt_freqs, methods='coh'):
         if type == 'ecog':
             cortical.append(i)
             types[i] = 'cortical'
-        elif type == 'seeg':
+        elif type == 'dbs':
             deep.append(i)
             types[i] = 'deep'
     indices = con.seed_target_indices(cortical, deep)
 
-    coh_data = {'ch_name_cortical': [names[i] for i in indices[0]],
-                'ch_name_deep':     [names[i] for i in indices[1]],
-                'coh':              [],
-                'freqs':            []}
+    ch_names_cortical = [names[i] for i in indices[0]]
+    ch_names_deep = [names[i] for i in indices[1]]
 
     cohs = []
-    coh, freqs, _, _, _ = con.spectral_connectivity(epoched, method=method, indices=indices, sfreq=epoched.info['sfreq'],
-                                                    mode='cwt_morlet', cwt_freqs=cwt_freqs, cwt_n_cycles=9)
-    cohs = np.abs(np.asarray(coh).mean(-1))
-    coh_data['coh'] = cohs
-    coh_data['freqs'] = np.tile(freqs, [len(indices[0]),1])
+    for method in methods:
+        coh, freqs, _, _, _ = con.spectral_connectivity(epoched, method=method, indices=indices,
+                                                        sfreq=epoched.info['sfreq'], mode='cwt_morlet',
+                                                        cwt_freqs=cwt_freqs, cwt_n_cycles=9)
+        if method == 'imcoh':
+            coh = np.abs(coh)
+        cohs.append(np.asarray(coh).mean(-1))
+    freqs = np.tile(freqs, [len(indices[0]),1])
+
+    # Collects data
+    coh_data = list(zip(ch_names_cortical, ch_names_deep, freqs, *cohs[:]))
+    coh_data = pd.DataFrame(data=coh_data, columns=['ch_name_cortical', 'ch_name_deep', 'freqs', *methods])
 
     # Finds the peak and average coherence values in each frequency band
-    coh_data = helpers.coherence_by_band(coh_data)
+    coh_data = helpers.coherence_by_band(coh_data, methods)
 
     # Average shuffled LFP values
-    coh_data = helpers.average_shuffled(coh_data, ['coh', 'freqs', 'fbands_avg', 'fbands_max', 'fbands_fmax'], 'ch_name_deep')
+    fbands_keynames = ['fbands_avg_', 'fbands_max_', 'fbands_fmax_']
+    fbands_keys = []
+    for method in methods:
+        for keyname in fbands_keynames:
+            fbands_keys.append(keyname+method)
+    coh_data = helpers.average_shuffled(coh_data, [*methods, *fbands_keys], 'ch_name_deep')
     
+    # Gets keys in psd
+    coh_keys = {
+        'x': ['ch_name_cortical', 'ch_name_deep', 'freqs', 'fbands'], # independent & control variables
+        'y': [*methods, *fbands_keys] # dependent variables
+        }
 
-    return coh_data
+    return coh_data, coh_keys
