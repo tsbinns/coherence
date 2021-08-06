@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import os.path
 
 
-def annotate(raw, ANNOT_PATH):
+def annotate(raw, annot_path):
     """ Plot raw data for annotation.
 
     PARAMETERS
@@ -37,22 +37,21 @@ def annotate(raw, ANNOT_PATH):
     while not get_answer:
         save = input('Do you want to save these annotations? (y/n): ')
         if save == 'y':
-            if os.path.isfile(ANNOT_PATH):
+            if os.path.isfile(annot_path):
                 save = input('This will overwite the existing annotations. Do you want to continue? (y/n): ')
                 if save == 'y':
-                    print('Saving annotations to: ', ANNOT_PATH)
-                    raw.annotations.save(ANNOT_PATH, overwrite=True)
+                    print('Saving annotations to: ', annot_path)
+                    raw.annotations.save(annot_path, overwrite=True)
                     get_answer = True
                 else:
                     break
             else:
-                print('Saving annotations to: ', ANNOT_PATH)
-                raw.annotations.save(ANNOT_PATH, overwrite=True)
+                print('Saving annotations to: ', annot_path)
+                raw.annotations.save(annot_path, overwrite=True)
                 get_answer = True
         elif save == 'n':
             print('Discarding annotations')
             get_answer = True
         else:
             print('This is not a valid input. Try again.')
-    
-    
+

@@ -3,7 +3,25 @@ import numpy as np
 
 
 def psd(psds, plot_shuffled=False, n_plots_per_page=6, freq_limit=None):
+    """ Plots PSDs of the data.
+
+    PARAMETERS
+    ----------
+    psds : pandas DataFrame
+        A DataFrame containing the channel names, their types, and the normalised power values.
+    plot_shuffled : bool, default False
+        Whether or not to plot PSDs for the shuffled LFP data.
+    n_plots_per_page : int
+        The number of subplots to include on each page. 6 by default.
+    freq_limit : int | float
+        The frequency (in Hz) at which to stop plotting data. If None (default), up to the maximum frequency in the data
+        is plotted.
+
+    RETURNS
+    ----------
+    N/A
     
+    """
 
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
@@ -13,8 +31,6 @@ def psd(psds, plot_shuffled=False, n_plots_per_page=6, freq_limit=None):
                 remove.append(i)
         psds.drop(remove, inplace=True)
                 
-    
-
     # Gets types of channels present in psds and their indexes
     types = set(psds['ch_type'])
     types_idx = []
@@ -69,9 +85,28 @@ def psd(psds, plot_shuffled=False, n_plots_per_page=6, freq_limit=None):
 
 
 def coherence(cohs, n_plots_per_page=6, freq_limit=None, methods=['coh', 'imcoh']):
-    
+    """ Plots single-frequency- and frequency band-wise coherence data.
 
-    """ Setup """
+    PARAMETERS
+    ----------
+    cohs : pandas DataFrame
+        A DataFrame containing the corresponding ECoG and LFP channel names, and the single-frequency- and frequency
+        band-wise coherence data.
+    n_plots_per_page : int
+        The number of subplots to include on each page. 6 by default.
+    freq_limit : int | float
+        The frequency (in Hz) at which to stop plotting data. If None (default), up to the maximum frequency in the data
+        is plotted.
+    methods : list of str
+        The methods used to calculate coherence. By default, 'coh' (standard coherence) and 'imcoh' (imaginary
+        coherence)
+
+    RETURNS
+    ----------
+    N/A
+    
+    """
+
     # Gets ECoG channels to plot coherence values of and their indexes
     cortical_chs = np.unique(cohs['ch_name_cortical']).tolist()
     cortical_chs_idx = []
@@ -91,7 +126,7 @@ def coherence(cohs, n_plots_per_page=6, freq_limit=None, methods=['coh', 'imcoh'
                     deep_chs_idx.append(j)
 
 
-    """ Plotting """
+    # Plotting
     colors = ['orange', 'grey']
 
     n_plots = len(cortical_chs) # number of plots to make for this type
