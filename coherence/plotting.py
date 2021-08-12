@@ -344,9 +344,11 @@ def coherence_bandwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page
         Whether or not to plot standard deviation values (if they are present) alongside the data.
     n_plots_per_page : int
         The number of subplots to include on each page. 6 by default.
-    methods : list of str
+    methods : list of strs
         The methods used to calculate coherence. By default, 'coh' (standard coherence) and 'imcoh' (imaginary
-        coherence)
+        coherence).
+    keys_to_plot : list of strs
+        The keys of the band-wise values to plot.
 
     RETURNS
     ----------
@@ -367,7 +369,6 @@ def coherence_bandwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page
     # Gets ECoG-LFP combined channel names
     comb_ch_names = helpers.combine_channel_names(coh, ['ch_name_cortical', 'ch_name_deep'], joining=' - ')
 
-    ### Plotting
     n_plots = len(coh.ch_name_cortical) # number of plots to make for this type
     n_pages = int(np.ceil(n_plots/n_plots_per_page)) # number of pages these plots will need
     n_rows = int(np.sqrt(n_plots_per_page)) # number of rows these pages will need
@@ -382,17 +383,21 @@ def coherence_bandwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page
         'run': list(np.unique(coh.run))
     }
 
-    for method in methods:
 
-        ch_i = 0
-        wind_title, included = helpers.window_title(dataset_info, base_title=f'{method}:')
+    ## Plotting
+    for method in methods: # plots data for different coherence calculations separately
+
+        ch_i = 0 # index of data to plot
+        wind_title, included = helpers.window_title(dataset_info, base_title=f'{method}:') # title of the window
         stop = False
 
+        # Generates key names for the band-wise data based on the requested features in keys_to_plot. Follows the...
+        #... form method_fbands_feature (e.g. coh_fbands_avg)
         fullkeys_to_plot = []
         for key in keys_to_plot:
             fullkeys_to_plot.append(f'{method}_fbands_{key}')
 
-        for page_i in range(n_pages): # for each page of this type
+        for page_i in range(n_pages):
 
             # Sets up figure
             fig, axs = plt.subplots(n_rows, n_cols)
@@ -401,7 +406,7 @@ def coherence_bandwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page
 
             for row_i in range(n_rows): # fill up each row from top to down...
                 for col_i in range(n_cols): # ... and from left to right
-                    if stop is False: # if there is still data to plot for this type
+                    if stop is False: # if there is still data to plot for this method
 
                         data = coh.iloc[ch_i] # the data to plot
 
@@ -428,7 +433,8 @@ def coherence_bandwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page
                         width = 1/n_bars
 
                         # Location of bars in the groups
-                        start_locs = np.arange(n_groups, step=width*(n_bars+2)) # makes sure the bars of each group don't overlap
+                        start_locs = np.arange(n_groups, step=width*(n_bars+2)) # makes sure the bars of each group...
+                        #... don't overlap
                         group_locs = []
                         for start_loc in start_locs: # x-axis bar positions, grouped by group
                             group_locs.append([start_loc+width*i for i in np.arange(n_bars)])
@@ -438,44 +444,50 @@ def coherence_bandwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page
                             for group_i in range(n_groups):
                                 bar_locs[bar_i].append(group_locs[group_i][bar_i])
 
-                        # Plots data
+                        # Gets the data to plot
                         if 'max' in keys_to_plot:
                             fmaxs = []
-                            fmaxs_std = []
 
-                        for band_i, band in enumerate(bands):
+                        for band_i, band in enumerate(bands): # for each frequency band
 
                             to_plot = []
                             if plot_std == True:
                                 stds = []
 
                             for key in fullkeys_to_plot:
-                                to_plot.append(data[key][band_i])
-                                if plot_std == True:
+                                to_plot.append(data[key][band_i]) # gets the data to be plotted...
+                                if plot_std == True: #... and the std of this data (if applicable)
                                     if f'{key}_std' in data.keys():
                                         stds.append(data[f'{key}_std'][band_i])
                                     else:
                                         stds.append(np.nan)
 
-                                if 'fbands_max' in key:
+                                if 'fbands_max' in key: # gets the std of the fmax data to add to the plots
                                     fmaxs.append(str(int(data[method+'_fbands_fmax'][band_i])))
-                                    fmaxs_std.append(str(int(np.ceil(data[method+'_fbands_fmax_std'][band_i]))))
+                                    if plot_std == True:
+                                        fmax_std = u'\u00B1'+str(int(np.ceil(data[method+'_fbands_fmax_std'][band_i])))
+                                        fmaxs[-1] += fmax_std
 
+                            # Plots the data
                             axs[row_i, col_i].bar(bar_locs[band_i], to_plot, width=width, label=band, alpha=.7)
                             if plot_std == True:
                                 axs[row_i, col_i].errorbar(bar_locs[band_i], to_plot, yerr=stds, capsize=3, fmt=' ')
 
+                        # Tidies up the x-axis ticks and labels
                         axs[row_i, col_i].set_xticks((start_locs-width/2)+(width*(n_bars/2)))
                         axs[row_i, col_i].set_xticklabels(keys_to_plot)
                         axs[row_i, col_i].legend()
 
-                        ylim = axs[row_i, col_i].get_ylim()
-                        for fmax_i, fmax in enumerate(fmaxs):
-                            axs[row_i, col_i].text(group_locs[1][fmax_i], data[method+'_fbands_max'][fmax_i]+
-                                                   data[method+'_fbands_max_std'][fmax_i],
-                                                   fmaxs[fmax_i]+u'\u00B1'+fmaxs_std[fmax_i], ha='center',
-                                                   rotation=45)
-                        axs[row_i, col_i].set_ylim([ylim[0], ylim[1]+ylim[1]*.06])
+                        # Adds the fmax data to the bars (if applicable)
+                        if 'max' in keys_to_plot:
+                            ylim = axs[row_i, col_i].get_ylim()
+                            for fmax_i, fmax in enumerate(fmaxs):
+                                axs[row_i, col_i].text(group_locs[1][fmax_i], data[method+'_fbands_max'][fmax_i]+
+                                                       data[method+'_fbands_max_std'][fmax_i]+ylim[1]*.01, fmax,
+                                                       ha='center', rotation=60) # adds the fmax values at an angle to the bars...
+                                #... one at a time
+                            axs[row_i, col_i].set_ylim([ylim[0], ylim[1]+ylim[1]*.07]) # increases the subplot height...
+                            #... to accomodate the text
 
                         ch_i += 1 # moves on to the next data to plot
                         if ch_i > np.shape(coh)[0]: # if there is no more data to plot for this type...
