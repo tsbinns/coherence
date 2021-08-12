@@ -23,7 +23,7 @@ def annotate(raw, annot_path):
     new_types = {}
     for name in names:
         if name[:3] == 'LFP':
-            if '_L_' in name:
+            if '_L_1_' in name or '_L_8_' in name:
                 new_types[name] = 'dbs'
     raw.set_channel_types(new_types)
 

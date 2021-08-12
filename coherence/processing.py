@@ -106,7 +106,7 @@ def get_psd(epoched, l_freq=0, h_freq=100, norm=True, line_noise=50):
     psds = psds.data.mean(-1) # averages over time points in each epoch
     psds = np.transpose(psds, (1,2,0)) # changes dimensions to channels x freqs x epochs
     psds = psds.mean(-1) # averages over epochs
-    freqs = np.tile(freqs, [len(used_channels),1])
+    freqs = np.tile(freqs, [len(used_channels), 1])
 
     # Collects data
     psd_data = list(zip(ch_names, ch_types, freqs, psds))
@@ -179,21 +179,21 @@ def get_coherence(epoched, cwt_freqs, methods=['coh', 'imcoh']):
         if method == 'imcoh':
             coh = np.abs(coh)
         cohs.append(np.asarray(coh).mean(-1))
-    freqs = np.tile(freqs, [len(indices[0]),1])
+    freqs = np.tile(freqs, [len(indices[0]), 1])
 
     # Collects data
-    coh_data = list(zip(ch_names_cortical, ch_names_deep, freqs, *cohs[:]))
+    coh_data = list(zip(ch_names_cortical, ch_names_deep, freqs, *cohs))
     coh_data = pd.DataFrame(data=coh_data, columns=['ch_name_cortical', 'ch_name_deep', 'freqs', *methods])
 
     # Gets band-wise coherence
     coh_data = helpers.coherence_by_band(coh_data, methods, band_names=['theta','alpha','low beta','high beta','gamma'])
 
     # Average shuffled LFP values
-    fbands_keynames = ['fbands_avg_', 'fbands_max_', 'fbands_fmax_']
+    fbands_keynames = ['_fbands_avg', '_fbands_max', '_fbands_fmax']
     fbands_keys = []
     for method in methods:
         for keyname in fbands_keynames:
-            fbands_keys.append(keyname+method)
+            fbands_keys.append(method+keyname)
     coh_data = helpers.average_shuffled(coh_data, [*methods, *fbands_keys], 'ch_name_deep')
     
     # Gets keys in psd
