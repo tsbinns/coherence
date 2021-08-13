@@ -234,7 +234,7 @@ def coherence_fwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page=6,
     for method in methods:
 
         unique_ch_i = 0 # keeps track of the channel whose data is being plotted
-        wind_title, included = helpers.window_title(dataset_info, base_title=f'{method}:')
+        wind_title, wind_included = helpers.window_title(dataset_info, base_title=f'{method}:')
         stop = False
 
         for page_i in range(n_pages): # for each page of this type
@@ -260,9 +260,9 @@ def coherence_fwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page=6,
                             'run': list(np.unique(coh.run[ch_idc])),
                             ':': list(np.unique(coh.ch_name_deep[ch_idc]))
                         }
-                        ch_title, ch_included = helpers.channel_title(channel_info, already_included=included,
+                        ch_title, ch_included = helpers.channel_title(channel_info, already_included=wind_included,
                                                             base_title=unique_ch_names[unique_ch_i]+':')
-                        included.extend(ch_included) # keeps track of what is already included in the titles
+                        included = [*wind_included, *ch_included]
 
                         # Sets up subplot
                         axs[row_i, col_i].set_title(ch_title)
@@ -401,7 +401,7 @@ def coherence_bandwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page
 
             # Sets up figure
             fig, axs = plt.subplots(n_rows, n_cols)
-            plt.tight_layout(rect = [0, 0, 1, .97])
+            plt.tight_layout(rect=[0, 0, 1, .95])
             fig.suptitle(wind_title)
 
             for row_i in range(n_rows): # fill up each row from top to down...
@@ -413,11 +413,11 @@ def coherence_bandwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page
                         # Gets the characteristics for all data of this channel so that a title for the subplot can...
                         #... be generated
                         channel_info = {
-                            'med': data.med,
-                            'stim': data.stim,
-                            'task': data.task,
-                            'subject': data.subject,
-                            'run': data.run,
+                            'med': [data.med],
+                            'stim': [data.stim],
+                            'task': [data.task],
+                            'subject': [data.subject],
+                            'run': [data.run],
                         }
                         ch_title, _ = helpers.channel_title(channel_info, already_included=included,
                                                                       base_title=f'{comb_ch_names[ch_i]}:')
@@ -500,159 +500,3 @@ def coherence_bandwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page
 
             plt.show()
 
-
-
-
-def coherence1(cohs, n_plots_per_page=6, freq_limit=None, methods=['coh', 'imcoh']):
-    """ Plots single-frequency- and frequency band-wise coherence data.
-
-    PARAMETERS
-    ----------
-    cohs : pandas DataFrame
-        A DataFrame containing the corresponding ECoG and LFP channel names, and the single-frequency- and frequency
-        band-wise coherence data.
-    n_plots_per_page : int
-        The number of subplots to include on each page. 6 by default.
-    freq_limit : int | float
-        The frequency (in Hz) at which to stop plotting data. If None (default), up to the maximum frequency in the data
-        is plotted.
-    methods : list of str
-        The methods used to calculate coherence. By default, 'coh' (standard coherence) and 'imcoh' (imaginary
-        coherence)
-
-    RETURNS
-    ----------
-    N/A
-    
-    """
-
-    # Gets ECoG channels to plot coherence values of and their indexes
-    cortical_chs = np.unique(cohs['ch_name_cortical']).tolist()
-    cortical_chs_idx = []
-    for i, cortical_ch in enumerate(cortical_chs):
-        cortical_chs_idx.append([])
-        for j, ch in enumerate(cohs['ch_name_cortical']):
-            if ch == cortical_ch:
-                cortical_chs_idx[i].append(j)
-
-    # Gets shuffled LFP channels to ignore for band-wise analysis
-    deep_chs = np.unique(cohs['ch_name_deep']).tolist()
-    deep_chs_idx = []
-    for deep_ch in deep_chs:
-        if deep_ch[:8] != 'SHUFFLED':
-            for j, ch in enumerate(cohs['ch_name_deep']):
-                if ch == deep_ch:
-                    deep_chs_idx.append(j)
-
-
-    # Plotting
-    colors = ['orange', 'grey']
-
-    n_plots = len(cortical_chs) # number of plots to make for this type
-    n_pages = int(np.ceil(n_plots/n_plots_per_page)) # number of pages these plots will need
-    n_rows = int(np.sqrt(n_plots_per_page)) # number of rows these pages will need
-    n_cols = int(np.ceil(n_plots_per_page/n_rows)) # number of columns these pages will need
-
-    for method in methods:
-        # Plots frequency-wise data
-        stop = False
-        cohs_i = 0 # index of the data in cohs to plot
-        cort_i = 0 # index of the cortical channels to plot
-        for page_i in range(n_pages): # for each page
-
-            fig, axs = plt.subplots(n_rows, n_cols)
-            plt.tight_layout(rect = [0, 0, 1, .97])
-            fig.suptitle(method)
-
-            for row_i in range(n_rows): # fill up each row from top to down...
-                for col_i in range(n_cols): # ... and from left to right
-                    if stop is False: # if there is still data to plot
-                        for val_i in range(len(cortical_chs_idx[cort_i])): # for each coherence value for the ECoG channel
-                            
-                            if freq_limit != None:
-                                freq_limit_i = int(np.where(cohs['freqs'][cohs_i] == cohs['freqs'][cohs_i][cohs['freqs'][cohs_i] >= freq_limit].min())[0])
-                            else:
-                                freq_limit_i = len(cohs['freqs'][cohs_i])
-
-                            axs[row_i, col_i].plot(cohs['freqs'][cohs_i][:freq_limit_i+1], cohs[method][cohs_i][:freq_limit_i+1],
-                                                color=colors[val_i], linewidth=2, label=cohs['ch_name_deep'][cohs_i])
-                            axs[row_i, col_i].legend()
-
-                            cohs_i += 1 # moves on to the next data to plot in cohs
-                            if cohs_i == len(cohs['ch_name_cortical']): # if there is no more data to plot
-                                stop = True
-                                extra = n_plots_per_page*n_pages - n_plots # checks if there are extra subplots than can be removed
-
-                        axs[row_i, col_i].set_title(cortical_chs[cort_i])
-                        axs[row_i, col_i].set_xlabel('Frequency (Hz)')
-                        axs[row_i, col_i].set_ylabel('Coherence')
-                        cort_i += 1 # moves on to the next cortical channel
-
-                    elif stop is True and extra > 0: # if there is no more data to plot for this type...
-                        fig.delaxes(axs[row_i, col_i]) # ... delete the extra subplots
-
-            plt.show()
-
-        
-        # Plots band-wise data
-        stop = False
-        cohs_i = 0 # index of the data in cohs to plot
-        for page_i in range(n_pages): # for each page
-
-            fig, axs = plt.subplots(n_rows, n_cols)
-            plt.tight_layout(rect = [0, 0, 1, .97])
-            fig.suptitle(method)
-
-            for row_i in range(n_rows): # fill up each row from top to down...
-                for col_i in range(n_cols): # ... and from left to right
-                    if stop is False: # if there is still data to plot
-                        
-                        data_i = deep_chs_idx[cohs_i]
-
-                        labels = ['Average', 'Maximum'] # labels of plotting groups
-                        n_groups = len(labels) # number of plotting groups (i.e. group 1: average, group 2: max)
-                        bands = cohs['fbands'][data_i]
-                        n_bars = len(bands) # number of bars in each group to plot
-                        width = 1/n_bars # width of bars
-
-                        # Location of bars in the groups
-                        start_locs = np.arange(n_groups, step=width*(n_bars+2)) # makes sure the bars of each group don't overlap
-                        group_locs = []
-                        for start_loc in start_locs: # x-axis bar positions, grouped by group
-                            group_locs.append([start_loc+width*i for i in np.arange(n_bars)])
-                        bar_locs = []
-                        for bar_i in range(n_bars): # x-axis bar positions, grouped by band
-                            bar_locs.append([])
-                            for group_i in range(n_groups):
-                                bar_locs[bar_i].append(group_locs[group_i][bar_i])
-
-                        band_axs = []
-                        fmaxs = []
-                        for band_i, band in enumerate(bands):
-                            band_axs.append(axs[row_i, col_i].bar(bar_locs[band_i],
-                                                                [cohs['fbands_avg_'+method][data_i][band_i], cohs['fbands_max_'+method][data_i][band_i]],
-                                                                width, label=band))
-                            fmaxs.append(str(int(cohs['fbands_fmax_'+method][data_i][band_i])))
-
-                        axs[row_i, col_i].set_title(cortical_chs[cohs_i]+'-'+cohs['ch_name_deep'][data_i])
-                        axs[row_i, col_i].set_xlabel('Frequency')
-                        axs[row_i, col_i].set_xticks((start_locs-width/2)+(width*(n_bars/2)))
-                        axs[row_i, col_i].set_xticklabels(labels)
-                        axs[row_i, col_i].set_ylabel('Coherence')
-                        axs[row_i, col_i].legend(loc='best')
-
-                        ylim = axs[row_i, col_i].get_ylim()
-                        for fmax_i, fmax in enumerate(fmaxs):
-                            axs[row_i, col_i].text(group_locs[1][fmax_i], cohs['fbands_max_'+method][data_i][fmax_i]+ylim[1]*.01, fmax, ha='center')
-                        axs[row_i, col_i].set_ylim([ylim[0], ylim[1]+ylim[1]*.01])
-
-                        cohs_i += 1 # moves on to the next data to plot in cohs
-                        if cohs_i == len(deep_chs_idx): # if there is no more data to plot
-                            stop = True
-                            extra = n_plots_per_page*n_pages - n_plots # checks if there are extra subplots than can be removed
-
-                    elif stop is True and extra > 0: # if there is no more data to plot for this type...
-                        fig.delaxes(axs[row_i, col_i]) # ... delete the extra subplots
-
-            plt.show()
-    

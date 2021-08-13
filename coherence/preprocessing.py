@@ -67,7 +67,7 @@ def crop_artefacts(raw):
             if 0 < start < stop < raw._last_time:
                 cropped_raw = mne.concatenate_raws([cropped_raw, raw.copy().crop(start, stop)])
                 print((start, stop))
-        cropped_raw.annotations = cropped_raw.annotations.pop(bad_idc)
+        cropped_raw.annotations.delete(bad_idc)
     else:
         cropped_raw = raw
 
@@ -166,7 +166,7 @@ def process(raw, epoch_len, annotations=None, channels=None, resample=None, high
     if annotations != None:
         no_annots = raw._annotations
         raw.set_annotations(annotations)
-        raw = crop_artefacts(raw)
+        #raw = crop_artefacts(raw)
         #raw._annotations = no_annots
         if verbose:
             print("Setting annotations and removing artefacts")

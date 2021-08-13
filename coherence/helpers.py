@@ -4,6 +4,42 @@ from copy import deepcopy
 
 
 
+def filter_for_annotation(data, highpass=3, lowpass=125, line_noise=50):
+    """ Basic filtering of data that is to be annotated. Useful for seeing whether artefacts in the data will disappear
+    with filtering.
+
+    PARAMETERS
+    ----------
+    data : MNE Raw object
+        The data that is to be filtered.
+    highpass : int | float
+        The highpass frequency (in Hz) to use in the bandpass filter. Default 3 Hz.
+    lowpass : int | float
+        The lowpass frequency (in Hz) to use in the bandpass filter. Default 125 Hz.
+    line_noise : int | float
+        The line noise frequency (in Hz) of the recording, used to generate a notch filter for the line noise and its
+        harmonics. Default 50 Hz.
+
+    RETURNS
+    ----------
+    data : MNE Raw object
+        The filtered data.
+    """
+
+    data.load_data()
+
+    # Notch filters data
+    notch = np.arange(line_noise, lowpass, line_noise)
+    data.notch_filter(notch)
+
+    # Bandpass filters data
+    data.filter(highpass, lowpass)
+
+
+    return data
+
+
+
 def combine_data(data, info):
     """ Combines data from different factors (e.g. runs, subjects, tasks) together into a single pandas DataFrame.
 
@@ -242,6 +278,8 @@ def channel_title(info, already_included=[], base_title=''):
     for key in info.keys():
         if len(info[key]) == 1 and key not in already_included: # if only a single type of data is present and this...
         #... information has not been included in the window's title, add this information to the channel's title
+            if len(title) >= 40: # adds a new line to the title to stop it getting too wide
+                title += '\n'
             if first == True: # if this is the first key to be added, don't add a comma to the start
                 title += key + '[' + info[key][0] + ']'
                 first = False
