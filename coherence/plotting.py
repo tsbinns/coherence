@@ -10,14 +10,18 @@ def psd(psd, plot_shuffled=False, plot_std=True, n_plots_per_page=6, freq_limit=
     PARAMETERS
     ----------
     psds : pandas DataFrame
-        A DataFrame containing the channel names, their types, and the normalised power values.
+    -   A DataFrame containing the channel names, their types, and the normalised power values.
+
     plot_shuffled : bool, default False
-        Whether or not to plot PSDs for the shuffled LFP data.
+    -   Whether or not to plot PSDs for the shuffled LFP data.
+
     n_plots_per_page : int
-        The number of subplots to include on each page. 6 by default.
+    -   The number of subplots to include on each page. 6 by default.
+
     freq_limit : int | float
-        The frequency (in Hz) at which to stop plotting data. If None (default), up to the maximum frequency in the data
+    -   The frequency (in Hz) at which to stop plotting data. If None (default), up to the maximum frequency in the data
         is plotted.
+
 
     RETURNS
     ----------
@@ -173,25 +177,30 @@ def coherence_fwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page=6,
     PARAMETERS
     ----------
     coh : pandas DataFrame
-        A DataFrame containing the corresponding ECoG and LFP channel names, and the single-frequency-wise coherence
+    -   A DataFrame containing the corresponding ECoG and LFP channel names, and the single-frequency-wise coherence
         data.
+
     plot_shuffled : bool, default False
-        Whether or not to plot coherence values for the shuffled LFP data.
+    -   Whether or not to plot coherence values for the shuffled LFP data.
+
     plot_std : bool, default True
-        Whether or not to plot standard deviation values (if they are present) alongside the data.
+    -   Whether or not to plot standard deviation values (if they are present) alongside the data.
+
     n_plots_per_page : int
-        The number of subplots to include on each page. 6 by default.
+    -   The number of subplots to include on each page. 6 by default.
+
     freq_limit : int | float
-        The frequency (in Hz) at which to stop plotting data. If None (default), up to the maximum frequency in the data
+    -   The frequency (in Hz) at which to stop plotting data. If None (default), up to the maximum frequency in the data
         is plotted.
+
     methods : list of str
-        The methods used to calculate coherence. By default, 'coh' (standard coherence) and 'imcoh' (imaginary
+    -   The methods used to calculate coherence. By default, 'coh' (standard coherence) and 'imcoh' (imaginary
         coherence)
+
 
     RETURNS
     ----------
     N/A
-    
     """
 
     ### Setup
@@ -338,24 +347,29 @@ def coherence_bandwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page
     PARAMETERS
     ----------
     coh : pandas DataFrame
-        A DataFrame containing the corresponding ECoG and LFP channel names, and the frequency band-wise coherence
+    -   A DataFrame containing the corresponding ECoG and LFP channel names, and the frequency band-wise coherence
         data.
+
     plot_shuffled : bool, default False
-        Whether or not to plot coherence values for the shuffled LFP data.
+    -   Whether or not to plot coherence values for the shuffled LFP data.
+
     plot_std : bool, default True
-        Whether or not to plot standard deviation values (if they are present) alongside the data.
+    -   Whether or not to plot standard deviation values (if they are present) alongside the data.
+
     n_plots_per_page : int
-        The number of subplots to include on each page. 6 by default.
+    -   The number of subplots to include on each page. 6 by default.
+
     methods : list of strs
-        The methods used to calculate coherence. By default, 'coh' (standard coherence) and 'imcoh' (imaginary
+    -   The methods used to calculate coherence. By default, 'coh' (standard coherence) and 'imcoh' (imaginary
         coherence).
+        
     keys_to_plot : list of strs
-        The keys of the band-wise values to plot.
+    -   The keys of the band-wise values to plot.
+
 
     RETURNS
     ----------
     N/A
-    
     """
 
     ### Setup

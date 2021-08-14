@@ -11,19 +11,23 @@ def filter_for_annotation(data, highpass=3, lowpass=125, line_noise=50):
     PARAMETERS
     ----------
     data : MNE Raw object
-        The data that is to be filtered.
+    -   The data that is to be filtered.
+
     highpass : int | float
-        The highpass frequency (in Hz) to use in the bandpass filter. Default 3 Hz.
+    -   The highpass frequency (in Hz) to use in the bandpass filter. Default 3 Hz.
+
     lowpass : int | float
-        The lowpass frequency (in Hz) to use in the bandpass filter. Default 125 Hz.
+    -   The lowpass frequency (in Hz) to use in the bandpass filter. Default 125 Hz.
+
     line_noise : int | float
-        The line noise frequency (in Hz) of the recording, used to generate a notch filter for the line noise and its
+    -   The line noise frequency (in Hz) of the recording, used to generate a notch filter for the line noise and its
         harmonics. Default 50 Hz.
+
 
     RETURNS
     ----------
     data : MNE Raw object
-        The filtered data.
+    -   The filtered data.
     """
 
     data.load_data()
@@ -58,10 +62,12 @@ def combine_data(data, info):
     -   E.g. info = {'runs': ['01', '02']} would mean data[0] would have a column named 'runs' with entries '01' added,
         and data[1] would have a column named 'runs' with entried '02' added.
 
+
     RETURNS
     ----------
     all_data : pandas DataFrame
     -   The data that has been combined.
+
 
     NOTES
     ----------
@@ -110,6 +116,7 @@ def combine_channel_names(data, ch_keys, joining='&'):
     joining : str
     -   A string with which to join multiple channel names.
 
+
     RETURNS
     ----------
     names : list of strs
@@ -137,10 +144,12 @@ def unique_channel_names(ch_names):
     names : list of strs
     -   Channel names to find the unique entries of.
     
+
     RETURNS
     ----------
     unique_names : list of strs
     -   Unique channel names.
+
 
     unique_idc : list of ints
     -   Indices of each unique channel in names.
@@ -166,6 +175,7 @@ def unique_channel_types(unique_ch_idc, types):
 
     types : list of strs
     -   The types of all channels in the data.
+
 
     RETURNS
     ----------
@@ -201,14 +211,17 @@ def window_title(info, base_title='', full_info=True):
     PARAMETERS
     ----------
     info : dict
-        A dictionary with keys representing factors in the data (e.g. experimental conditions, subjects, etc...) and
+    -   A dictionary with keys representing factors in the data (e.g. experimental conditions, subjects, etc...) and
         their corresponding values in the data. E.g. 'task' = ['Rest', 'Movement'], 'subject' = [1, 2, 3], etc...
+
     base_title : str | Default ''
-        A starting string to build the rest of the title on.
+    -   A starting string to build the rest of the title on.
+
     full_info : bool, default True
-        Whether or not full information about the data should be provided for averaged results. If True (default), full
+    -   Whether or not full information about the data should be provided for averaged results. If True (default), full
         information (e.g. the IDs of the runs, subjects, etc... that the data was averaged over). If False, only a
         generic 'avg' tag is returned, useful for avoiding clutter on figures.
+
 
     RETURNS
     ----------
@@ -224,6 +237,7 @@ def window_title(info, base_title='', full_info=True):
         information that has already been included in the window title.
     """
 
+    ## Setup
     if full_info == False: # If partial information is requested, provide a general 'avg' tag rather than a tag...
     #... containing details of each piece of data involved
         for key in info.keys():
@@ -232,6 +246,7 @@ def window_title(info, base_title='', full_info=True):
                     info[key][val_i] = 'avg'
             info[key] = pd.unique(info[key])
 
+    ## Title creation
     title = base_title
     included = []
     first = True
@@ -255,17 +270,21 @@ def channel_title(info, already_included=[], base_title='', full_info=True):
     PARAMETERS
     ----------
     info : dict
-        A dictionary with keys representing factors in the data (e.g. experimental conditions, subjects, etc...) and
+    -   A dictionary with keys representing factors in the data (e.g. experimental conditions, subjects, etc...) and
         their corresponding values in the data. E.g. 'task' = ['Rest', 'Movement'], 'subject' = [1, 2, 3], etc...
+
     already_included : list of strs
-        A list containing the information that has already been included in a previous title (i.e. the title of the
+    -   A list containing the information that has already been included in a previous title (i.e. the title of the
         window in which the subplot is contained). Empty by default.
+
     base_title : str
-        A starting string to build the rest of the title on.
+    -   A starting string to build the rest of the title on.
+    
     full_info : bool, default True
-        Whether or not full information about the data should be provided for averaged results. If True (default), full
+    -   Whether or not full information about the data should be provided for averaged results. If True (default), full
         information (e.g. the IDs of the runs, subjects, etc... that the data was averaged over). If False, only a
         generic 'avg' tag is returned, useful for avoiding clutter on figures.
+
 
     RETURNS
     ----------
@@ -280,6 +299,8 @@ def channel_title(info, already_included=[], base_title='', full_info=True):
         generated (e.g. for data labels) so that you can avoid repeating information that has already been
         included in the window title.
     """
+
+    ## Setup
     if full_info == False: # If partial information is requested, provide a general 'avg' tag rather than a tag...
     #... containing details of each piece of data involved
         for key in info.keys():
@@ -288,10 +309,10 @@ def channel_title(info, already_included=[], base_title='', full_info=True):
                     info[key][val_i] = 'avg'
             info[key] = pd.unique(info[key])
 
+    ## Title creation
     title = base_title
     included = []
     first = True
-
     for key in info.keys():
         if len(info[key]) == 1 and key not in already_included: # if only a single type of data is present and this...
         #... information has not been included in the window's title, add this information to the channel's title
@@ -315,17 +336,21 @@ def data_title(info, already_included=[], full_info=True):
     PARAMETERS
     ----------
     info : dict
-        A dictionary with keys representing factors in the data (e.g. experimental conditions, subjects, etc...) and
+    -   A dictionary with keys representing factors in the data (e.g. experimental conditions, subjects, etc...) and
         their corresponding values in the data. E.g. 'task' = ['Rest', 'Movement'], 'subject' = [1, 2, 3], etc...
+
     already_included : list of strs
-        A list containing the information that has already been included in a previous title (i.e. the title of the
+    -   A list containing the information that has already been included in a previous title (i.e. the title of the
         window in which the subplot is contained). Empty by default.
+
     base_title : str
-        A starting string to build the rest of the title on.
+    -   A starting string to build the rest of the title on.
+
     full_info : bool, default True
-        Whether or not full information about the data should be provided for averaged results. If True (default), full
+    -   Whether or not full information about the data should be provided for averaged results. If True (default), full
         information (e.g. the IDs of the runs, subjects, etc... that the data was averaged over). If False, only a
         generic 'avg' tag is returned, useful for avoiding clutter on figures.
+
 
     RETURNS
     ----------
@@ -334,6 +359,7 @@ def data_title(info, already_included=[], full_info=True):
         cannot be placed in the subplot's or figure window's title (i.e. if it is different for the data being plotted).
     """
 
+    ## Setup
     if full_info == False: # If partial information is requested, provide a general 'avg' tag rather than a tag...
     #... containing details of each piece of data involved
         for key in info.keys():
@@ -342,9 +368,9 @@ def data_title(info, already_included=[], full_info=True):
                     info[key][val_i] = 'avg'
             info[key] = pd.unique(info[key])
 
+    ## Title creation
     title = ''
     first = True
-
     for key in info.keys():
         if key not in already_included:  # if only a single type of data is present and this...
         #... information has not been included in the window's and subplot's titles, add this information to the data...
@@ -469,6 +495,7 @@ def check_identical(data, return_result=False):
     -   Whether or not to raise an error if the data is not identical. If False (default), an error is raised and the
         script stops. If True, the script is not stopped, but the non-identical nature of the data is returned.
     
+
     RETURNS
     ----------
     identical : bool
@@ -505,6 +532,7 @@ def average_data(data, axis=0):
 
     axis : int
     -   The axis of the data to average over.
+
 
     RETURNS
     ----------
@@ -549,6 +577,7 @@ def average_dataset(data, avg_over, ch_keys, x_keys, y_keys):
 
     y_keys : list of strs
     -   The names of the columns in the DataFrame whose values should be averaged.
+
 
     RETURNS
     ----------
@@ -641,6 +670,7 @@ def freq_band_info(names=None):
     names : list of str | None (default)
     -   The names of bands to be returned. If None (default), all bands are included in the output.
 
+
     RETURNS
     ----------
     bands : dict
@@ -693,6 +723,7 @@ def freq_band_indices(freqs, bands, include_outside=False):
         include the indices of frequency values outside the requested band (i.e. this function would return [2],
         corresponding to 4 Hz), whereas include_shuffled=True would include these extra indices (i.e would return
         [1, 2, 3], corresponding to 2, 4, and 6 Hz).
+
 
     RETURNS
     ----------
@@ -748,6 +779,7 @@ def find_unique_shuffled(fullnames):
     fullnames : list of str
     -   The names of channels to be filtered.
 
+
     RETURNS
     ----------
     realnames : dict
@@ -792,6 +824,7 @@ def average_shuffled(data, keys_to_avg, channel_name_key='ch_name'):
 
     channel_name_key : str
     -   The name of the column used to identify the shuffled channels. 'ch_name' by default.
+
 
     RETURNS
     ----------
@@ -853,6 +886,7 @@ def coherence_by_band(data, methods, band_names=None):
     band_names : list of str | None (default)
     -   The frequency bands to calculate band-wise coherence values for. If None (default), all frequency bands provided
         by the helpers.freq_band_info function are used.
+    
     
     RETURNS
     ----------

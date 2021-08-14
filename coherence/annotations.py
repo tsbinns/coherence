@@ -8,9 +8,11 @@ def annotate(raw, annot_path):
     PARAMETERS
     ----------
     raw : MNE Raw object
-        The data to be annotated.
+    -   The data to be annotated.
+
     ANNOT_PATH : str
-        Filepath to where the annotations should be saved.
+    -   Filepath to where the annotations should be saved.
+
 
     RETURNS
     ----------

@@ -13,22 +13,24 @@ def normalise(psds, line_noise=50, window=5):
     PARAMETERS
     ----------
     psds : dict
-        A dictionary containing PSD data with keys 'psd' and 'freqs'. 'psd' is an array of shape (n_channels,
+    -   A dictionary containing PSD data with keys 'psd' and 'freqs'. 'psd' is an array of shape (n_channels,
         n_frequencies) containing power information. 'freqs' is an array of shape (n_channels, n_frequencies) containing
         the corresponding frequencies (in Hz) for the data in 'psd'.
+
     line_noise : int | float
-        The frequency (in Hz) of line noise in the recordings. 50 Hz by default.
+    -   The frequency (in Hz) of line noise in the recordings. 50 Hz by default.
+
     window : int | float
-        The frequency (in Hz) around specific frequencies for which the power is omitted from the normalisation. 5 Hz by
+    -   The frequency (in Hz) around specific frequencies for which the power is omitted from the normalisation. 5 Hz by
         default. The specific frequencies are 0 Hz (for low-frequency noise), and the line noise (plus its harmonics,
         e.g. 50, 100, and 150 Hz). The window is applied to both sides of these frequencies (e.g. a window of 5 Hz would
         result in the frequencies 45-55 Hz to be ommited).
 
+
     RETURNS
     ----------
     psds : dictionary
-        The normalised PSD data.
-
+    -   The normalised PSD data.
     """
 
     for psd_i in range(len(psds['psd'])): # for each channel of data
@@ -63,25 +65,30 @@ def get_psd(epoched, l_freq=0, h_freq=100, norm=True, line_noise=50):
     PARAMETERS
     ----------
     epoched : MNE Epoch object
-        The epoched data to analyse.
+    -   The epoched data to analyse.
+
     l_freq : int | float
-        The lowest frequency to calculate the power of. 0 Hz by default.
+    -   The lowest frequency to calculate the power of. 0 Hz by default.
+
     h_freq : int | float
-        The highest frequency to calculate the power of. 100 Hz by default.
+    -   The highest frequency to calculate the power of. 100 Hz by default.
+
     norm : bool, default True
-        Whether or not to normalise the power values to the % of the maximum total power. True by default.
+    -   Whether or not to normalise the power values to the % of the maximum total power. True by default.
+
     line_noise : int | float
-        The frequency (in Hz) of the line noise in the recording. 50 Hz by default.
+    -   The frequency (in Hz) of the line noise in the recording. 50 Hz by default.
+
 
     RETURNS
     ----------
     psd_data : pandas DataFrame
-        A DataFrame containing the channel names, their types (e.g. cortical, deep), and the power of the data in these
+    -   A DataFrame containing the channel names, their types (e.g. cortical, deep), and the power of the data in these
         channels.
-    psd_keys : dict
-        A dictionary containing the keys of the psd_data DataFrame with keys 'x' and 'y'. 'x' contains keys for
-        independent/control variables, and 'y' keys for dependent variables.
 
+    psd_keys : dict
+    -   A dictionary containing the keys of the psd_data DataFrame with keys 'x' and 'y'. 'x' contains keys for
+        independent/control variables, and 'y' keys for dependent variables.
     """
 
     # Gets channels to analyse
@@ -136,22 +143,25 @@ def get_coherence(epoched, cwt_freqs, methods=['coh', 'imcoh']):
     PARAMETERS
     ----------
     epoched : MNE Epoch object
-        The epoched data to analyse.
+    -   The epoched data to analyse.
+
     cwt_freqs : list of int | list of float
-        Frequencies (in Hz) to be used in the wavelet-based coherence analysis.
+    -   Frequencies (in Hz) to be used in the wavelet-based coherence analysis.
+
     methods : list of str
-        Methods for calculating the coherence of the data. By default, 'coh' (standard coherence) and 'imcoh'
+    -   Methods for calculating the coherence of the data. By default, 'coh' (standard coherence) and 'imcoh'
         (imaginary coherence).
+
 
     RETURNS
     ----------
     coh_data : pandas DataFrame
-        A DataFrame containing the names of the ECoG and LFP channel pairs used to calculate coherence, the single-
+    -   A DataFrame containing the names of the ECoG and LFP channel pairs used to calculate coherence, the single-
         frequency-wise coherence data, and the frequency band-wise coherence data.
-    coh_keys : dict
-        A dictionary containing the keys of the coh_data DataFrame with keys 'x' and 'y'. 'x' contains keys for
-        independent/control variables, and 'y' keys for dependent variables.
 
+    coh_keys : dict
+    -   A dictionary containing the keys of the coh_data DataFrame with keys 'x' and 'y'. 'x' contains keys for
+        independent/control variables, and 'y' keys for dependent variables.
     """
 
     # Gets the channels to analyses
