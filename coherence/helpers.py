@@ -360,7 +360,7 @@ def data_title(info, already_included=[], full_info=True):
 
 
 
-def data_colour(info):
+def data_colour(info, not_for_unique=False, avg_as_equal=False):
     """ Randomly generates colours for the data based on the data's characteristics.
 
     PARAMETERS
@@ -370,11 +370,29 @@ def data_colour(info):
         key represents a different characteristic, with each value being a list whose first entry is the string 'binary'
         or 'non-binary' (reflecting whether there are only two possible types of data (binary) or more (non-binary)) and
         whose second entry is a list containing the types of data present.
-    -   E.g. if the dataset contains data from a condition in which medication is present and a condition in which it is
-        not, the corresponding key-value pair could be 'medication': ['binary', ['On', 'Off']]].
-    -   E.g. if the dataset contains data from multiple subjects, the corresponding key-value pair could be 'subjects':
-        ['non-binary', ['01', '02', '03]].
+    -   E.g. if the dataset contains data from a
+        condition in which medication is present and a condition in which it is not, the corresponding key-value pair
+        could be 'medication': ['binary', ['On', 'Off']]]. E.g. if the dataset contains data from multiple subjects, the
+        corresponding key-value pair could be 'subjects': ['non-binary', ['01', '02', '03]].
+
+    not_for_unique : bool, default False
+    -   Whether or not colours should be generated for data characteristics that only have one type. If False (default),
+        colours are generated for this data, whereas if True, colours are not generated for this data.
+    -   E.g. if all the data is from the same medication condition (e.g. MedOn), then not_for_unique=True would mean
+        this data is not assigned a colour, which can be useful if you want to generate contrast between data based on
+        their different  characteristics (e.g. data from the same medication condition, but from different subjects).
+
+    avg_as_equal : bool, default False
+    -   Whether or not data that has been averaged should be treated as the same type, regardless of what has been
+        averaged. If False (default), the data is not necessarily treated as the same type (and thus is assigned a
+        colour), whereas if True, the data is treated as the same type (and thus not assigned a colour).
+    -   E.g. if some data has been averaged across subjects 1 and 2, whilst other data has been averaged across subjects
+        3 and 4, avg_as_equal=True means that this data will be considered equivalent (and thus not assigned a colour)
+        based on the fact that it has been averaged, regardless of the fact that it was averaged across different
+        subjects (which can be useful if you want to generate contrast between data based on their different
+        characteristics, rather than diluting the colours with their similarities).
     
+
     RETURNS
     ----------
     colours : dict
@@ -383,6 +401,7 @@ def data_colour(info):
     -   E.g. if there are 3 subjects, a corresponding key-value pair could be 'subjects': [[rgb triplet 1],
         [rgb triplet 2], [rgb triplet 3]].
     
+    
     NOTES
     ----------
     -   If data characteristics in info are marked as binary, a colour is generated randomly for one type and the
@@ -390,27 +409,48 @@ def data_colour(info):
     -   If data characteristics in info are marked as non-bonary, the colours are generated randomly for each type.
     """
 
+    ## Setup
+    skip_key = []
+    for key in info.keys():
+        # Treats averaged data as if it is the same (i.e. gives it the same colour regardless of differences over...
+        #... what runs, subjects, etc... data was averaged over)
+        if avg_as_equal == True:
+            key_info = []
+            for val in info[key][1]:
+                key_info.append(val[:3])
+            key_info = np.unique(key_info)
+            if len(key_info) == 1 and key_info[0] == 'avg':
+                skip_key.append(key)
+        # Does not assign colours based on characterstics that do not differ between the data being plotted, so that...
+        #... only the characteristics which are different determine the data's colour which makes the colours stand out
+        if not_for_unique == True:
+            if len(info[key][1]) == 1:
+                skip_key.append(key)
+    skip_key = np.unique(skip_key)
+
+
+    ## Gets colours
     np.random.seed(seed=0) # ensures consistent, replicable plot colours
     colours = {}
-
     for key in info.keys():
-        colours[key] = []
-        first = True
-        if info[key][0] == 'binary': # if only 2 types of data can be present, generate inverse colours for these types
-            if first == True:
-                first_val = info[key][1][0] # assigns the first type present to be the default type
-                first_val_colour = np.random.rand(1, 3) # sets the colour for this type
-                second_val_colour = 1 - first_val_colour # sets the colour for the other type as the inverse
-            for char in info[key][1]: # sets the colour for the two types
-                if char == first_val:
-                    colours[key].append(first_val_colour)
-                else:
-                    colours[key].append(second_val_colour)
-        elif info[key][0] == 'non-binary': # if many types of data can be present, randomly generate colours
-            for x in info[key][1]:
-                colours[key].append(np.random.rand(1, 3))
-        else:
-            raise ValueError(f'The colour key {info[key][0]} is not recognised. Only binary and non-binary are accepted.')
+        if key not in skip_key:
+            colours[key] = []
+            first = True
+            if info[key][0] == 'binary': # if only 2 types of data can be present, generate inverse colours for these types
+                if first == True:
+                    first_val = info[key][1][0] # assigns the first type present to be the default type
+                    first_val_colour = np.random.rand(1, 3) # sets the colour for this type
+                    second_val_colour = 1 - first_val_colour # sets the colour for the other type as the inverse
+                for char in info[key][1]: # sets the colour for the two types
+                    if char == first_val:
+                        colours[key].append(first_val_colour)
+                    else:
+                        colours[key].append(second_val_colour)
+            elif info[key][0] == 'non-binary': # if many types of data can be present, randomly generate colours
+                for x in info[key][1]:
+                    colours[key].append(np.random.rand(1, 3))
+            else:
+                raise ValueError(f'The colour key {info[key][0]} is not recognised. Only binary and non-binary are accepted.')
 
 
     return colours
@@ -555,6 +595,7 @@ def average_dataset(data, avg_over, ch_keys, x_keys, y_keys):
     new_name = []
     for unique_i in unique_idc:
         new_name.append(f'avg{list(data[avg_over][unique_i])}')
+        #new_name.append('avg')
 
     # Adds new columns for std data of each y_key (if not already present)
     holder = np.repeat(np.nan, np.shape(data)[0])

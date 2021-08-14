@@ -47,7 +47,7 @@ def psd(psd, plot_shuffled=False, plot_std=True, n_plots_per_page=6, freq_limit=
         'subject': ['non-binary', list(np.unique(psd.subject))],
         'run': ['non-binary', list(np.unique(psd.run))]
     }
-    colours = helpers.data_colour(colour_info)
+    colours = helpers.data_colour(colour_info, not_for_unique=True, avg_as_equal=True)
 
     ### Plotting
     unique_ch_i = 0 # keeps track of the channel whose data is being plotted
@@ -132,7 +132,7 @@ def psd(psd, plot_shuffled=False, plot_std=True, n_plots_per_page=6, freq_limit=
 
                             # Gets the colour of data based on it's characteristics
                             colour = []
-                            for key in colour_info.keys():
+                            for key in colours.keys():
                                 colour.append(colours[key][colour_info[key][1].index(data[key])])
                             colour = np.mean(colour, axis=0)[0] # takes the average colour based on the data's...
                             #... characteristics
@@ -215,7 +215,7 @@ def coherence_fwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page=6,
         'subject': ['non-binary', list(np.unique(coh.subject))],
         'run': ['non-binary', list(np.unique(coh.run))]
     }
-    colours = helpers.data_colour(colour_info)
+    colours = helpers.data_colour(colour_info, not_for_unique=True, avg_as_equal=True)
 
     ### Plotting
     n_plots = len(unique_ch_names) # number of plots to make for this type
@@ -296,7 +296,7 @@ def coherence_fwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page=6,
 
                             # Gets the colour of data based on it's characteristics
                             colour = []
-                            for key in colour_info.keys():
+                            for key in colours.keys():
                                 colour.append(colours[key][colour_info[key][1].index(data[key])])
                             colour = np.mean(colour, axis=0)[0] # takes the average colour based on the data's...
                             #... characteristics
