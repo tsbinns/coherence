@@ -1,5 +1,6 @@
 import mne
 import numpy as np
+from copy import deepcopy
 
 
 
@@ -59,14 +60,14 @@ def crop_artefacts(raw):
                 stop = raw._last_time
 
             new_start = bad.onset[n] + bad.duration[n]
+            print(f'Removing {bad.onset[n]} - {new_start}')
             if new_start > start:
                 start = new_start
 
             if stop > raw._last_time:
                 stop = raw._last_time
-            if 0 < start < stop < raw._last_time:
+            if 0 < start < stop <= raw._last_time:
                 cropped_raw = mne.concatenate_raws([cropped_raw, raw.copy().crop(start, stop)])
-                print((start, stop))
         cropped_raw.annotations.delete(bad_idc)
     else:
         cropped_raw = raw
@@ -125,8 +126,8 @@ def epoch_data(raw, epoch_len, include_shuffled=True):
 
 
 
-def process(raw, epoch_len, annotations=None, channels=None, resample=None, highpass=None, lowpass=None, notch=None,
-            include_shuffled=True, verbose=True):
+def process(raw, epoch_len, annotations=None, channels=None, rereferencing=None, resample=None, highpass=None,
+            lowpass=None, notch=None, include_shuffled=True, verbose=True):
     """ Preprocessing of the raw data in preparation for coherence analysis.
     
     PARAMETERS
@@ -139,6 +140,9 @@ def process(raw, epoch_len, annotations=None, channels=None, resample=None, high
         The annotations to eliminate BAD segments from the data.
     channels : list of str | None (default)
         The names of the channels to pick from the data.
+    rereferencing :     NEED TO DESCRIBE!!!!!
+                        !!!!!
+                        !!!!!
     resample : int | float | None (default)
         The frequency (in Hz) at which to resample the data.
     highpass : int | float | None (default)
@@ -164,20 +168,20 @@ def process(raw, epoch_len, annotations=None, channels=None, resample=None, high
 
     # Adds annotations and removes artefacts
     if annotations != None:
-        no_annots = raw._annotations
-        raw.set_annotations(annotations)
-        #raw = crop_artefacts(raw)
-        #raw._annotations = no_annots
         if verbose:
             print("Setting annotations and removing artefacts")
+        no_annots = deepcopy(raw.annotations)
+        raw.set_annotations(annotations)
+        raw = crop_artefacts(raw)
+        raw.set_annotations(no_annots)
 
     # Selects channels
     if channels != None:
-        raw.pick_channels(channels)
         if verbose:
             print("Picking specified channels")
+        raw.pick_channels(channels)
 
-    # Sets LFP channel types to type SEEG
+    # Sets LFP channel types to type DBS
     names = raw.info.ch_names
     new_types = {}
     for name in names:
@@ -185,41 +189,85 @@ def process(raw, epoch_len, annotations=None, channels=None, resample=None, high
             new_types[name] = 'dbs'
     raw.set_channel_types(new_types)
 
-    # Rereferencing
-    raw.load_data()
-    raw.set_eeg_reference(ch_type='ecog')
-    new_names = {}
-    for name in channels:
-        if name[:4] == 'ECOG':
-            new_names[name] = name + '_CAR'
-    raw.rename_channels(new_names)
-    raw = mne.set_bipolar_reference(raw, 'LFP_L_1_STN_BS', 'LFP_L_8_STN_BS', ch_name='LFP_L_18_STN_BS')
-    if verbose:
-        print("Rereferencing the data")
+
+    ## Rereferencing
+    if rereferencing != None:
+        if verbose:
+            print("Rereferencing the data")
+
+        raw.load_data()
+        og_channels = deepcopy(raw.info.ch_names)
+
+        ref_types = ['bipolar', 'CAR']
+        n_refs = 0
+        for ref_type in ref_types:
+            if ref_type in rereferencing.keys():
+                if ref_type == 'bipolar': # bipolar rereferencing
+
+                    anodes = []
+                    cathodes = []
+                    new_names = []
+                    for x in rereferencing[ref_type]:
+                        anodes.append(x[0])
+                        cathodes.append(x[1])
+                        new_names.append(x[2])
+
+                    raw = mne.set_bipolar_reference(raw, anodes, cathodes, ch_name=new_names, drop_refs=False)
+
+                    change_type = {}
+                    for name in new_names:
+                        if name[:4] == 'ECOG':
+                            change_type[name] = 'dbs'
+                    raw.set_channel_types(change_type)
+
+                elif ref_type == 'CAR': # common average referencing
+                    raw.set_eeg_reference(ch_type='ecog')
+                    new_names = {}
+                    for name in og_channels:
+                        if name[:4] == 'ECOG':
+                            new_names[name] = name+'_CAR'
+                    raw.rename_channels(new_names)
+
+                n_refs += 1
+        if n_refs != len(rereferencing.keys()): # makes sure the proper number of rereferencing methods have been used
+            raise ValueError(f'{len(rereferencing.keys())} forms of rereferencing were requested, but {n_refs} was/were applied. The accepted rereferencing types are CAR and bipolar.')
+
+        # reverts bipolar-rereferenced ECoG channels back to ECoG type
+        for name in change_type.keys():
+            change_type[name] = 'ecog'
+        raw.set_channel_types(change_type)
+
+        # removes un-rereferenced channels that are no longer needed
+        drop_channels = []
+        for channel in og_channels:
+            if channel in raw.ch_names:
+                drop_channels.append(channel)
+        raw.drop_channels(drop_channels)
+
 
     # Notch filters data
     if notch.all() != None:
-        raw.notch_filter(notch)
         if verbose:
             print("Notch filtering the data")
+        raw.notch_filter(notch)
     
     # Bandpass filters data
     if highpass != None or lowpass != None:
-        raw.filter(highpass, lowpass)
         if verbose:
             print("Bandpass filtering the data")
+        raw.filter(highpass, lowpass)
 
     # Resamples data
     if resample != None:
-        raw.resample(resample)
         if verbose:
             print("Resampling the data")
+        raw.resample(resample)
 
     # Epochs data (and adds shuffled LFP data if requested)
     if epoch_len != None:
-        epoched = epoch_data(raw, epoch_len, include_shuffled)
         if verbose:
             print("Epoching data")
+        epoched = epoch_data(raw, epoch_len, include_shuffled)
 
 
     return epoched

@@ -15,10 +15,8 @@ import matplotlib; matplotlib.use('TKAgg')
 cd_path = Path(__file__).absolute().parent.parent
 sys.path.append(os.path.join(cd_path, 'coherence'))
 
-main_path = 'C:\\Users\\tomth\\OneDrive\\Documents\\Work\\Courses\\Berlin\\ECN\\ICN\\Data\\BIDS_Berlin_ECOG_LFP\\rawdata'
-project_path = os.path.join(main_path, 'projects', 'coherence')
-
-
+main_path = 'C:\\Users\\tomth\\Data\\BIDS_Berlin_ECOG_LFP\\rawdata'
+project_path = 'C:\\Users\\tomth\\OneDrive\\Documents\\Work\\Courses\\Berlin\\ECN\\ICN\\Data\\BIDS_Berlin_ECOG_LFP\\projects\\coherence'
 
 import preprocessing
 import processing
@@ -29,37 +27,42 @@ from helpers import combine_data
 # Loads settings for analysis
 sub = '004'
 task = 'Rest'
-med = 'MedOff'
+med = 'MedOn'
 stim = 'StimOff'
 with open(os.path.join(project_path, 'settings.json')) as json_file:
     settings = json.load(json_file)
-    run = settings['subjects'][sub]['analyses'][task][med][stim]
+    analysis = settings['analyses'][task]
+    sub_data = settings['analyses'][task][med][stim]['subjects'][sub]
 
-notch = np.arange(run['line_noise'], run['lowpass']+1, run['line_noise']) # Hz
-wavelet_freqs = np.arange(run['highpass'], run['psd_highfreq']+1)
+notch = np.arange(analysis['line_noise'], analysis['lowpass']+1, analysis['line_noise']) # Hz
+wavelet_freqs = np.arange(analysis['highpass'], analysis['psd_highfreq']+1)
 
 
 ## Analysis =====
-data_paths = run['data_paths']
-annot_paths = []
-for annot_path in run['annotation_paths']:
-    annot_paths.append(os.path.join(project_path, annot_path))
 all_psds = []
 all_cohs = []
-for i, run_i in enumerate(data_paths):
+for i in sub_data:
     # Load data
-    bids_path = BIDSPath(data_paths[run_i]['subject'], data_paths[run_i]['session'], data_paths[run_i]['task'],
-                         data_paths[run_i]['acquisition'], data_paths[run_i]['run'], root=main_path)
+    bids_path = BIDSPath(sub, sub_data[i]['session'], task, sub_data[i]['acquisition'], sub_data[i]['run'],
+                         root=main_path)
     raw = read_raw_bids(bids_path=bids_path, verbose=False)
-    annots = read_annotations(annot_paths[i])
+    annots = None
+    
+    try:
+        annots = read_annotations(os.path.join(project_path, 'annotations', bids_path.basename+'.csv'))
+    except:
+        print('No annotations to read.')
+    
 
     # Process data
-    processed = preprocessing.process(raw, run['epoch_length'], annotations=annots, channels=run['channels'],
-                                      resample=run['resample'], highpass=run['highpass'], lowpass=run['lowpass'],
-                                      notch=notch)
-    psd, psd_keys = processing.get_psd(processed, run['psd_lowfreq'], run['psd_highfreq'],
-                    line_noise=run['line_noise'])
-    coh, coh_keys = processing.get_coherence(processed, wavelet_freqs, run['coherence_methods'])
+    processed = preprocessing.process(raw, analysis['epoch_length'], annotations=annots,
+                                      channels=sub_data[i]['channels'], rereferencing=sub_data[i]['rereferencing'],
+                                      resample=analysis['resample'], highpass=analysis['highpass'],
+                                      lowpass=analysis['lowpass'], notch=notch)
+
+    psd, psd_keys = processing.get_psd(processed, analysis['psd_lowfreq'], analysis['psd_highfreq'],
+                    line_noise=analysis['line_noise'])
+    coh, coh_keys = processing.get_coherence(processed, wavelet_freqs, analysis['coherence_methods'])
 
     # Collects data
     all_psds.append(psd)
@@ -67,26 +70,28 @@ for i, run_i in enumerate(data_paths):
 
 # Combines data
 data_info = {
-    'run': list(data_paths.keys()),
+    'run': list(sub_data.keys()),
     'subject': [sub],
     'task': [task],
-    'stim': [stim],
-    'med': [med]
+    'stim': [stim[4:]],
+    'med': [med[3:]]
 }
 psds = deepcopy(all_psds)
 cohs = deepcopy(all_cohs)
 for i in range(len(data_info)):
     info = {list(data_info.keys())[i]: list(data_info.values())[i]}
     if len(list(info.values())[0]) == 1:
-        psds = [psds]
-        cohs = [cohs]
+        if type(psds) is not list:
+            psds = [psds]
+        if type(cohs) is not list:
+            cohs = [cohs]
     psds = combine_data(psds, info)
     cohs = combine_data(cohs, info)
 
 # Saves data
-savepath = os.path.join(project_path, 'derivatives', f'{task}-{sub}-{med}-{stim}-psd.pkl')
-psds.to_pickle(savepath)
+savepath = os.path.join(project_path, 'derivatives', f'{task}-{sub}-{med}-{stim}')
+print(f'Saving data to {savepath}')
 
-savepath = os.path.join(project_path, 'derivatives', f'{task}-{sub}-{med}-{stim}-coh.pkl')
-cohs.to_pickle(savepath)
+psds.to_pickle(savepath+'-psd.pkl')
+cohs.to_pickle(savepath+'-coh.pkl')
 
