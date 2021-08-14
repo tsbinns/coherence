@@ -146,7 +146,7 @@ def unique_channel_names(ch_names):
     -   Indices of each unique channel in names.
     """
 
-    unique_ch_names = np.unique(ch_names) # find unique channel names
+    unique_ch_names = pd.unique(ch_names) # find unique channel names
     unique_ch_idc = [] # find indices of these unique channels
     for unique_ch_name in unique_ch_names:
         unique_ch_idc.append([i for i, x in enumerate(ch_names) if x == unique_ch_name])
@@ -195,18 +195,20 @@ def unique_channel_types(unique_ch_idc, types):
 
 
 
-def window_title(info, base_title=''):
+def window_title(info, base_title='', full_info=True):
     """ Generates a title for a figure window based on information in the data.
     
     PARAMETERS
     ----------
     info : dict
-    -   A dictionary with keys representing factors in the data (e.g. experimental conditions, subjects, etc...) and
-        their corresponding values in the data.
-    -   E.g. 'task' = ['Rest', 'Movement'], 'subject' = [1, 2, 3], etc...
-
-    base_title : str
-    -   A starting string to build the rest of the title on.
+        A dictionary with keys representing factors in the data (e.g. experimental conditions, subjects, etc...) and
+        their corresponding values in the data. E.g. 'task' = ['Rest', 'Movement'], 'subject' = [1, 2, 3], etc...
+    base_title : str | Default ''
+        A starting string to build the rest of the title on.
+    full_info : bool, default True
+        Whether or not full information about the data should be provided for averaged results. If True (default), full
+        information (e.g. the IDs of the runs, subjects, etc... that the data was averaged over). If False, only a
+        generic 'avg' tag is returned, useful for avoiding clutter on figures.
 
     RETURNS
     ----------
@@ -222,17 +224,24 @@ def window_title(info, base_title=''):
         information that has already been included in the window title.
     """
 
+    if full_info == False: # If partial information is requested, provide a general 'avg' tag rather than a tag...
+    #... containing details of each piece of data involved
+        for key in info.keys():
+            for val_i, val in enumerate(info[key]):
+                if val[:3] == 'avg': # if the data has been averaged, discard any additional info
+                    info[key][val_i] = 'avg'
+            info[key] = pd.unique(info[key])
+
     title = base_title
     included = []
     first = True
-
     for key in info.keys():
         if len(info[key]) == 1: # if only a single type of data is present, add this information to the window's title
             if first == True: # if this is the first key to be added, don't add a comma to the start
-                title += key + '[' + info[key][0] + ']'
+                title += f'{key}-{info[key][0]}'
                 first = False
             else: # if this is not the first key to be added, add a comma to separate the different factors
-                title += ',' + key + '[' + info[key][0] + ']'
+                title += f',{key}-{info[key][0]}'
             included.append(key)
 
 
@@ -240,22 +249,23 @@ def window_title(info, base_title=''):
 
 
 
-def channel_title(info, already_included=[], base_title=''):
+def channel_title(info, already_included=[], base_title='', full_info=True):
     """ Generates a title for a subplot based on information in the data.
     
     PARAMETERS
     ----------
     info : dict
-    -   A dictionary with keys representing factors in the data (e.g. experimental conditions, subjects, etc...) and
-        their corresponding values in the data.
-    -   E.g. 'task' = ['Rest', 'Movement'], 'subject' = [1, 2, 3], etc...
-
+        A dictionary with keys representing factors in the data (e.g. experimental conditions, subjects, etc...) and
+        their corresponding values in the data. E.g. 'task' = ['Rest', 'Movement'], 'subject' = [1, 2, 3], etc...
     already_included : list of strs
-    -   A list containing the information that has already been included in a previous title (i.e. the title of the
+        A list containing the information that has already been included in a previous title (i.e. the title of the
         window in which the subplot is contained). Empty by default.
-
     base_title : str
-    -   A starting string to build the rest of the title on.
+        A starting string to build the rest of the title on.
+    full_info : bool, default True
+        Whether or not full information about the data should be provided for averaged results. If True (default), full
+        information (e.g. the IDs of the runs, subjects, etc... that the data was averaged over). If False, only a
+        generic 'avg' tag is returned, useful for avoiding clutter on figures.
 
     RETURNS
     ----------
@@ -270,6 +280,13 @@ def channel_title(info, already_included=[], base_title=''):
         generated (e.g. for data labels) so that you can avoid repeating information that has already been
         included in the window title.
     """
+    if full_info == False: # If partial information is requested, provide a general 'avg' tag rather than a tag...
+    #... containing details of each piece of data involved
+        for key in info.keys():
+            for val_i, val in enumerate(info[key]):
+                if val[:3] == 'avg': # if the data has been averaged, discard any additional info
+                    info[key][val_i] = 'avg'
+            info[key] = pd.unique(info[key])
 
     title = base_title
     included = []
@@ -281,10 +298,10 @@ def channel_title(info, already_included=[], base_title=''):
             if len(title) >= 40: # adds a new line to the title to stop it getting too wide
                 title += '\n'
             if first == True: # if this is the first key to be added, don't add a comma to the start
-                title += key + '[' + info[key][0] + ']'
+                title += f'{key}-{info[key][0]}'
                 first = False
             else: # if this is not the first key to be added, add a comma to separate the different factors
-                title += ',' + key + '[' + info[key][0] + ']'
+                title += f',{key}-{info[key][0]}'
             included.append(key)
 
 
@@ -292,22 +309,23 @@ def channel_title(info, already_included=[], base_title=''):
 
 
 
-def data_title(info, already_included=[]):
+def data_title(info, already_included=[], full_info=True):
     """ Generates a title for a subplot based on information in the data.
     
     PARAMETERS
     ----------
     info : dict
-    -   A dictionary with keys representing factors in the data (e.g. experimental conditions, subjects, etc...) and
-        their corresponding values in the data.
-    -   E.g. 'task' = ['Rest', 'Movement'], 'subject' = [1, 2, 3], etc...
-
+        A dictionary with keys representing factors in the data (e.g. experimental conditions, subjects, etc...) and
+        their corresponding values in the data. E.g. 'task' = ['Rest', 'Movement'], 'subject' = [1, 2, 3], etc...
     already_included : list of strs
-    -   A list containing the information that has already been included in a previous title (i.e. the title of the
+        A list containing the information that has already been included in a previous title (i.e. the title of the
         window in which the subplot is contained). Empty by default.
-
     base_title : str
-    -   A starting string to build the rest of the title on.
+        A starting string to build the rest of the title on.
+    full_info : bool, default True
+        Whether or not full information about the data should be provided for averaged results. If True (default), full
+        information (e.g. the IDs of the runs, subjects, etc... that the data was averaged over). If False, only a
+        generic 'avg' tag is returned, useful for avoiding clutter on figures.
 
     RETURNS
     ----------
@@ -315,6 +333,14 @@ def data_title(info, already_included=[]):
     -   A label for the data based on the data's information. Factors are included in the label if this information
         cannot be placed in the subplot's or figure window's title (i.e. if it is different for the data being plotted).
     """
+
+    if full_info == False: # If partial information is requested, provide a general 'avg' tag rather than a tag...
+    #... containing details of each piece of data involved
+        for key in info.keys():
+            for val_i, val in enumerate(info[key]):
+                if val[:3] == 'avg': # if the data has been averaged, discard any additional info
+                    info[key][val_i] = 'avg'
+            info[key] = pd.unique(info[key])
 
     title = ''
     first = True
@@ -324,10 +350,10 @@ def data_title(info, already_included=[]):
         #... information has not been included in the window's and subplot's titles, add this information to the data...
         #... label
             if first == True:  # if this is the first key to be added, don't add a comma to the start
-                title += key + '[' + info[key] + ']'
+                title += f'{key}-{info[key][0]}'
                 first = False
             else: # if this is not the first key to be added, add a comma to separate the different factors
-                title += ',' + key + '[' + info[key] + ']'
+                title += f',{key}-{info[key][0]}'
 
 
     return title
