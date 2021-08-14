@@ -73,7 +73,7 @@ def psd(psd, plot_shuffled=False, plot_std=True, n_plots_per_page=6, freq_limit=
             'subject': list(np.unique(psd.subject[all_type_idc])),
             'run': list(np.unique(psd.run[all_type_idc]))
         }
-        wind_title, included = helpers.window_title(type_info, base_title='PSD:')
+        wind_title, included = helpers.window_title(type_info, base_title='PSD:', full_info=False)
 
         stop = False
         for page_i in range(n_pages): # for each page of this type
@@ -99,7 +99,8 @@ def psd(psd, plot_shuffled=False, plot_std=True, n_plots_per_page=6, freq_limit=
                             'run': list(np.unique(psd.run[ch_idc]))
                         }
                         ch_title, ch_included = helpers.channel_title(channel_info, already_included=included,
-                                                          base_title=unique_ch_names[unique_ch_i]+':')
+                                                                      base_title=f'{unique_ch_names[unique_ch_i]},',
+                                                                      full_info=False)
                         included.extend(ch_included) # keeps track of what is already included in the titles
 
                         # Sets up subplot
@@ -125,7 +126,7 @@ def psd(psd, plot_shuffled=False, plot_std=True, n_plots_per_page=6, freq_limit=
                                 'subject': data.subject,
                                 'run': data.run
                             }
-                            data_title = helpers.data_title(data_info, already_included=included)
+                            data_title = helpers.data_title(data_info, already_included=included, full_info=False)
                             if data_title == '': # don't label the data if there is no info to add
                                 data_title = None
 
@@ -152,7 +153,7 @@ def psd(psd, plot_shuffled=False, plot_std=True, n_plots_per_page=6, freq_limit=
 
                         unique_ch_i += 1 # moves on to the next data to plot
                         unique_ch_i_oftype += 1 # moves on to the next data to plot
-                        if unique_ch_i > len(type_idc): # if there is no more data to plot for this type...
+                        if unique_ch_i_oftype == len(type_idc): # if there is no more data to plot for this type...
                             stop = True #... don't plot anything else
                             extra = n_plots_per_page*n_pages - n_plots # checks if there are extra subplots than can...
                             #... be removed
@@ -234,7 +235,7 @@ def coherence_fwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page=6,
     for method in methods:
 
         unique_ch_i = 0 # keeps track of the channel whose data is being plotted
-        wind_title, wind_included = helpers.window_title(dataset_info, base_title=f'{method}:')
+        wind_title, wind_included = helpers.window_title(dataset_info, base_title=f'{method}:', full_info=False)
         stop = False
 
         for page_i in range(n_pages): # for each page of this type
@@ -261,7 +262,8 @@ def coherence_fwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page=6,
                             ':': list(np.unique(coh.ch_name_deep[ch_idc]))
                         }
                         ch_title, ch_included = helpers.channel_title(channel_info, already_included=wind_included,
-                                                            base_title=unique_ch_names[unique_ch_i]+':')
+                                                                      base_title=f'{unique_ch_names[unique_ch_i]},',
+                                                                      full_info=False)
                         included = [*wind_included, *ch_included]
 
                         # Sets up subplot
@@ -286,9 +288,9 @@ def coherence_fwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page=6,
                                 'task': data.task,
                                 'subject': data.subject,
                                 'run': data.run,
-                                ':': data.ch_name_deep
+                                'ch': data.ch_name_deep
                             }
-                            data_title = helpers.data_title(data_info, already_included=included)
+                            data_title = helpers.data_title(data_info, already_included=included, full_info=False)
                             if data_title == '': # don't label the data if there is no info to add
                                 data_title = None
 
@@ -318,7 +320,7 @@ def coherence_fwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page=6,
                                                                     color=colour, alpha=alpha*.3)
 
                         unique_ch_i += 1 # moves on to the next data to plot
-                        if unique_ch_i > len(unique_ch_idc): # if there is no more data to plot for this type...
+                        if unique_ch_i == len(unique_ch_idc): # if there is no more data to plot for this type...
                             stop = True #... don't plot anything else
                             extra = n_plots_per_page*n_pages - n_plots # checks if there are extra subplots than can...
                             #... be removed
@@ -388,7 +390,7 @@ def coherence_bandwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page
     for method in methods: # plots data for different coherence calculations separately
 
         ch_i = 0 # index of data to plot
-        wind_title, included = helpers.window_title(dataset_info, base_title=f'{method}:') # title of the window
+        wind_title, included = helpers.window_title(dataset_info, base_title=f'{method}:', full_info=False) # title of the window
         stop = False
 
         # Generates key names for the band-wise data based on the requested features in keys_to_plot. Follows the...
@@ -420,7 +422,7 @@ def coherence_bandwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page
                             'run': [data.run],
                         }
                         ch_title, _ = helpers.channel_title(channel_info, already_included=included,
-                                                                      base_title=f'{comb_ch_names[ch_i]}:')
+                                                            base_title=f'{comb_ch_names[ch_i]},', full_info=False)
 
                         # Sets up subplot
                         axs[row_i, col_i].set_title(ch_title)
@@ -464,7 +466,7 @@ def coherence_bandwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page
 
                                 if 'fbands_max' in key: # gets the std of the fmax data to add to the plots
                                     fmaxs.append(str(int(data[method+'_fbands_fmax'][band_i])))
-                                    if plot_std == True:
+                                    if plot_std == True and method+'_fbands_fmax_std' in data.keys():
                                         fmax_std = u'\u00B1'+str(int(np.ceil(data[method+'_fbands_fmax_std'][band_i])))
                                         fmaxs[-1] += fmax_std
 
@@ -490,7 +492,7 @@ def coherence_bandwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page
                             #... to accomodate the text
 
                         ch_i += 1 # moves on to the next data to plot
-                        if ch_i > np.shape(coh)[0]: # if there is no more data to plot for this type...
+                        if ch_i == np.shape(coh)[0]: # if there is no more data to plot for this type...
                             stop = True #... don't plot anything else
                             extra = n_plots_per_page*n_pages - n_plots # checks if there are extra subplots than can...
                             #... be removed
