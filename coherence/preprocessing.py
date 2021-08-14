@@ -238,11 +238,13 @@ def process(raw, epoch_len, annotations=None, channels=None, rereferencing=None,
         raw.set_channel_types(change_type)
 
         # removes un-rereferenced channels that are no longer needed
+        bipolar_channels = np.unique([*anodes, *cathodes])
         drop_channels = []
-        for channel in og_channels:
-            if channel in raw.ch_names:
+        for channel in bipolar_channels:
+            if channel in raw.info.ch_names:
                 drop_channels.append(channel)
-        raw.drop_channels(drop_channels)
+        if drop_channels:
+            raw.drop_channels(drop_channels)
 
 
     # Notch filters data
