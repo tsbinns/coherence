@@ -253,19 +253,20 @@ def process(raw, epoch_len, annotations=None, channels=None, rereferencing=None,
         if n_refs != len(rereferencing.keys()): # makes sure the proper number of rereferencing methods have been used
             raise ValueError(f'{len(rereferencing.keys())} forms of rereferencing were requested, but {n_refs} was/were applied. The accepted rereferencing types are CAR and bipolar.')
 
-        # reverts bipolar-rereferenced ECoG channels back to ECoG type
-        for name in change_type.keys():
-            change_type[name] = 'ecog'
-        raw.set_channel_types(change_type)
-
-        # removes un-rereferenced channels that are no longer needed
-        bipolar_channels = np.unique([*anodes, *cathodes])
-        drop_channels = []
-        for channel in bipolar_channels:
-            if channel in raw.info.ch_names:
-                drop_channels.append(channel)
-        if drop_channels:
-            raw.drop_channels(drop_channels)
+        if 'bipolar' in rereferencing.keys():
+            # reverts bipolar-rereferenced ECoG channels back to ECoG type
+            for name in change_type.keys():
+                change_type[name] = 'ecog'
+            raw.set_channel_types(change_type)
+            
+            # removes un-rereferenced channels that are no longer needed
+            bipolar_channels = np.unique([*anodes, *cathodes])
+            drop_channels = []
+            for channel in bipolar_channels:
+                if channel in raw.info.ch_names:
+                    drop_channels.append(channel)
+            if drop_channels:
+                raw.drop_channels(drop_channels)
 
 
     # Notch filters data
