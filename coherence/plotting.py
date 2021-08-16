@@ -138,8 +138,11 @@ def psd(psd, plot_shuffled=False, plot_std=True, n_plots_per_page=6, freq_limit=
                             colour = []
                             for key in colours.keys():
                                 colour.append(colours[key][colour_info[key][1].index(data[key])])
-                            colour = np.mean(colour, axis=0)[0] # takes the average colour based on the data's...
-                            #... characteristics
+                            if colour:
+                                colour = np.mean(colour, axis=0)[0] # takes the average colour based on the data's...
+                                #... characteristics
+                            else: # if there is no colour info, set the colour to black
+                                colour = [0, 0, 0]
                             
                             # Plots data
                             axs[row_i, col_i].plot(data.freqs[:freq_limit_i+1], data.psd[:freq_limit_i+1],
@@ -307,8 +310,11 @@ def coherence_fwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page=6,
                             colour = []
                             for key in colours.keys():
                                 colour.append(colours[key][colour_info[key][1].index(data[key])])
-                            colour = np.mean(colour, axis=0)[0] # takes the average colour based on the data's...
-                            #... characteristics
+                            if colour:
+                                colour = np.mean(colour, axis=0)[0] # takes the average colour based on the data's...
+                                #... characteristics
+                            else: # if there is no colour info, set the colour to black
+                                colour = [0, 0, 0]
                             
                             # Plots data
                             alpha = 1
@@ -498,10 +504,11 @@ def coherence_bandwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page
                         if 'max' in keys_to_plot:
                             ylim = axs[row_i, col_i].get_ylim()
                             for fmax_i, fmax in enumerate(fmaxs):
-                                axs[row_i, col_i].text(group_locs[1][fmax_i], data[method+'_fbands_max'][fmax_i]+
-                                                       data[method+'_fbands_max_std'][fmax_i]+ylim[1]*.01, fmax,
-                                                       ha='center', rotation=60) # adds the fmax values at an angle to the bars...
-                                #... one at a time
+                                text_ypos = data[method+'_fbands_max'][fmax_i]+ylim[1]*.01 # where to put text
+                                if plot_std == True:
+                                    text_ypos += data[method+'_fbands_max_std'][fmax_i]
+                                # adds the fmax values at an angle to the bars one at a time
+                                axs[row_i, col_i].text(group_locs[1][fmax_i], text_ypos, fmax, ha='center', rotation=60)
                             axs[row_i, col_i].set_ylim([ylim[0], ylim[1]+ylim[1]*.07]) # increases the subplot height...
                             #... to accomodate the text
 
