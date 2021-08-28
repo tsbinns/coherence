@@ -16,7 +16,7 @@ cd_path = Path(__file__).absolute().parent.parent
 sys.path.append(os.path.join(cd_path, 'coherence'))
 
 main_path = 'C:\\Users\\tomth\\Data\\BIDS_Berlin_ECOG_LFP\\rawdata'
-project_path = 'C:\\Users\\tomth\\OneDrive\\Documents\\Work\\Courses\\Berlin\\ECN\\ICN\\Data\\BIDS_Berlin_ECOG_LFP\\projects\\coherence'
+project_path = 'C:\\Users\\tomth\\OneDrive\\My Documents\\Work\\Courses\\Berlin\\ECN\\ICN\\Data\\BIDS_Berlin_ECOG_LFP\\projects\\coherence'
 
 import preprocessing
 import processing
@@ -25,7 +25,7 @@ from helpers import combine_data
 
 ## Setup =====
 # Loads settings for analysis
-sub = '004'
+sub = '001'
 task = 'Rest'
 med = 'MedOn'
 stim = 'StimOff'

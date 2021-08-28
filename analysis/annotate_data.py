@@ -10,22 +10,22 @@ cd_path = Path(__file__).absolute().parent.parent
 sys.path.append(os.path.join(cd_path, 'coherence'))
 
 main_path = 'C:\\Users\\tomth\\Data\\BIDS_Berlin_ECOG_LFP\\rawdata'
-project_path = 'C:\\Users\\tomth\\OneDrive\\Documents\\Work\\Courses\\Berlin\\ECN\\ICN\\Data\\BIDS_Berlin_ECOG_LFP\\projects\\coherence'
+project_path = 'C:\\Users\\tomth\\OneDrive\\My Documents\\Work\\Courses\\Berlin\\ECN\\ICN\\Data\\BIDS_Berlin_ECOG_LFP\\projects\\coherence'
 
 from annotations import annotate
 from helpers import filter_for_annotation
 
 # Setup
-sub = '005'
+sub = '004'
 ses = 'EphysMedOn02'
 task = 'Rest'
-acq = 'StimOff'
+acq = 'StimOn'
 run = '01'
 datatype = 'ieeg'
 
-channels = ["ECOG_R_1_SMC_AT", "ECOG_R_2_SMC_AT", "ECOG_R_3_SMC_AT", "ECOG_R_4_SMC_AT", 
-                                             "ECOG_R_5_SMC_AT", "ECOG_R_6_SMC_AT",
-                                             "LFP_R_1_STN_MT", "LFP_R_8_STN_MT"]
+channels = ["ECOG_L_1_SMC_AT", "ECOG_L_2_SMC_AT", "ECOG_L_3_SMC_AT", "ECOG_L_4_SMC_AT", 
+                                             "ECOG_L_5_SMC_AT", "ECOG_L_6_SMC_AT",
+                                             "LFP_L_1_STN_BS", "LFP_L_8_STN_BS"]
 filter_data = True
 
 # Loads data

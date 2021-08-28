@@ -14,7 +14,7 @@ cd_path = Path(__file__).absolute().parent.parent
 sys.path.append(os.path.join(cd_path, 'coherence'))
 
 main_path = 'C:\\Users\\tomth\\Data\\BIDS_Berlin_ECOG_LFP\\rawdata'
-project_path = 'C:\\Users\\tomth\\OneDrive\\Documents\\Work\\Courses\\Berlin\\ECN\\ICN\\Data\\BIDS_Berlin_ECOG_LFP\\projects\\coherence'
+project_path = 'C:\\Users\\tomth\\OneDrive\\My Documents\\Work\\Courses\\Berlin\\ECN\\ICN\\Data\\BIDS_Berlin_ECOG_LFP\\projects\\coherence'
 
 import plotting
 from helpers import average_dataset
@@ -22,7 +22,7 @@ from helpers import average_dataset
 
 ### Setup & Processing
 # Loads data
-datasets = ['Rest-004-MedOff-StimOff', 'Rest-004-MedOn-StimOff']
+datasets = ['Rest-003-MedOff-StimOff', 'Rest-003-MedOn-StimOff']
 
 psds = []
 cohs = []
@@ -44,6 +44,6 @@ coh = pd.concat(cohs[:], ignore_index=True)
 
 
 ### Plotting
-plotting.psd(psd, plot_shuffled=False, plot_std=False, freq_limit=50)
+plotting.psd(psd, plot_shuffled=False, plot_std=False, freq_limit=50, power_limit=15)
 plotting.coherence_fwise(coh, plot_shuffled=True, plot_std=False, freq_limit=50, methods=['coh', 'imcoh'])
 plotting.coherence_bandwise(coh, plot_shuffled=False, plot_std=False, methods=['coh', 'imcoh'])
