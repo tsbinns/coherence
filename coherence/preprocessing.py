@@ -184,31 +184,25 @@ def process(raw, epoch_len, annotations=None, channels=None, rereferencing=None,
     ----------
     epoched : MNE Epoch object
     -   The processed, epoched data.
-
     """
 
-    # Adds annotations and removes artefacts
-    if annotations != None:
-        if verbose:
-            print("Setting annotations and removing artefacts")
-        no_annots = deepcopy(raw.annotations)
-        raw.set_annotations(annotations)
-        raw = crop_artefacts(raw)
-        raw.set_annotations(no_annots)
-
+    ## Sets up preprocessing
     # Selects channels
     if channels != None:
         if verbose:
             print("Picking specified channels")
         raw.pick_channels(channels)
 
-    # Sets LFP channel types to type DBS
-    names = raw.info.ch_names
-    new_types = {}
-    for name in names:
-        if name[:3] == 'LFP':
-            new_types[name] = 'dbs'
-    raw.set_channel_types(new_types)
+    # Adds annotations and removes artefacts
+    if annotations != None:
+        if verbose:
+            print("Setting annotations and removing artefacts")
+        raw.set_annotations(annotations)
+    
+    # Gets data from the Raw object
+    channels = raw.info.ch_names.copy()
+    raw.load_data()
+    raw_data = raw.get_data(reject_by_annotation='omit').copy()
 
 
     ## Rereferencing
@@ -216,59 +210,76 @@ def process(raw, epoch_len, annotations=None, channels=None, rereferencing=None,
         if verbose:
             print("Rereferencing the data")
 
-        raw.load_data()
-        og_channels = deepcopy(raw.info.ch_names)
+        reref_data = [] # holder for rereferenced data
+        new_channs = [] # holder for the names of the new channels of rereferenced data
+        reref_type = [] # holder for the type of rereferencing (e.g. bipolar, CAR) of each channel
+        channs_type = [] # holder for the type of data in channels (e.g. ecog, dbs)
 
-        ref_types = ['bipolar', 'CAR']
-        n_refs = 0
+        # Rereferences data
+        ref_types = ['none', 'bipolar', 'CAR'] # types of rereferencing that are supported
+        n_refs = 0 # used to check that the number of rereferencing methods applied is the same as those requested
         for ref_type in ref_types:
             if ref_type in rereferencing.keys():
-                if ref_type == 'bipolar': # bipolar rereferencing
 
-                    anodes = []
-                    cathodes = []
-                    new_names = []
-                    for x in rereferencing[ref_type]:
-                        anodes.append(x[0])
-                        cathodes.append(x[1])
-                        new_names.append(x[2])
+                if ref_type == 'none': # leaves the data as is
+                    for chann_i in range(len(rereferencing['none']['old'])): # for each channel to leave untouched
+                        old_name = rereferencing['none']['old'][chann_i]
+                        new_name = rereferencing['none']['new'][chann_i]
+                        new_channs.append(new_name)
+                        reref_data.append(raw_data[channels.index(old_name)]) # adds the original data,...
+                        reref_type.append(rereferencing['none']['ref_type'][chann_i]) #... the desired type of...
+                        #... rereferencing to set,...
+                        channs_type.append(rereferencing['none']['chann_type'][chann_i]) #... and the type of the...
+                        #... data to their respective holders
+                
+                if ref_type == 'bipolar': # bipolar rereferences data
+                    for chann_i in range(len(rereferencing['bipolar']['old'])): # for each set of two channels to reref.
+                        old_names = rereferencing['bipolar']['old'][chann_i] # names of the channels to bipolar reref.
+                        new_name = rereferencing['bipolar']['new'][chann_i] # name of the new channel to create
+                        new_channs.append(new_name)
+                        reref_data.append(raw_data[channels.index(old_names[0])] -
+                                          raw_data[channels.index(old_names[1])]) # anode - cathode => bipolar reref.
+                        reref_type.append('bipolar')
+                        channs_type.append(rereferencing['bipolar']['chann_type'][chann_i])
 
-                    raw = mne.set_bipolar_reference(raw, anodes, cathodes, ch_name=new_names, drop_refs=False)
-
-                    change_type = {}
-                    for name in new_names:
-                        if name[:4] == 'ECOG':
-                            change_type[name] = 'dbs'
-                    raw.set_channel_types(change_type)
-
-                elif ref_type == 'CAR': # common average referencing
-                    raw.set_eeg_reference(ch_type='ecog')
-                    new_names = {}
-                    for name in og_channels:
-                        if name[:4] == 'ECOG':
-                            new_names[name] = name+'_CAR'
-                    raw.rename_channels(new_names)
+                if ref_type == 'CAR': # common average rereferences data
+                    for channs_i in range(len(rereferencing['CAR']['old'])): # for each group of channels to average
+                        old_names = rereferencing['CAR']['old'][channs_i] # names of the original channels
+                        new_names = rereferencing['CAR']['new'][channs_i] # new names for the averaged data
+                        avg_data = raw_data[[i for i, x in enumerate(channels) if x in old_names]].mean(axis=0) # the...
+                        #... average of the data in these channels
+                        for chann_i in range(len(new_names)): # for each of the original channels
+                            old_name = old_names[chann_i]
+                            new_name = new_names[chann_i]
+                            new_channs.append(new_name)
+                            reref_data.append(raw_data[channels.index(old_name)] - avg_data) # original - average...
+                            #... => CAR reref.
+                            reref_type.append('CAR')
+                            channs_type.append(rereferencing['CAR']['chann_type'][channs_i][chann_i])
 
                 n_refs += 1
         if n_refs != len(rereferencing.keys()): # makes sure the proper number of rereferencing methods have been used
             raise ValueError(f'{len(rereferencing.keys())} forms of rereferencing were requested, but {n_refs} was/were applied. The accepted rereferencing types are CAR and bipolar.')
 
-        if 'bipolar' in rereferencing.keys():
-            # reverts bipolar-rereferenced ECoG channels back to ECoG type
-            for name in change_type.keys():
-                change_type[name] = 'ecog'
-            raw.set_channel_types(change_type)
-            
-            # removes un-rereferenced channels that are no longer needed
-            bipolar_channels = np.unique([*anodes, *cathodes])
-            drop_channels = []
-            for channel in bipolar_channels:
-                if channel in raw.info.ch_names:
-                    drop_channels.append(channel)
-            if drop_channels:
-                raw.drop_channels(drop_channels)
+        # Sorts the data together based on rereferencing type
+        channs_i_sorted = [] # holder for the indices of the sorted data
+        for ref_type in np.unique(reref_type): # for each type of reref. applied
+            ref_channs_i = [i for i, x in enumerate(reref_type) if x == ref_type] # finds the indices of these channels
+            ref_channs = [new_channs[i] for i in ref_channs_i] # gets the name of these channels
+            idx = range(len(ref_channs_i))
+            sorted_i = sorted(idx, key=lambda x:ref_channs[x]) # sorts the channels alphabetically
+            channs_i_sorted.extend([ref_channs_i[i] for i in sorted_i]) # gets the indices of the sorted channels in...
+            #... the original data
+        new_channs_sorted = [new_channs[i] for i in channs_i_sorted] # sorts the names of the channels
+        reref_data_sorted = [reref_data[i] for i in channs_i_sorted] # sorts the data itself
+        channs_type_sorted = [channs_type[i] for i in channs_i_sorted] # sorts the type of the data
+
+        # Makes a new Raw object based on the rereferenced data
+        raw_info = mne.create_info(ch_names=new_channs_sorted, sfreq=raw.info['sfreq'], ch_types=channs_type_sorted)
+        raw = mne.io.RawArray(data=reref_data_sorted, info=raw_info)
 
 
+    ## Filtering and resampling
     # Notch filters data
     if notch.all() != None:
         if verbose:
@@ -286,6 +297,7 @@ def process(raw, epoch_len, annotations=None, channels=None, rereferencing=None,
         if verbose:
             print("Resampling the data")
         raw.resample(resample)
+
 
     # Epochs data (and adds shuffled LFP data if requested)
     if epoch_len != None:
