@@ -297,7 +297,7 @@ def index_by_type(data, info, avg_as_equal=False):
 
 
 
-def same_axes(data, border=3):
+def same_axes(data, border=2, floor=None):
     """ Uses the maximum and minimum values in a dataset to create a single axis limit for this data.
 
     PARAMETERS
@@ -307,6 +307,10 @@ def same_axes(data, border=3):
 
     border : int | float
     -   The amount (percentage of data range) to add to the axis limits.
+
+    floor : int | float | None
+    -   The lower limit of the axis. If None, the limit is set based on the minimum value in the data. If a number, that
+        is the limit.
 
 
     RETURNS
@@ -320,7 +324,10 @@ def same_axes(data, border=3):
 
     # Finds the minimum and maximum values in the dataset
     lim = [0, 0]
-    lim[0] = min(flat_data)
+    if floor == None:
+        lim[0] = min(flat_data)
+    else:
+        lim[0] = floor
     lim[1] = max(flat_data)
 
     # If requested, adds a buffer to the axis limits
