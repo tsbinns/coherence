@@ -44,6 +44,6 @@ coh = pd.concat(cohs[:], ignore_index=True)
 
 
 ### Plotting
-plotting.psd(psd, plot_shuffled=False, plot_std=False, freq_limit=50)
+plotting.psd(psd, plot_shuffled=False, plot_std=False, freq_limit=50, power_limit=15)
 plotting.coherence_fwise(coh, plot_shuffled=True, plot_std=False, freq_limit=50, methods=['coh', 'imcoh'])
 plotting.coherence_bandwise(coh, plot_shuffled=False, plot_std=False, methods=['coh', 'imcoh'])
