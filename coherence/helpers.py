@@ -205,6 +205,136 @@ def unique_channel_types(unique_ch_idc, types):
 
 
 
+def channel_reref_types(names):
+    """ Find the indices of channels based on the type of rereferencing.
+
+    PARAMETERS
+    ----------
+    names : list
+    -   Names of the channels to group.
+
+
+    RETURNS
+    ----------
+    reref_types : dict
+    -   A dictionary in which the keys are the type of rereferencing and values are the indices of the channels.
+
+
+    NOTES
+    ----------
+    -   Only supports CAR and bipolar rereferencing.
+    """
+
+    reref_types = {'CAR': [],
+                   'bipolar': []}
+    
+    for i, name in enumerate(names):
+        if 'CAR' in name:
+            reref_types['CAR'].append(names.index[i])
+        else:
+            reref_types['bipolar'].append(names.index[i])
+
+    return reref_types
+
+
+
+def index_by_type(data, info, avg_as_equal=False):
+    """ Find the indices of channels based on the type of rereferencing.
+
+    PARAMETERS
+    ----------
+    data : pandas DataFrame
+    -   The data to organise.
+
+    info : dict
+    -   A dictionary containing information about the data characteristics, with keys representing the characteristics
+        and the corresponding values reflecting the unique types of data for that characteristic.
+    
+    avg_as_equal : bool, default False
+    -   Whether or not data that has been averaged should be treated as the same type, regardless of what has been
+        averaged. If False (default), the data is not necessarily treated as the same type (and thus is assigned a
+        colour), whereas if True, the data is treated as the same type (and thus not assigned a colour).
+    -   E.g. if some data has been averaged across subjects 1 and 2, whilst other data has been averaged across subjects
+        3 and 4, avg_as_equal=True means that this data will be considered equivalent (and thus not assigned a colour)
+        based on the fact that it has been averaged, regardless of the fact that it was averaged across different
+        subjects (which can be useful if you want to generate contrast between data based on their different
+        characteristics, rather than diluting the colours with their similarities).
+
+
+    RETURNS
+    ----------
+    idcs : list of lists
+    -   List containing sublists of the data indices sharing the same charactertistics.
+    """
+
+    if avg_as_equal == True:
+        for group in info.keys():
+            for i, val in enumerate(data[group]):
+                if 'avg' in val:
+                    data[group][i] = 'avg'
+            for i, val in enumerate(info[group]):
+                if 'avg' in val:
+                    info[group][i] = 'avg'
+            info[group] = np.unique(info[group])
+
+
+    comb_types = ['-' for i in range(np.shape(data)[0])]
+    for group_key in info.keys():
+        if len(info[group_key]) > 1:
+            for i, val in enumerate(data[group_key]):
+                comb_types[i] += val
+    unique_comb_types = np.unique(comb_types)
+
+    idcs = []
+    for unique_comb_type in unique_comb_types:
+        idcs.append([])
+        for i, val in enumerate(comb_types):
+            if val == unique_comb_type:
+                idcs[-1].append(data.index[i])
+
+
+    return idcs
+
+
+
+def same_axes(data, border=3):
+    """ Uses the maximum and minimum values in a dataset to create a single axis limit for this data.
+
+    PARAMETERS
+    ----------
+    data : pandas DataFrame
+    -   The data to set an axis limit for.
+
+    border : int | float
+    -   The amount (percentage of data range) to add to the axis limits.
+
+
+    RETURNS
+    ----------
+    lim : list of size (1x2)
+    -   A list specifying the lower (entry 0) and upper (entry 1) axis limits.
+    """
+
+    # Flattens data into a 1D list
+    flat_data = [item for sublist in data.values.flatten() for item in sublist]
+
+    # Finds the minimum and maximum values in the dataset
+    lim = [0, 0]
+    lim[0] = min(flat_data)
+    lim[1] = max(flat_data)
+
+    # If requested, adds a buffer to the axis limits
+    if border:
+        data_range = lim[1] - lim[0]
+        border_val = data_range*(border/100)
+        lim[0] -= border_val
+        lim[1] += border_val
+
+
+    return lim
+
+
+
 def window_title(info, base_title='', full_info=True):
     """ Generates a title for a figure window based on information in the data.
     
