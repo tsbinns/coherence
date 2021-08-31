@@ -95,20 +95,29 @@ def get_psd(epoched, extra_info, l_freq=0, h_freq=100, norm=True, line_noise=50)
     """
 
     # Gets channels to analyse
-    types = epoched.get_channel_types()
-    names = epoched.ch_names
+    # Setup
+    ch_types = epoched.get_channel_types()
+    ch_names = epoched.ch_names
+    data_types = extra_info['data_type']
+    reref_types = extra_info['reref_type']
+
+    # Channel types
     cortical = [] # index of ECoG channels
     deep = [] # index of LFP channels
-    for i, type in enumerate(types):
+    for i, type in enumerate(ch_types):
         if type == 'ecog':
             cortical.append(i)
-            types[i] = 'cortical'
+            ch_types[i] = 'cortical'
         elif type == 'dbs':
             deep.append(i)
-            types[i] = 'deep'
+            ch_types[i] = 'deep'
+    indices = con.seed_target_indices(cortical, deep)
+
+    # Channel names
+    ch_names_cortical = [ch_names[i] for i in indices[0]]
+    ch_names_deep = [ch_names[i] for i in indices[1]]
+
     used_channels = [*cortical, *deep]
-    ch_names = [names[i] for i in used_channels]
-    ch_types = [types[i] for i in used_channels]
 
     # Gets PSDs
     freqs = np.arange(l_freq, h_freq+1) # frequencies to analyse
@@ -119,8 +128,8 @@ def get_psd(epoched, extra_info, l_freq=0, h_freq=100, norm=True, line_noise=50)
     freqs = np.tile(freqs, [len(used_channels), 1])
 
     # Collects data
-    psd_data = list(zip(ch_names, extra_info['data_type'], extra_info['ref_type'], ch_types, freqs, psds))
-    psd_data = pd.DataFrame(data=psd_data, columns=['ch_name', 'data_type', 'ref_type', 'ch_type', 'freqs', 'psd'])
+    psd_data = list(zip(ch_names, data_types, reref_types, ch_types, freqs, psds))
+    psd_data = pd.DataFrame(data=psd_data, columns=['ch_name', 'data_type', 'reref_type', 'ch_type', 'freqs', 'psd'])
 
     # Average shuffled LFP values
     psd_data = helpers.average_shuffled(psd_data, ['psd', 'freqs'])
@@ -174,7 +183,7 @@ def get_coherence(epoched, extra_info, cwt_freqs, methods=['coh', 'imcoh']):
     ch_types = epoched.get_channel_types()
     ch_names = epoched.ch_names
     data_types = extra_info['data_type']
-    ref_types = extra_info['ref_type']
+    reref_types = extra_info['reref_type']
 
     # Channel types
     cortical = [] # index of ECoG channels
@@ -207,8 +216,8 @@ def get_coherence(epoched, extra_info, cwt_freqs, methods=['coh', 'imcoh']):
             raise ValueError(f"Only 'real' and 'shuffled' data types are accepted, but types {np.unique(dat_type)} are provided.")
     
     # Types of rereferencing
-    ref_type_cortical = [ref_types[i] for i in indices[0]]
-    ref_type_deep = [ref_types[i] for i in indices[1]]
+    reref_type_cortical = [reref_types[i] for i in indices[0]]
+    reref_type_deep = [reref_types[i] for i in indices[1]]
 
     # Gets frequency-wise coherence
     cohs = []
@@ -222,9 +231,9 @@ def get_coherence(epoched, extra_info, cwt_freqs, methods=['coh', 'imcoh']):
     freqs = np.tile(freqs, [len(indices[0]), 1])
 
     # Collects data
-    coh_data = list(zip(ch_names_cortical, ch_names_deep, data_type, ref_type_cortical, ref_type_deep, freqs, *cohs))
+    coh_data = list(zip(ch_names_cortical, ch_names_deep, data_type, reref_type_cortical, reref_type_deep, freqs, *cohs))
     coh_data = pd.DataFrame(data=coh_data, columns=['ch_name_cortical', 'ch_name_deep', 'data_type',
-                                                    'ref_type_cortical', 'ref_type_deep', 'freqs', *methods])
+                                                    'reref_type_cortical', 'reref_type_deep', 'freqs', *methods])
 
     # Gets band-wise coherence
     coh_data = helpers.coherence_by_band(coh_data, methods, band_names=['theta','alpha','low beta','high beta','gamma'])

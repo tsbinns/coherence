@@ -126,7 +126,7 @@ def epoch_data(raw, extra_info, epoch_len, include_shuffled=True):
                 np.random.shuffle(shuffled_order)
                 shuffled_epochs.append(mne.concatenate_epochs([epoched_shuffled[shuffled_order]]))
                 shuffled_epochs[i].rename_channels({ch_name: 'SHUFFLED-'+str(i)+'_'+ch_name})
-                extra_info['ref_type'].append(extra_info['ref_type'][epoched.info.ch_names.index(ch_name)])
+                extra_info['reref_type'].append(extra_info['reref_type'][epoched.info.ch_names.index(ch_name)])
         
         epoched.add_channels(shuffled_epochs)
         extra_info['data_type'].extend(list(np.repeat('shuffled', n_shuffles*len(epoched_shuffled.ch_names))))
@@ -283,12 +283,18 @@ def process(raw, epoch_len, annotations=None, channels=None, rereferencing=None,
 
         # Makes a new Raw object based on the rereferenced data
         raw_info = mne.create_info(ch_names=new_channs_sorted, sfreq=raw.info['sfreq'], ch_types=channs_type_sorted)
-        extra_info = {} # additional information about the data that cannot be included in raw.info
-        extra_info['ref_type'] = reref_type_sorted
         raw = mne.io.RawArray(data=reref_data_sorted, info=raw_info)
 
-    # Sets the data type (in case of later comparison with shuffled data)
-    extra_info['data_type'] = list(np.repeat('real', len(raw.info.ch_names)))
+    # Additional data information that cannot be included in raw.info
+    extra_info = {}
+    
+    if rereferencing != None: # type of rereferencing applied to data
+        extra_info['reref_type'] = reref_type_sorted
+    else:
+        extra_info['reref_type'] = list(np.repeat('none', len(raw.info.ch_names)))
+
+    extra_info['data_type'] = list(np.repeat('real', len(raw.info.ch_names))) # sets data as real (i.e. not shuffled;...
+    #... useful in case of later comparison with shuffled data)
 
 
     ## Filtering and resampling
