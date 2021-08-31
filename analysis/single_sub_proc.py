@@ -55,14 +55,15 @@ for i in sub_data:
     
 
     # Process data
-    processed = preprocessing.process(raw, analysis['epoch_length'], annotations=annots,
-                                      channels=sub_data[i]['channels'], rereferencing=sub_data[i]['rereferencing'],
-                                      resample=analysis['resample'], highpass=analysis['highpass'],
-                                      lowpass=analysis['lowpass'], notch=notch)
+    processed, extra_info = preprocessing.process(raw, analysis['epoch_length'], annotations=annots,
+                                                  channels=sub_data[i]['channels'],
+                                                  rereferencing=sub_data[i]['rereferencing'],
+                                                  resample=analysis['resample'], highpass=analysis['highpass'],
+                                                  lowpass=analysis['lowpass'], notch=notch)
 
-    psd, psd_keys = processing.get_psd(processed, analysis['psd_lowfreq'], analysis['psd_highfreq'],
+    psd, psd_keys = processing.get_psd(processed, extra_info, analysis['psd_lowfreq'], analysis['psd_highfreq'],
                     line_noise=analysis['line_noise'])
-    coh, coh_keys = processing.get_coherence(processed, wavelet_freqs, analysis['coherence_methods'])
+    coh, coh_keys = processing.get_coherence(processed, extra_info, wavelet_freqs, analysis['coherence_methods'])
 
     # Collects data
     all_psds.append(psd)

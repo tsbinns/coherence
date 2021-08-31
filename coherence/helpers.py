@@ -102,19 +102,19 @@ def combine_data(data, info):
 
 
 
-def combine_channel_names(data, ch_keys, joining='&'):
-    """ Concatenates channel names together, useful in the event that unique combinations of channels need to be found.
+def combine_names(data, keys, joining='&'):
+    """ Concatenates names together, useful in the event that unique combinations of channels need to be found.
     
     PARAMETERS
     ----------
     data : pandas DataFrame
     -   A DataFrame containing the names of the channels.
 
-    ch_keys : list of strs
-    -   The keys of the channel name columns in the DataFrame.
+    keys : list of strs
+    -   The keys of the columns in the DataFrame to be used.
 
     joining : str
-    -   A string with which to join multiple channel names.
+    -   A string with which to join multiple names.
 
 
     RETURNS
@@ -126,8 +126,8 @@ def combine_channel_names(data, ch_keys, joining='&'):
     names = [] # get names of all channels
     for chann_i in range(np.shape(data)[0]):
         cat_name = [] # if multiple channel names, combine them 
-        for ch_key in ch_keys:
-            cat_name.append(data[ch_key][chann_i])
+        for key in keys:
+            cat_name.append(data[key][chann_i])
         cat_name = joining.join(cat_name)
         names.append(cat_name)
 
@@ -136,32 +136,32 @@ def combine_channel_names(data, ch_keys, joining='&'):
 
 
 
-def unique_channel_names(ch_names):
-    """ Finds the unique channel names.
+def unique_names(names):
+    """ Finds the unique names.
 
     PARAMETERS
     ----------
     names : list of strs
-    -   Channel names to find the unique entries of.
+    -   Names to find the unique entries of.
     
 
     RETURNS
     ----------
     unique_names : list of strs
-    -   Unique channel names.
+    -   Unique names.
 
 
     unique_idc : list of ints
-    -   Indices of each unique channel in names.
+    -   Indices of each unique name.
     """
 
-    unique_ch_names = pd.unique(ch_names) # find unique channel names
-    unique_ch_idc = [] # find indices of these unique channels
-    for unique_ch_name in unique_ch_names:
-        unique_ch_idc.append([i for i, x in enumerate(ch_names) if x == unique_ch_name])
+    unique_names = pd.unique(names) # find unique channel names
+    unique_idc = [] # find indices of these unique channels
+    for unique_name in unique_names:
+        unique_idc.append([i for i, x in enumerate(names) if x == unique_name])
 
 
-    return unique_ch_names, unique_ch_idc
+    return unique_names, unique_idc
 
 
 
@@ -693,7 +693,7 @@ def average_data(data, axis=0):
 
 
 
-def average_dataset(data, avg_over, ch_keys, x_keys, y_keys):
+def average_dataset(data, avg_over, separate, x_keys, y_keys):
     """ Averages data over specific factors (e.g. runs, subjects).
 
     PARAMETERS
@@ -704,8 +704,8 @@ def average_dataset(data, avg_over, ch_keys, x_keys, y_keys):
     avg_over : str
     -   The column name of the data to average over.
 
-    ch_keys : list of strs
-    -   The names of the columns in the DataFrame containing the channel names, so that the correct data entries can be
+    separate : list of strs
+    -   The name(s) of the column(s) in the DataFrame containing information so that the correct data entries can be
         averaged over.
 
     x_keys : list of strs
@@ -723,6 +723,7 @@ def average_dataset(data, avg_over, ch_keys, x_keys, y_keys):
     """
 
     ### Setup
+    """
     condition_keys = ['med', 'stim', 'task', 'subject', 'run']
 
     # Makes sure you won't average data over different conditions
@@ -730,10 +731,12 @@ def average_dataset(data, avg_over, ch_keys, x_keys, y_keys):
         if cond_key != avg_over:
             if len(np.unique(data[cond_key])) > 1:
                 raise ValueError(f'You are trying to average data over {avg_over}, but you are also averaging data over {cond_key}.')
+    """
 
-    # Finds channels to average over
-    ch_names = combine_channel_names(data, ch_keys)
-    _, unique_idc = unique_channel_names(ch_names)
+    # Finds data to average over
+    names = combine_names(data, separate)
+    _, unique_idc = unique_names(names)
+    
 
     # Makes sure the x_keys each unique channel are identical
     for x_key in x_keys: # for each key whose values should be identical

@@ -2,6 +2,8 @@ import mne
 import numpy as np
 from copy import deepcopy
 
+from numpy.core.fromnumeric import repeat
+
 
 
 def annotations_replace_dc(raw):
@@ -78,13 +80,16 @@ def crop_artefacts(raw):
 
 
 
-def epoch_data(raw, epoch_len, include_shuffled=True):
+def epoch_data(raw, extra_info, epoch_len, include_shuffled=True):
     """ Epochs the data.
 
     PARAMETERS
     ----------
     raw : MNE Raw object
     -   The data to be epoched.
+
+    extra_info : dict
+    -   A dictionary containing additional information about the data that cannot be included in raw.info
 
     epoch_len : int | float
     -   The duration (in seconds) of segments to epoch the data into.
@@ -110,23 +115,24 @@ def epoch_data(raw, epoch_len, include_shuffled=True):
         epoched.load_data()
         epoched_shuffled = epoched.copy()
         epoched_shuffled.pick_types(dbs=True)
-        ch_name = epoched_shuffled.ch_names[0]
-        
-        # Randomly shuffles all epochs x times to create x shuffled channels
-        np.random.seed(seed=0)
-        n_shuffles = 10
-        shuffled_order = []
-        shuffled_epochs = []
-        for i in range(n_shuffles):
-            shuffled_order = np.arange(0,len(epoched_shuffled.events))
-            np.random.shuffle(shuffled_order)
-            shuffled_epochs.append(mne.concatenate_epochs([epoched_shuffled[shuffled_order]]))
-            shuffled_epochs[i].rename_channels({ch_name: 'SHUFFLED-'+str(i)+'_'+ch_name})
+        for ch_name in epoched_shuffled.ch_names:
+            # Randomly shuffles all epochs x times to create x shuffled channels
+            np.random.seed(seed=0)
+            n_shuffles = 10
+            shuffled_order = []
+            shuffled_epochs = []
+            for i in range(n_shuffles):
+                shuffled_order = np.arange(0,len(epoched_shuffled.events))
+                np.random.shuffle(shuffled_order)
+                shuffled_epochs.append(mne.concatenate_epochs([epoched_shuffled[shuffled_order]]))
+                shuffled_epochs[i].rename_channels({ch_name: 'SHUFFLED-'+str(i)+'_'+ch_name})
+                extra_info['ref_type'].append(extra_info['ref_type'][epoched.info.ch_names.index(ch_name)])
         
         epoched.add_channels(shuffled_epochs)
+        extra_info['data_type'].extend(list(np.repeat('shuffled', n_shuffles*len(epoched_shuffled.ch_names))))
 
     
-    return epoched
+    return epoched, extra_info
 
 
 
@@ -273,10 +279,16 @@ def process(raw, epoch_len, annotations=None, channels=None, rereferencing=None,
         new_channs_sorted = [new_channs[i] for i in channs_i_sorted] # sorts the names of the channels
         reref_data_sorted = [reref_data[i] for i in channs_i_sorted] # sorts the data itself
         channs_type_sorted = [channs_type[i] for i in channs_i_sorted] # sorts the type of the data
+        reref_type_sorted = [reref_type[i] for i in channs_i_sorted]# sorts the type of rereferencing
 
         # Makes a new Raw object based on the rereferenced data
         raw_info = mne.create_info(ch_names=new_channs_sorted, sfreq=raw.info['sfreq'], ch_types=channs_type_sorted)
+        extra_info = {} # additional information about the data that cannot be included in raw.info
+        extra_info['ref_type'] = reref_type_sorted
         raw = mne.io.RawArray(data=reref_data_sorted, info=raw_info)
+
+    # Sets the data type (in case of later comparison with shuffled data)
+    extra_info['data_type'] = list(np.repeat('real', len(raw.info.ch_names)))
 
 
     ## Filtering and resampling
@@ -303,8 +315,8 @@ def process(raw, epoch_len, annotations=None, channels=None, rereferencing=None,
     if epoch_len != None:
         if verbose:
             print("Epoching data")
-        epoched = epoch_data(raw, epoch_len, include_shuffled)
+        epoched, extra_info = epoch_data(raw, extra_info, epoch_len, include_shuffled)
 
 
-    return epoched
+    return epoched, extra_info
 
