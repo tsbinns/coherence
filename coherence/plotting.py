@@ -4,13 +4,21 @@ from numpy.core.numeric import full
 import helpers
 
 
-def psd(psd, plot_shuffled=False, plot_std=True, n_plots_per_page=6, freq_limit=None, power_limit=None, same_y=True):
+def psd(psd, separate_top, separate_sub=None, plot_shuffled=False, plot_std=True, n_plots_per_page=6, freq_limit=None,
+        power_limit=None, same_y=True):
     """ Plots PSDs of the data.
 
     PARAMETERS
     ----------
     psds : pandas DataFrame
     -   A DataFrame containing the channel names, their types, and the normalised power values.
+
+    separate_top : list of strs
+    -   Keys of psds containing the data characteristics which should be used to separate data into groups.
+
+    separate_sub : list of strs | None
+    -   Keys of psds containing the data characteristics which should be used to separate the grouped data into
+        subgroups.
 
     plot_shuffled : bool, default False
     -   Whether or not to plot PSDs for the shuffled LFP data.
@@ -40,14 +48,15 @@ def psd(psd, plot_shuffled=False, plot_std=True, n_plots_per_page=6, freq_limit=
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
         remove = []
-        for i, name in enumerate(psd.ch_name):
-            if name[:8] == 'SHUFFLED':
+        for i, data_type in enumerate(psd.data_type):
+            if data_type == 'shuffled':
                 remove.append(i)
         psd.drop(remove, inplace=True)
         psd.reset_index(drop=True, inplace=True)
 
-    # Gets channel rereference types
-    reref_types_idc = helpers.channel_reref_types(psd.ch_name)
+    # Gets indices of grouped data
+    names_top = helpers.combine_names(psd, separate_top, joining=',')
+    group_names_top, group_idcs_top = helpers.unique_names(names_top)
     
     # Gets colours of data
     colour_info = {
@@ -60,84 +69,78 @@ def psd(psd, plot_shuffled=False, plot_std=True, n_plots_per_page=6, freq_limit=
     colours = helpers.data_colour(colour_info, not_for_unique=True, avg_as_equal=True)
 
     ### Plotting
-    for reref_type in reref_types_idc.keys():
-        reref_type_idc = reref_types_idc[reref_type]
+    for topgroup_i, group_idc_top in enumerate(group_idcs_top):
+        
+        # Gets the characteristics for all data of this type so that a title for the window can be generated
+        group_info = {
+            'med': list(np.unique(psd.med[group_idc_top])),
+            'stim': list(np.unique(psd.stim[group_idc_top])),
+            'task': list(np.unique(psd.task[group_idc_top])),
+            'subject': list(np.unique(psd.subject[group_idc_top])),
+            'run': list(np.unique(psd.run[group_idc_top]))
+        }
+        wind_title, included = helpers.window_title(group_info, base_title='PSD:', full_info=False)
 
-        # Gets unique channel names and their indices
-        unique_ch_names, unique_ch_idc = helpers.unique_channel_names(list(psd.ch_name.iloc[reref_type_idc]))
-        _, unique_types_idc = helpers.unique_channel_types(unique_ch_idc, list(psd.ch_type.iloc[reref_type_idc]))
-        for i, unique_type_idc in enumerate(unique_types_idc):
-            for j, unique_type_idx in enumerate(unique_type_idc):
-                unique_types_idc[i][j] = [reref_type_idc[x] for x in unique_type_idx]
+        # Gets a global y-axis for all data of the same type (if requested)
+        if same_y == True:
+            if plot_std == True and 'psd_std' in psd.keys():
+                type_ylim = helpers.same_axes(psd.psd[group_idc_top] + psd.psd_std[group_idc_top])
+            else:
+                type_ylim = helpers.same_axes(psd.psd[group_idc_top])
+        type_ylim[0] = 0
 
-        for i, unique_ch_i in enumerate(unique_ch_idc):
-            unique_ch_idc[i] = [reref_type_idc[x] for x in unique_ch_i]
+        if separate_sub != None:
+            names_sub = helpers.combine_names(psd, separate_sub, joining=',')
+            group_names_sub, group_idcs_sub = helpers.unique_names([names_sub[i] for i in group_idc_top])
+            for subgroup_i, group_idc_sub in enumerate(group_idcs_sub):
+                group_idcs_sub[subgroup_i] = [group_idc_top[i] for i in group_idc_sub]
+        else:
+            group_names_sub = [group_names_top[topgroup_i]]
+            group_idcs_sub = [group_idc_top]
 
-        unique_ch_i = 0 # keeps track of the channel whose data is being plotted
-        for type_idc in unique_types_idc: # for each type
-            unique_ch_i_oftype = 0 # keeps track of the channel in each type whose data is being plotted
+        n_plots = len(group_idcs_sub) # number of plots to make for this type
+        n_pages = int(np.ceil(n_plots/n_plots_per_page)) # number of pages these plots will need
+        n_rows = int(np.sqrt(n_plots_per_page)) # number of rows these pages will need
+        n_cols = int(np.ceil(n_plots_per_page/n_rows)) # number of columns these pages will need
 
-            n_plots = len(type_idc) # number of plots to make for this type
-            n_pages = int(np.ceil(n_plots/n_plots_per_page)) # number of pages these plots will need
-            n_rows = int(np.sqrt(n_plots_per_page)) # number of rows these pages will need
-            n_cols = int(np.ceil(n_plots_per_page/n_rows)) # number of columns these pages will need   
+        stop = False
+        subgroup_i = 0
+        for page_i in range(n_pages): # for each page of this type
 
-            # Gets the indices of all data of this type
-            all_type_idc = []
-            for ch_idc in type_idc:
-                all_type_idc.extend(ch_idc)
+            # Sets up figure
+            fig, axs = plt.subplots(n_rows, n_cols)
+            if n_plots_per_page == 1:
+                axs = np.asarray([[axs]])
+            plt.tight_layout(rect = [0, 0, 1, .97])
+            fig.suptitle(wind_title)
 
-            # Gets the characteristics for all data of this type so that a title for the window can be generated
-            type_info = {
-                'med': list(np.unique(psd.med[all_type_idc])),
-                'stim': list(np.unique(psd.stim[all_type_idc])),
-                'task': list(np.unique(psd.task[all_type_idc])),
-                'subject': list(np.unique(psd.subject[all_type_idc])),
-                'run': list(np.unique(psd.run[all_type_idc]))
-            }
-            wind_title, included = helpers.window_title(type_info, base_title='PSD:', full_info=False)
+            for row_i in range(n_rows): # fill up each row from top to down...
+                for col_i in range(n_cols): # ... and from left to right
+                        if stop is False: # if there is still data to plot for this subgroup
 
-            # Gets a global y-axis for all data of the same type (if requested)
-            if same_y == True:
-                if plot_std == True and 'psd_std' in psd.data_keys():
-                    type_ylim = helpers.same_axes(psd.psd_std.iloc[all_type_idc])
-                else:
-                    type_ylim = helpers.same_axes(psd.psd.iloc[all_type_idc])
+                            group_idc_sub = group_idcs_sub[subgroup_i]
 
-            stop = False
-            for page_i in range(n_pages): # for each page of this type
-
-                # Sets up figure
-                fig, axs = plt.subplots(n_rows, n_cols)
-                plt.tight_layout(rect = [0, 0, 1, .97])
-                fig.suptitle(wind_title)
-
-                for row_i in range(n_rows): # fill up each row from top to down...
-                    for col_i in range(n_cols): # ... and from left to right
-                        if stop is False: # if there is still data to plot for this type
-
-                            ch_idc = type_idc[unique_ch_i_oftype] # indices of the data entries of this channel
-
-                            # Gets the characteristics for all data of this channel so that a title for the subplot can...
-                            #... be generated
-                            channel_info = {
-                                'med': list(np.unique(psd.med[ch_idc])),
-                                'stim': list(np.unique(psd.stim[ch_idc])),
-                                'task': list(np.unique(psd.task[ch_idc])),
-                                'subject': list(np.unique(psd.subject[ch_idc])),
-                                'run': list(np.unique(psd.run[ch_idc]))
+                            # Gets the characteristics for all data of this plot so that a title can be generated
+                            plot_info = {
+                                'med': list(np.unique(psd.med[group_idc_sub])),
+                                'stim': list(np.unique(psd.stim[group_idc_sub])),
+                                'task': list(np.unique(psd.task[group_idc_sub])),
+                                'subject': list(np.unique(psd.subject[group_idc_sub])),
+                                'run': list(np.unique(psd.run[group_idc_sub]))
                             }
-                            ch_title, ch_included = helpers.channel_title(channel_info, already_included=included,
-                                                                        base_title=f'{unique_ch_names[unique_ch_i]},',
-                                                                        full_info=False)
-                            included.extend(ch_included) # keeps track of what is already included in the titles
+                            for key in separate_sub:
+                                plot_info[key] = list(np.unique(psd[key][group_idc_sub]))
+                            plot_title, plot_included = helpers.plot_title(plot_info, already_included=included,
+                                                                           base_title=f'{group_names_top[topgroup_i]},',
+                                                                           full_info=False)
+                            included.extend(plot_included) # keeps track of what is already included in the titles
 
                             # Sets up subplot
-                            axs[row_i, col_i].set_title(ch_title)
+                            axs[row_i, col_i].set_title(plot_title)
                             axs[row_i, col_i].set_xlabel('Frequency (Hz)')
                             axs[row_i, col_i].set_ylabel('Normalised Power (% total)')
 
-                            for ch_idx in ch_idc: # for each data entry
+                            for ch_idx in group_idc_sub: # for each data entry
                             
                                 data = psd.iloc[ch_idx] # the data to plot
 
@@ -181,7 +184,7 @@ def psd(psd, plot_shuffled=False, plot_std=True, n_plots_per_page=6, freq_limit=
                                         std_plus = data.psd[:freq_limit_i+1] + data.psd_std[:freq_limit_i+1]
                                         std_minus = data.psd[:freq_limit_i+1] - data.psd_std[:freq_limit_i+1]
                                         axs[row_i, col_i].fill_between(data.freqs[:freq_limit_i+1], std_plus, std_minus,
-                                                                    color=colour, alpha=.3)
+                                                                    color=colour, alpha=.2)
 
                                 # Sets all y-axes to be equal (if requested)
                                 if same_y == True:
@@ -193,9 +196,8 @@ def psd(psd, plot_shuffled=False, plot_std=True, n_plots_per_page=6, freq_limit=
                                     if ylim[1] > power_limit:
                                         axs[row_i, col_i].set_ylim(ylim[0], power_limit)
 
-                            unique_ch_i += 1 # moves on to the next data to plot
-                            unique_ch_i_oftype += 1 # moves on to the next data to plot
-                            if unique_ch_i_oftype == len(type_idc): # if there is no more data to plot for this type...
+                            subgroup_i += 1
+                            if ch_idx == group_idc_sub[-1]: # if there is no more data to plot for this type...
                                 stop = True #... don't plot anything else
                                 extra = n_plots_per_page*n_pages - n_plots # checks if there are extra subplots than can...
                                 #... be removed
@@ -203,7 +205,7 @@ def psd(psd, plot_shuffled=False, plot_std=True, n_plots_per_page=6, freq_limit=
                         elif stop is True and extra > 0: # if there is no more data to plot for this type...
                             fig.delaxes(axs[row_i, col_i]) # ... delete the extra subplots
 
-                plt.show()
+            plt.show()
 
 
 
@@ -279,7 +281,7 @@ def coherence_fwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page=6,
             reref_type_idc = reref_types_idc[reref_type]
 
             # Gets unique channel names and their indices
-            unique_ch_names, unique_ch_idc = helpers.unique_channel_names(
+            unique_ch_names, unique_ch_idc = helpers.unique_names(
                                              list(coh.ch_name_cortical.iloc[reref_type_idc]))
             for i, unique_ch_i in enumerate(unique_ch_idc):
                 unique_ch_idc[i] = [reref_type_idc[x] for x in unique_ch_i]
@@ -295,10 +297,10 @@ def coherence_fwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page=6,
 
             # Gets a global y-axis for all data of the same type (if requested)
             if same_y == True:
-                if plot_std == True and f'{method}_std' in coh.data_keys():
-                    ylim = helpers.same_axes(coh[f'{method}_std'].iloc[reref_type_idc])
+                if plot_std == True and f'{method}_std' in coh.keys():
+                    ylim = helpers.same_axes(coh[f'{method}_std'][reref_type_idc])
                 else:
-                    ylim = helpers.same_axes(coh[method].iloc[reref_type_idc])
+                    ylim = helpers.same_axes(coh[method][reref_type_idc])
 
             for page_i in range(n_pages): # for each page of this type
 

@@ -401,7 +401,7 @@ def window_title(info, base_title='', full_info=True):
 
 
 
-def channel_title(info, already_included=[], base_title='', full_info=True):
+def plot_title(info, already_included=[], base_title='', full_info=True):
     """ Generates a title for a subplot based on information in the data.
     
     PARAMETERS
