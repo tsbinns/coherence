@@ -1,3 +1,4 @@
+from operator import methodcaller
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy.core.numeric import full
@@ -14,10 +15,10 @@ def psd(psd, separate_top, separate_sub=None, plot_shuffled=False, plot_std=True
     -   A DataFrame containing the channel names, their types, and the normalised power values.
 
     separate_top : list of strs
-    -   Keys of psds containing the data characteristics which should be used to separate data into groups.
+    -   Keys of psd containing the data characteristics which should be used to separate data into groups.
 
     separate_sub : list of strs | None
-    -   Keys of psds containing the data characteristics which should be used to separate the grouped data into
+    -   Keys of psd containing the data characteristics which should be used to separate the grouped data into
         subgroups.
 
     plot_shuffled : bool, default False
@@ -79,15 +80,17 @@ def psd(psd, separate_top, separate_sub=None, plot_shuffled=False, plot_std=True
             'subject': list(np.unique(psd.subject[group_idc_top])),
             'run': list(np.unique(psd.run[group_idc_top]))
         }
+        for key in separate_top:
+            group_info[key] = list(np.unique(psd[key][group_idc_top]))
         wind_title, included = helpers.window_title(group_info, base_title='PSD:', full_info=False)
 
         # Gets a global y-axis for all data of the same type (if requested)
         if same_y == True:
             if plot_std == True and 'psd_std' in psd.keys():
-                type_ylim = helpers.same_axes(psd.psd[group_idc_top] + psd.psd_std[group_idc_top])
+                group_ylim = helpers.same_axes(psd.psd[group_idc_top] + psd.psd_std[group_idc_top])
             else:
-                type_ylim = helpers.same_axes(psd.psd[group_idc_top])
-        type_ylim[0] = 0
+                group_ylim = helpers.same_axes(psd.psd[group_idc_top])
+        group_ylim[0] = 0
 
         if separate_sub != None:
             names_sub = helpers.combine_names(psd, separate_sub, joining=',')
@@ -131,7 +134,6 @@ def psd(psd, separate_top, separate_sub=None, plot_shuffled=False, plot_std=True
                             for key in separate_sub:
                                 plot_info[key] = list(np.unique(psd[key][group_idc_sub]))
                             plot_title, plot_included = helpers.plot_title(plot_info, already_included=included,
-                                                                           base_title=f'{group_names_top[topgroup_i]},',
                                                                            full_info=False)
                             included.extend(plot_included) # keeps track of what is already included in the titles
 
@@ -188,7 +190,7 @@ def psd(psd, separate_top, separate_sub=None, plot_shuffled=False, plot_std=True
 
                                 # Sets all y-axes to be equal (if requested)
                                 if same_y == True:
-                                    axs[row_i, col_i].set_ylim(type_ylim[0], type_ylim[1])
+                                    axs[row_i, col_i].set_ylim(*group_ylim)
 
                                 # Cuts off power (if requested)
                                 if power_limit != None:
@@ -209,8 +211,8 @@ def psd(psd, separate_top, separate_sub=None, plot_shuffled=False, plot_std=True
 
 
 
-def coherence_fwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page=6, freq_limit=None,
-                    methods=['coh', 'imcoh'], same_y=True):
+def coherence_fwise(coh, separate_top, separate_sub=None, plot_shuffled=False, plot_std=True, n_plots_per_page=6,
+                    freq_limit=None, methods=['coh', 'imcoh'], same_y=True):
     """ Plots single-frequency-wise coherence data.
 
     PARAMETERS
@@ -218,6 +220,13 @@ def coherence_fwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page=6,
     coh : pandas DataFrame
     -   A DataFrame containing the corresponding ECoG and LFP channel names, and the single-frequency-wise coherence
         data.
+
+    separate_top : list of strs
+    -   Keys of coh containing the data characteristics which should be used to separate data into groups.
+
+    separate_sub : list of strs | None
+    -   Keys of coh containing the data characteristics which should be used to separate the grouped data into
+        subgroups.
 
     plot_shuffled : bool, default False
     -   Whether or not to plot coherence values for the shuffled LFP data.
@@ -246,14 +255,15 @@ def coherence_fwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page=6,
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
         remove = []
-        for i, name in enumerate(coh.ch_name_deep):
-            if name[:8] == 'SHUFFLED':
+        for i, data_type in enumerate(coh.data_type):
+            if data_type == 'shuffled':
                 remove.append(i)
         coh.drop(remove, inplace=True)
         coh.reset_index(drop=True, inplace=True)
     
-    # Gets channel rereference types
-    reref_types_idc = helpers.channel_reref_types(coh.ch_name_cortical)
+    # Gets indices of grouped data
+    names_top = helpers.combine_names(coh, separate_top, joining=',')
+    group_names_top, group_idcs_top = helpers.unique_names(names_top)
 
     # Gets colours of data
     colour_info = {
@@ -266,46 +276,54 @@ def coherence_fwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page=6,
     colours = helpers.data_colour(colour_info, not_for_unique=True, avg_as_equal=True)
 
     ### Plotting
-    # Gets the characteristics for all the data so that a title for the window can be generated
-    dataset_info = {
-        'med': list(np.unique(coh.med)),
-        'stim': list(np.unique(coh.stim)),
-        'task': list(np.unique(coh.task)),
-        'subject': list(np.unique(coh.subject)),
-        'run': list(np.unique(coh.run))
-    }
-
     for method in methods:
 
-        for reref_type in reref_types_idc.keys():
-            reref_type_idc = reref_types_idc[reref_type]
-
-            # Gets unique channel names and their indices
-            unique_ch_names, unique_ch_idc = helpers.unique_names(
-                                             list(coh.ch_name_cortical.iloc[reref_type_idc]))
-            for i, unique_ch_i in enumerate(unique_ch_idc):
-                unique_ch_idc[i] = [reref_type_idc[x] for x in unique_ch_i]
-
-            n_plots = len(unique_ch_names) # number of plots to make for this type
-            n_pages = int(np.ceil(n_plots/n_plots_per_page)) # number of pages these plots will need
-            n_rows = int(np.sqrt(n_plots_per_page)) # number of rows these pages will need
-            n_cols = int(np.ceil(n_plots_per_page/n_rows)) # number of columns these pages will need 
-
-            unique_ch_i = 0 # keeps track of the channel whose data is being plotted
-            wind_title, wind_included = helpers.window_title(dataset_info, base_title=f'{method}:', full_info=False)
-            stop = False
+        for topgroup_i, group_idc_top in enumerate(group_idcs_top):
+            # Gets the characteristics for all the data so that a title for the window can be generated
+            group_info = {
+                'med': list(np.unique(coh.med[group_idc_top])),
+                'stim': list(np.unique(coh.stim[group_idc_top])),
+                'task': list(np.unique(coh.task[group_idc_top])),
+                'subject': list(np.unique(coh.subject[group_idc_top])),
+                'run': list(np.unique(coh.run[group_idc_top]))
+            }
+            for key in separate_top:
+                group_info[key] = list(np.unique(coh[key][group_idc_top]))
+            wind_title, included = helpers.window_title(group_info, base_title=f'{method}:', full_info=False)
 
             # Gets a global y-axis for all data of the same type (if requested)
             if same_y == True:
                 if plot_std == True and f'{method}_std' in coh.keys():
-                    ylim = helpers.same_axes(coh[f'{method}_std'][reref_type_idc])
+                    ylim = []
+                    ylim.extend(helpers.same_axes(coh[method][group_idc_top] + coh[f'{method}_std'][group_idc_top]))
+                    ylim.extend(helpers.same_axes(coh[method][group_idc_top] - coh[f'{method}_std'][group_idc_top]))
+                    group_ylim = [min(ylim), max(ylim)]
                 else:
-                    ylim = helpers.same_axes(coh[method][reref_type_idc])
+                    group_ylim = helpers.same_axes(coh[method][group_idc_top])
+
+            if separate_sub != None:
+                names_sub = helpers.combine_names(coh, separate_sub, joining=',')
+                group_names_sub, group_idcs_sub = helpers.unique_names([names_sub[i] for i in group_idc_top])
+                for subgroup_i, group_idc_sub in enumerate(group_idcs_sub):
+                    group_idcs_sub[subgroup_i] = [group_idc_top[i] for i in group_idc_sub]
+            else:
+                group_names_sub = [group_names_top[topgroup_i]]
+                group_idcs_sub = [group_idc_top]
+
+            n_plots = len(group_idcs_sub) # number of plots to make for this type
+            n_pages = int(np.ceil(n_plots/n_plots_per_page)) # number of pages these plots will need
+            n_rows = int(np.sqrt(n_plots_per_page)) # number of rows these pages will need
+            n_cols = int(np.ceil(n_plots_per_page/n_rows)) # number of columns these pages will need
+
+            stop = False
+            subgroup_i = 0
 
             for page_i in range(n_pages): # for each page of this type
 
                 # Sets up figure
                 fig, axs = plt.subplots(n_rows, n_cols)
+                if n_plots_per_page == 1:
+                    axs = np.asarray([[axs]])
                 plt.tight_layout(rect = [0, 0, 1, .97])
                 fig.suptitle(wind_title)
 
@@ -313,29 +331,29 @@ def coherence_fwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page=6,
                     for col_i in range(n_cols): # ... and from left to right
                         if stop is False: # if there is still data to plot for this type
 
-                            ch_idc = unique_ch_idc[unique_ch_i] # indices of the data entries of this channel
+                            group_idc_sub = group_idcs_sub[subgroup_i] # indices of the data entries of this subgroup
 
-                            # Gets the characteristics for all data of this channel so that a title for the subplot can...
-                            #... be generated
-                            channel_info = {
-                                'med': list(np.unique(coh.med[ch_idc])),
-                                'stim': list(np.unique(coh.stim[ch_idc])),
-                                'task': list(np.unique(coh.task[ch_idc])),
-                                'subject': list(np.unique(coh.subject[ch_idc])),
-                                'run': list(np.unique(coh.run[ch_idc])),
-                                ':': list(np.unique(coh.ch_name_deep[ch_idc]))
-                            }
-                            ch_title, ch_included = helpers.channel_title(channel_info, already_included=wind_included,
-                                                                        base_title=f'{unique_ch_names[unique_ch_i]},',
-                                                                        full_info=False)
-                            included = [*wind_included, *ch_included]
+                            # Gets the characteristics for all data of this plot so that a title can be generated
+                            plot_info = {
+                                    'med': list(np.unique(coh.med[group_idc_sub])),
+                                    'stim': list(np.unique(coh.stim[group_idc_sub])),
+                                    'task': list(np.unique(coh.task[group_idc_sub])),
+                                    'subject': list(np.unique(coh.subject[group_idc_sub])),
+                                    'run': list(np.unique(coh.run[group_idc_sub])),
+                                    ':': list(np.unique(coh.ch_name_deep[group_idc_sub]))
+                                }
+                            for key in separate_sub:
+                                plot_info[key] = list(np.unique(coh[key][group_idc_sub]))
+                            plot_title, plot_included = helpers.plot_title(plot_info, already_included=included,
+                                                                           full_info=False)
+                            included.append(plot_included)
 
                             # Sets up subplot
-                            axs[row_i, col_i].set_title(ch_title)
+                            axs[row_i, col_i].set_title(plot_title)
                             axs[row_i, col_i].set_xlabel('Frequency (Hz)')
                             axs[row_i, col_i].set_ylabel('Coherence')
 
-                            for ch_idx in ch_idc: # for each data entry
+                            for ch_idx in group_idc_sub: # for each data entry
                             
                                 data = coh.iloc[ch_idx] # the data to plot
 
@@ -388,10 +406,10 @@ def coherence_fwise(coh, plot_shuffled=False, plot_std=True, n_plots_per_page=6,
                                 
                                 # Sets all y-axes to be equal (if requested)
                                 if same_y == True:
-                                    axs[row_i, col_i].set_ylim(ylim[0], ylim[1])
+                                    axs[row_i, col_i].set_ylim(*group_ylim)
 
-                            unique_ch_i += 1 # moves on to the next data to plot
-                            if unique_ch_i == len(unique_ch_idc): # if there is no more data to plot for this type...
+                            subgroup_i += 1 # moves on to the next data to plot
+                            if ch_idx == group_idc_sub[-1]: # if there is no more data to plot for this type...
                                 stop = True #... don't plot anything else
                                 extra = n_plots_per_page*n_pages - n_plots # checks if there are extra subplots than can...
                                 #... be removed
