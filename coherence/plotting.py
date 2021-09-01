@@ -1,7 +1,5 @@
-from operator import methodcaller
 import matplotlib.pyplot as plt
 import numpy as np
-from numpy.core.numeric import full
 import helpers
 
 
@@ -216,7 +214,7 @@ def psd(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plo
 
 
 
-def coherence_freqwise(coh, separate_top, separate_sub=None, plot_shuffled=False, plot_std=True, n_plots_per_page=6,
+def coherence_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_std=True, n_plots_per_page=6,
                        freq_limit=None, methods=['coh', 'imcoh'], same_y=True):
     """ Plots single-frequency-wise coherence data.
 
@@ -257,6 +255,19 @@ def coherence_freqwise(coh, separate_top, separate_sub=None, plot_shuffled=False
     """
 
     ### Setup
+        # Establishes groups
+    if group_fig == []:
+        group_fig = group_master
+    if group_plot == []:
+        group_plot = group_fig
+
+    # Establishes keys for groups used in generating labels for data
+    coh_data_keys = ['freqs', 'coh' 'imcoh', 'coh_std', 'imcoh_std'] # keys containing data that do not represent different conditions
+    fig_keys = [key for key in coh.keys() if key not in coh_data_keys and key not in group_plot]
+    plot_keys = [key for key in coh.keys() if key not in coh_data_keys and key not in group_fig]
+    data_keys = [key for key in coh.keys() if key not in coh_data_keys and key not in group_fig]
+
+
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
         remove = []
@@ -266,18 +277,14 @@ def coherence_freqwise(coh, separate_top, separate_sub=None, plot_shuffled=False
         coh.drop(remove, inplace=True)
         coh.reset_index(drop=True, inplace=True)
     
-    # Gets indices of grouped data
-    names_top = helpers.combine_names(coh, separate_top, joining=',')
-    group_names_top, group_idcs_top = helpers.unique_names(names_top)
+    # Gets indices of master-grouped data
+    names_master = helpers.combine_names(psd, group_master, joining=',')
+    names_group_master, idcs_group_master = helpers.unique_names(names_master)
 
     # Gets colours of data
-    colour_info = {
-        'med': ['binary', list(np.unique(coh.med))],
-        'stim': ['binary', list(np.unique(coh.stim))],
-        'task': ['non-binary', list(np.unique(coh.task))],
-        'subject': ['non-binary', list(np.unique(coh.subject))],
-        'run': ['non-binary', list(np.unique(coh.run))]
-    }
+    colour_info = helpers.get_colour_info(psd, [key for key in psd.keys() if key not in coh_data_keys
+                                                and key not in group_master and key not in group_fig
+                                                and key not in group_plot])
     colours = helpers.data_colour(colour_info, not_for_unique=True, avg_as_equal=True)
 
 

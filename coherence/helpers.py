@@ -998,10 +998,29 @@ def find_unique_shuffled(fullnames):
 
 
 def rename_shuffled(names, types):
+    """ Removes the affix from shuffled channel names so that shuffled data from the same channels shares the same name
+        (useful for later processing).
+    
+    PARAMETERS
+    ----------
+    names : list of strs
+    -   The names of the channels in the data.
+
+    types : list of strs
+    -   The types of data in the channels (i.e. 'real' or 'shuffled') to ensure that only the shuffled channels' names
+        are altered.
+
+    
+    RETURNS
+    ----------
+    names : list of strs
+    -   The names of the channels in the data with the modified names for the shuffled data.    
+    """
 
     for i, name in enumerate(names):
         if types[i] == 'shuffled':
             names[i] = name[name.index('_')+1:] # removes 'SHUFFLED-X_' from the channel name
+
 
     return names
 
@@ -1051,7 +1070,7 @@ def average_shuffled(data, keys_to_avg, group_keys):
             for key in keys_to_avg:
                 og_data[key][idc_shuffled[0]] = np.mean(data[key][idc_shuffled].to_list(), axis=0)
     og_data.drop(discard, inplace=True) # deletes the redundant entries
-    og_data.reset_index(inplace=True)
+    og_data.reset_index(drop=True, inplace=True)
 
 
     return og_data
@@ -1090,31 +1109,20 @@ def coherence_by_band(data, methods, band_names=None):
     band_data['avg'] = [] # average coherence in each frequency band
     band_data['max'] = [] # maximum coherence in each frequency band
     band_data['fmax'] = [] # frequency of maximum coherence in each frequency band
-    for method_i, method in enumerate(methods): # for each coherence calculation method
+    for data_i in range(len(data.index)):
+        band_data['bands'].append(list(bands.keys()))
         band_data['avg'].append([])
         band_data['max'].append([])
         band_data['fmax'].append([])
-
-        for i in range(len(data[method])): # finds the band-wise coherence for each channel
-            band_is = freq_band_indices(data['freqs'][i], bands)
-            if method_i == 0:
-                band_data['bands'].append(list(bands.keys()))
-            band_data['avg'][method_i].append([])
-            band_data['max'][method_i].append([])
-            band_data['fmax'][method_i].append([])
-            for key in bands.keys():
-                band_data['avg'][method_i][i].append(data[method][i][band_is[key][0]:band_is[key][1]+1].mean())
-                band_data['max'][method_i][i].append(data[method][i][band_is[key][0]:band_is[key][1]+1].max())
-                band_data['fmax'][method_i][i].append(data['freqs'][i][int(np.where(data[method][i] == 
-                                                      band_data['max'][method_i][i][-1])[0])])
+        band_idc = freq_band_indices(data['freqs'][data_i], bands)
+        for key in bands.keys():
+            band_data['avg'][data_i].append(data.iloc[data_i].coh[band_idc[key][0]:band_idc[key][1]+1].mean())
+            band_data['max'][data_i].append(data.iloc[data_i].coh[band_idc[key][0]:band_idc[key][1]+1].max())
+            band_data['fmax'][data_i].append(data['freqs'][data_i][np.where(data.iloc[data_i].coh == band_data['max'][data_i][-1])[0]])
     
     # Collects band-wise data
-    band_data = list(zip(band_data['bands'], *band_data['avg'][:], *band_data['max'][:], *band_data['fmax'][:]))
-    fbands_keynames = ['_fbands_avg', '_fbands_max', '_fbands_fmax']
-    fbands_keys = []
-    for keyname in fbands_keynames:
-        for method in methods:
-            fbands_keys.append(method+keyname)
+    band_data = list(zip(band_data['bands'], band_data['avg'], band_data['max'], band_data['fmax']))
+    fbands_keys = ['fbands_avg', 'fbands_max', 'fbands_fmax']
     band_data = pd.DataFrame(data=band_data, columns=['fbands', *fbands_keys])
 
     # Collects frequency- and band-wise data

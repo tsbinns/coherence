@@ -71,11 +71,11 @@ coh = average_dataset(data=coh, avg_over='subject', separate=['ch_name_deep', 'd
 
 
 ### Plotting
-plotting.psd(psd, group_master=['reref_type', 'ch_type'], group_plot=['ch_name'], plot_shuffled=True, plot_std=True, 
-             n_plots_per_page=1, freq_limit=50, power_limit=15)
-#plotting.coherence_freqwise(coh, separate_top=['reref_type_cortical', 'reref_type_deep'],
-#                            separate_sub=['ch_name_cortical', 'med'], plot_shuffled=True, plot_std=True, n_plots_per_page=1,
-#                            freq_limit=50, methods=['coh', 'imcoh'], same_y=True)
-#plotting.coherence_bandwise(coh, separate_top=['reref_type_cortical', 'reref_type_deep'],
-#                            separate_sub=['ch_name_cortical', 'med'], plot_shuffled=False, plot_std=True,
-#                            n_plots_per_page=2, methods=['coh', 'imcoh'])
+#plotting.psd(psd, group_master=['reref_type', 'ch_type'], group_plot=['ch_name'], plot_shuffled=True, plot_std=True, 
+#             n_plots_per_page=1, freq_limit=50, power_limit=15)
+plotting.coherence_freqwise(coh, group_master=['reref_type_cortical', 'reref_type_deep'],
+                            group_plot=['ch_name_cortical', 'ch_name_deep'], plot_shuffled=True, plot_std=True, n_plots_per_page=1,
+                            freq_limit=50, methods=['coh', 'imcoh'], same_y=True)
+plotting.coherence_bandwise(coh, separate_top=['reref_type_cortical', 'reref_type_deep'],
+                            separate_sub=['ch_name_cortical', 'med'], plot_shuffled=False, plot_std=True,
+                            n_plots_per_page=2, methods=['coh', 'imcoh'])

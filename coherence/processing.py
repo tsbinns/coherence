@@ -88,10 +88,6 @@ def get_psd(epoched, extra_info, l_freq=0, h_freq=100, norm=True, line_noise=50)
     psd_data : pandas DataFrame
     -   A DataFrame containing the channel names, their types (e.g. cortical, deep), and the power of the data in these
         channels.
-
-    psd_keys : dict
-    -   A dictionary containing the keys of the psd_data DataFrame with keys 'x' and 'y'. 'x' contains keys for
-        independent/control variables, and 'y' keys for dependent variables.
     """
 
     # Gets channels to analyse
@@ -135,14 +131,8 @@ def get_psd(epoched, extra_info, l_freq=0, h_freq=100, norm=True, line_noise=50)
     if norm is True:
         psd_data = normalise(psd_data, line_noise)
 
-    # Gets keys in psd
-    psd_keys = {
-        'x': ['ch_name', 'data_type', ' reref_type', 'ch_type', 'freqs'], # independent & control variables
-        'y': ['psd'] # dependent variables
-        }
 
-
-    return psd_data, psd_keys
+    return psd_data
 
 
 
@@ -170,17 +160,13 @@ def get_coherence(epoched, extra_info, cwt_freqs, methods=['coh', 'imcoh']):
     coh_data : pandas DataFrame
     -   A DataFrame containing the names of the ECoG and LFP channel pairs used to calculate coherence, the single-
         frequency-wise coherence data, and the frequency band-wise coherence data.
-
-    coh_keys : dict
-    -   A dictionary containing the keys of the coh_data DataFrame with keys 'x' and 'y'. 'x' contains keys for
-        independent/control variables, and 'y' keys for dependent variables.
     """
 
     # Setup
     ch_types = epoched.get_channel_types()
-    ch_names = epoched.ch_names
-    data_types = extra_info['data_type']
-    reref_types = extra_info['reref_type']
+    ch_names = epoched.ch_names.copy()
+    data_type = extra_info['data_type'].copy()
+    reref_types = extra_info['reref_type'].copy()
 
     # Channel types
     cortical = [] # index of ECoG channels
@@ -194,19 +180,26 @@ def get_coherence(epoched, extra_info, cwt_freqs, methods=['coh', 'imcoh']):
             ch_types[i] = 'deep'
     indices = con.seed_target_indices(cortical, deep)
 
+    # Types of data
+    data_types_cortical = [data_type[i] for i in indices[0]]
+    data_types_deep = [data_type[i] for i in indices[1]]
+
     # Channel names
     ch_names_cortical = [ch_names[i] for i in indices[0]]
     ch_names_deep = [ch_names[i] for i in indices[1]]
+    # Renames shuffled channels to be identical for ease of further processing
+    ch_names_cortical = helpers.rename_shuffled(ch_names_cortical, data_types_cortical)
+    ch_names_deep = helpers.rename_shuffled(ch_names_deep, data_types_deep)
 
     # Types of data (real or shuffled)
-    data_type = [[data_types[indices[0][i]], data_types[indices[1][i]]] for i in range(len(indices[0]))]
-    for dat_i, dat_type in enumerate(data_type):
+    data_types = [[data_type[indices[0][i]], data_type[indices[1][i]]] for i in range(len(indices[0]))]
+    for dat_i, dat_type in enumerate(data_types):
         if len(np.unique(dat_type)) <= 2:
             if 'shuffled' in dat_type:
-                data_type[dat_i] = 'shuffled'
+                data_types[dat_i] = 'shuffled'
             else:
                 if np.unique(dat_type) == 'real':
-                    data_type[dat_i] = 'real'
+                    data_types[dat_i] = 'real'
                 else:
                     raise ValueError(f"Only 'real' and 'shuffled' data types are accepted, but type(s) {np.unique(dat_type)} is/are provided.")
         else:
@@ -218,37 +211,32 @@ def get_coherence(epoched, extra_info, cwt_freqs, methods=['coh', 'imcoh']):
 
     # Gets frequency-wise coherence
     cohs = []
+    coh_methods = []
+    n_methods = len(methods)
     for method in methods:
         coh, freqs, _, _, _ = con.spectral_connectivity(epoched, method=method, indices=indices,
                                                         sfreq=epoched.info['sfreq'], mode='cwt_morlet',
                                                         cwt_freqs=cwt_freqs, cwt_n_cycles=9)
         if method == 'imcoh':
             coh = np.abs(coh)
-        cohs.append(np.asarray(coh).mean(-1))
-    freqs = np.tile(freqs, [len(indices[0]), 1])
+        cohs.extend(np.asarray(coh).mean(-1))
+        coh_methods.extend([method]*len(indices[0]))
+    freqs = np.tile(freqs, (len(indices[0])*n_methods, 1))
 
     # Collects data
-    coh_data = list(zip(ch_names_cortical, ch_names_deep, data_type, reref_type_cortical, reref_type_deep, freqs, *cohs))
+    coh_data = list(zip(np.tile(ch_names_cortical, n_methods).tolist(), np.tile(ch_names_deep, n_methods).tolist(), 
+                        np.tile(data_types, n_methods).tolist(), np.tile(reref_type_cortical, n_methods).tolist(),
+                        np.tile(reref_type_deep, n_methods).tolist(), freqs, coh_methods, cohs))
     coh_data = pd.DataFrame(data=coh_data, columns=['ch_name_cortical', 'ch_name_deep', 'data_type',
-                                                    'reref_type_cortical', 'reref_type_deep', 'freqs', *methods])
+                                                    'reref_type_cortical', 'reref_type_deep', 'freqs', 'method', 'coh'])
 
     # Gets band-wise coherence
     coh_data = helpers.coherence_by_band(coh_data, methods, band_names=['theta','alpha','low beta','high beta','gamma'])
 
     # Average shuffled LFP values
-    fbands_keynames = ['_fbands_avg', '_fbands_max', '_fbands_fmax']
-    fbands_keys = []
-    for method in methods:
-        for keyname in fbands_keynames:
-            fbands_keys.append(method+keyname)
-    coh_data = helpers.average_shuffled(coh_data, [*methods, *fbands_keys], ['ch_name_cortical', 'ch_name_deep'])
-    
-    # Gets keys in psd
-    coh_keys = {
-        'x': ['ch_name_cortical', 'ch_name_deep', 'freqs', 'fbands'], # independent & control variables
-        'y': [*methods, *fbands_keys] # dependent variables
-        }
+    fbands_keys = ['fbands_avg', 'fbands_max', 'fbands_fmax']
+    coh_data = helpers.average_shuffled(coh_data, fbands_keys, ['ch_name_cortical', 'ch_name_deep', 'method'])
 
 
-    return coh_data, coh_keys
+    return coh_data
 
