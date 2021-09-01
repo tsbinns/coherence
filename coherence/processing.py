@@ -97,7 +97,7 @@ def get_psd(epoched, extra_info, l_freq=0, h_freq=100, norm=True, line_noise=50)
     # Gets channels to analyse
     # Setup
     ch_types = epoched.get_channel_types()
-    ch_names = epoched.ch_names
+    ch_names = epoched.ch_names.copy()
     data_types = extra_info['data_type']
     reref_types = extra_info['reref_type']
 
@@ -111,12 +111,6 @@ def get_psd(epoched, extra_info, l_freq=0, h_freq=100, norm=True, line_noise=50)
         elif type == 'dbs':
             deep.append(i)
             ch_types[i] = 'deep'
-    indices = con.seed_target_indices(cortical, deep)
-
-    # Channel names
-    ch_names_cortical = [ch_names[i] for i in indices[0]]
-    ch_names_deep = [ch_names[i] for i in indices[1]]
-
     used_channels = [*cortical, *deep]
 
     # Gets PSDs
@@ -127,12 +121,15 @@ def get_psd(epoched, extra_info, l_freq=0, h_freq=100, norm=True, line_noise=50)
     psds = psds.mean(-1) # averages over epochs
     freqs = np.tile(freqs, [len(used_channels), 1])
 
+    # Renames shuffled channels to be identical for ease of further processing
+    ch_names = helpers.rename_shuffled(ch_names, data_types)
+
     # Collects data
     psd_data = list(zip(ch_names, data_types, reref_types, ch_types, freqs, psds))
     psd_data = pd.DataFrame(data=psd_data, columns=['ch_name', 'data_type', 'reref_type', 'ch_type', 'freqs', 'psd'])
 
     # Average shuffled LFP values
-    psd_data = helpers.average_shuffled(psd_data, ['psd', 'freqs'])
+    psd_data = helpers.average_shuffled(psd_data, ['psd', 'freqs'], ['ch_name'])
 
     # Normalise PSDs
     if norm is True:
@@ -140,7 +137,7 @@ def get_psd(epoched, extra_info, l_freq=0, h_freq=100, norm=True, line_noise=50)
 
     # Gets keys in psd
     psd_keys = {
-        'x': ['ch_name', 'ch_type', 'freqs'], # independent & control variables
+        'x': ['ch_name', 'data_type', ' reref_type', 'ch_type', 'freqs'], # independent & control variables
         'y': ['psd'] # dependent variables
         }
 
@@ -244,7 +241,7 @@ def get_coherence(epoched, extra_info, cwt_freqs, methods=['coh', 'imcoh']):
     for method in methods:
         for keyname in fbands_keynames:
             fbands_keys.append(method+keyname)
-    coh_data = helpers.average_shuffled(coh_data, [*methods, *fbands_keys], 'ch_name_deep')
+    coh_data = helpers.average_shuffled(coh_data, [*methods, *fbands_keys], ['ch_name_cortical', 'ch_name_deep'])
     
     # Gets keys in psd
     coh_keys = {

@@ -124,7 +124,7 @@ def combine_names(data, keys, joining='&'):
     """
 
     names = [] # get names of all channels
-    for chann_i in range(np.shape(data)[0]):
+    for chann_i in data.index:
         cat_name = [] # if multiple channel names, combine them 
         for key in keys:
             cat_name.append(data[key][chann_i])
@@ -523,6 +523,39 @@ def data_title(info, already_included=[], full_info=True):
 
 
 
+def get_colour_info(data, keys):
+    """ Gets information about the data to feed into data_colour to determine the colour of data when plotting.
+
+    PARAMETERS
+    ----------
+    data : pandas DataFrame
+    -   A DataFrame containing the data to analyse.
+
+    keys : list of strs
+    -   The keys of the columns in the DataFrame to use to determine the colour of the data.
+
+
+    RETURNS
+    ----------
+    info : dict
+    -   A dictionary whose keys are the data characteristics requested and whose values consist of a 'binary' or
+        'non-binary' marker (reflecting the nature of the data) followed by the unique values of the data.
+    """
+
+    binary_info = ['med', 'stim', 'data_type', 'ch_type']
+    info = {}
+    for key in keys:
+        info[key] = [0,0]
+        if key in binary_info:
+            info[key][0] = 'binary'
+        else:
+            info[key][0] = 'non-binary'
+        info[key][1] = list(np.unique(data[key]))
+
+    return info
+
+
+
 def data_colour(info, not_for_unique=False, avg_as_equal=False):
     """ Randomly generates colours for the data based on the data's characteristics.
 
@@ -597,23 +630,36 @@ def data_colour(info, not_for_unique=False, avg_as_equal=False):
     colours = {}
     for key in info.keys():
         if key not in skip_key:
-            colours[key] = []
-            first = True
-            if info[key][0] == 'binary': # if only 2 types of data can be present, generate inverse colours for these types
-                if first == True:
-                    first_val = info[key][1][0] # assigns the first type present to be the default type
-                    first_val_colour = np.random.rand(1, 3) # sets the colour for this type
-                    second_val_colour = 1 - first_val_colour # sets the colour for the other type as the inverse
-                for char in info[key][1]: # sets the colour for the two types
-                    if char == first_val:
-                        colours[key].append(first_val_colour)
-                    else:
-                        colours[key].append(second_val_colour)
-            elif info[key][0] == 'non-binary': # if many types of data can be present, randomly generate colours
-                for x in info[key][1]:
-                    colours[key].append(np.random.rand(1, 3))
+            if key != 'data_type':
+                colours[key] = []
+                first = True
+                if info[key][0] == 'binary': # if only 2 types of data can be present, generate inverse colours for these types
+                    if first == True:
+                        first_val = info[key][1][0] # assigns the first type present to be the default type
+                        first_val_colour = np.random.rand(1, 3) # sets the colour for this type
+                        second_val_colour = 1 - first_val_colour # sets the colour for the other type as the inverse
+                    for char in info[key][1]: # sets the colour for the two types
+                        if char == first_val:
+                            colours[key].append(first_val_colour)
+                        else:
+                            colours[key].append(second_val_colour)
+                        colours[key][-1] = np.append(colours[key][-1],1) # adds an alpha value
+                elif info[key][0] == 'non-binary': # if many types of data can be present, randomly generate colours
+                    for x in info[key][1]:
+                        colours[key].append(np.random.rand(1, 3))
+                        colours[key][-1] = np.append(colours[key][-1],1) # adds an alpha value
+                else:
+                    raise ValueError(f'The colour key {info[key][0]} is not recognised. Only binary and non-binary are accepted.')
             else:
-                raise ValueError(f'The colour key {info[key][0]} is not recognised. Only binary and non-binary are accepted.')
+                colours[key] = []
+                for char in info[key][1]:
+                    if char == 'real':
+                        alpha = 1
+                    elif char == 'shuffled':
+                        alpha = .4
+                    else:
+                        raise ValueError(f"Only the data types 'real' and 'shuffled' are recognised, but {char} is present.")
+                    colours[key].append(np.asarray((*[np.nan]*3, alpha)))
 
 
     return colours
@@ -951,7 +997,17 @@ def find_unique_shuffled(fullnames):
 
 
 
-def average_shuffled(data, keys_to_avg, channel_name_key='ch_name'):
+def rename_shuffled(names, types):
+
+    for i, name in enumerate(names):
+        if types[i] == 'shuffled':
+            names[i] = name[name.index('_')+1:] # removes 'SHUFFLED-X_' from the channel name
+
+    return names
+
+
+
+def average_shuffled(data, keys_to_avg, group_keys):
     """ Averages data over adjacent shuffled channels of the same type.
 
     PARAMETERS
@@ -959,11 +1015,11 @@ def average_shuffled(data, keys_to_avg, channel_name_key='ch_name'):
     data : pandas DataFrame
     -   The data to average over. Must contain a column that can be used to identify the shuffled channels.
 
-    keys_to_avg : list of str
+    keys_to_avg : list of strs
     -   The keys of the DataFrame columns to be averaged.
 
-    channel_name_key : str
-    -   The name of the column used to identify the shuffled channels. 'ch_name' by default.
+    group_keys : list of strs
+    -   The names of the column used to group the data for averaging over.
 
 
     RETURNS
@@ -972,43 +1028,33 @@ def average_shuffled(data, keys_to_avg, channel_name_key='ch_name'):
     -   The data with entries from adjacent shuffled channels of the same type averaged over.
     """
 
-    # Find the unique shuffled channels based on their positions
-    i = 0
-    avg_over = []
-    for idx, name in enumerate(data[channel_name_key]): # for each channel
-        if name[:9] != 'SHUFFLED-': # if it's not a shuffled channel, move on
-            avg_over.append([])
-            i += 1
-        else:
-            if name[:10] == 'SHUFFLED-0': # if it's the start of a shuffled channel run, add it to the index
-                avg_over.append([])
-                avg_over[i] = [idx]
-            else: # and add any subsequent channels
-                avg_over[i].extend([idx])
+    og_data = data.copy()
 
-    # Excludes the empty entries from avg_over
-    empty = []
-    for i in range(len(avg_over)):
-        if not avg_over[i]:
-            empty.append(i)
-    avg_over = np.delete(avg_over, empty, 0).tolist()
+    # Removes data that isn't shuffled (i.e. real)
+    remove = []
+    for i, data_type in enumerate(data.data_type):
+        if data_type != 'shuffled':
+            remove.append(i)
+    data.drop(remove, inplace=True)
 
-    # Averages the shuffled data across the unique channels
-    discard = [] # entries to remove after averaging
-    for over in avg_over:
-        if len(over) > 1: # if there is more than one piece of data
-            for key in keys_to_avg: # average the data
-                data[key][over[0]] = np.mean(data[key][over].tolist(), axis=0)
-                # SHOULD ADD CHECK TO MAKE SURE DATA IS 1D
-            discard.extend(over[1:]) # adds entries to remove later
-        # renames the remaining channel
-        name = data[channel_name_key][over[0]]
-        data[channel_name_key][over[0]] = name[:name.index('-')] + name[name.index('_'):]
-    data.drop(discard, inplace=True) # deletes the redundant entries
-    data.reset_index(inplace=True)
+    # Finds the indices of the shuffled channel groups
+    names = combine_names(data, group_keys)
+    names_shuffled, idcs_shuffled = unique_names(names)
+    for i, idc_shuffled in enumerate(idcs_shuffled):
+        idcs_shuffled[i] = [data.index[j] for j in idc_shuffled]
+
+    # Averages shuffled data
+    discard = [] # entries in og_data to discard (as will not contain averaged data)
+    for idc_shuffled in idcs_shuffled:
+        if len(idc_shuffled) > 1:
+            discard.extend(idc_shuffled[1:])
+            for key in keys_to_avg:
+                og_data[key][idc_shuffled[0]] = np.mean(data[key][idc_shuffled].to_list(), axis=0)
+    og_data.drop(discard, inplace=True) # deletes the redundant entries
+    og_data.reset_index(inplace=True)
 
 
-    return data
+    return og_data
 
 
 
