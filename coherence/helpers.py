@@ -386,15 +386,12 @@ def window_title(info, base_title='', full_info=True):
     ## Title creation
     title = base_title
     included = []
-    first = True
     for key in info.keys():
         if len(info[key]) == 1: # if only a single type of data is present, add this information to the window's title
-            if first == True: # if this is the first key to be added, don't add a comma to the start
-                title += f'{key}-{info[key][0]}'
-                first = False
-            else: # if this is not the first key to be added, add a comma to separate the different factors
-                title += f', {key}-{info[key][0]}'
+            title += f'{key}-{info[key][0]},'
             included.append(key)
+    if included != []:
+        title=title[:-1] # removes the extra comma at the end of the title
 
 
     return title, included
@@ -449,18 +446,15 @@ def plot_title(info, already_included=[], base_title='', full_info=True):
     ## Title creation
     title = base_title
     included = []
-    first = True
     for key in info.keys():
         if len(info[key]) == 1 and key not in already_included: # if only a single type of data is present and this...
         #... information has not been included in the window's title, add this information to the channel's title
-            if len(title) >= 40: # adds a new line to the title to stop it getting too wide
+            if len(title) >= 30: # adds a new line to the title to stop it getting too wide
                 title += '\n'
-            if first == True: # if this is the first key to be added, don't add a comma to the start
-                title += f'{key}-{info[key][0]}'
-                first = False
-            else: # if this is not the first key to be added, add a comma to separate the different factors
-                title += f', {key}-{info[key][0]}'
+            title += f'{key}-{info[key][0]},'
             included.append(key)
+    if included != []:
+        title=title[:-1] # removes the extra comma at the end of the title
 
 
     return title, included
@@ -512,11 +506,10 @@ def data_title(info, already_included=[], full_info=True):
         if key not in already_included:  # if only a single type of data is present and this...
         #... information has not been included in the window's and subplot's titles, add this information to the data...
         #... label
-            if first == True:  # if this is the first key to be added, don't add a comma to the start
-                title += f'{key}-{info[key][0]}'
-                first = False
-            else: # if this is not the first key to be added, add a comma to separate the different factors
-                title += f', {key}-{info[key][0]}'
+            title += f'{key}-{info[key][0]},'
+            first = False
+    if first == False:
+        title=title[:-1] # removes the extra comma at the end of the title
 
 
     return title
@@ -656,7 +649,7 @@ def data_colour(info, not_for_unique=False, avg_as_equal=False):
                     if char == 'real':
                         alpha = 1
                     elif char == 'shuffled':
-                        alpha = .4
+                        alpha = .3
                     else:
                         raise ValueError(f"Only the data types 'real' and 'shuffled' are recognised, but {char} is present.")
                     colours[key].append(np.asarray((*[np.nan]*3, alpha)))
@@ -769,21 +762,10 @@ def average_dataset(data, avg_over, separate, x_keys, y_keys):
     """
 
     ### Setup
-    """
-    condition_keys = ['med', 'stim', 'task', 'subject', 'run']
-
-    # Makes sure you won't average data over different conditions
-    for cond_key in condition_keys:
-        if cond_key != avg_over:
-            if len(np.unique(data[cond_key])) > 1:
-                raise ValueError(f'You are trying to average data over {avg_over}, but you are also averaging data over {cond_key}.')
-    """
-
     # Finds data to average over
     names = combine_names(data, separate)
     _, unique_idc = unique_names(names)
     
-
     # Makes sure the x_keys each unique channel are identical
     for x_key in x_keys: # for each key whose values should be identical
         for unique_i in unique_idc: # for each unique channel
@@ -815,7 +797,7 @@ def average_dataset(data, avg_over, separate, x_keys, y_keys):
     # Adds new columns for std data of each y_key (if not already present)
     holder = np.repeat(np.nan, np.shape(data)[0])
     for y_key in y_keys:
-        if y_key+'_std' not in data.columns:
+        if f'{y_key}_std' not in data.columns:
             y_key_pos = list(data.columns).index(y_key)
             data.insert(y_key_pos+1, y_key+'_std', holder)
 
