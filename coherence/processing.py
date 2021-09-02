@@ -94,8 +94,9 @@ def get_psd(epoched, extra_info, l_freq=0, h_freq=100, norm=True, line_noise=50)
     # Setup
     ch_types = epoched.get_channel_types()
     ch_names = epoched.ch_names.copy()
-    data_types = extra_info['data_type']
-    reref_types = extra_info['reref_type']
+    ch_coords = extra_info['ch_coords'].copy()
+    data_types = extra_info['data_type'].copy()
+    reref_types = extra_info['reref_type'].copy()
 
     # Channel types
     cortical = [] # index of ECoG channels
@@ -121,15 +122,19 @@ def get_psd(epoched, extra_info, l_freq=0, h_freq=100, norm=True, line_noise=50)
     ch_names = helpers.rename_shuffled(ch_names, data_types)
 
     # Collects data
-    psd_data = list(zip(ch_names, data_types, reref_types, ch_types, freqs, psds))
-    psd_data = pd.DataFrame(data=psd_data, columns=['ch_name', 'data_type', 'reref_type', 'ch_type', 'freqs', 'psd'])
-
-    # Average shuffled LFP values
-    psd_data = helpers.average_shuffled(psd_data, ['psd', 'freqs'], ['ch_name'])
+    psd_data = list(zip(ch_names, ch_coords, data_types, reref_types, ch_types, freqs, psds))
+    psd_data = pd.DataFrame(data=psd_data, columns=['ch_name', 'ch_coords', 'data_type', 'reref_type', 'ch_type',
+                                                    'freqs', 'psd'])
 
     # Normalise PSDs
     if norm is True:
         psd_data = normalise(psd_data, line_noise)
+
+    # Gets band-wise power
+    psd_data = helpers.data_by_band(psd_data, ['psd'], band_names=['theta','alpha','low beta','high beta','gamma'])
+
+    # Average shuffled LFP values
+    psd_data = helpers.average_shuffled(psd_data, ['psd', 'freqs'], ['ch_name'])
 
 
     return psd_data
@@ -165,6 +170,7 @@ def get_coherence(epoched, extra_info, cwt_freqs, methods=['coh', 'imcoh']):
     # Setup
     ch_types = epoched.get_channel_types()
     ch_names = epoched.ch_names.copy()
+    ch_coords = extra_info['ch_coords'].copy()
     data_type = extra_info['data_type'].copy()
     reref_types = extra_info['reref_type'].copy()
 
@@ -209,6 +215,10 @@ def get_coherence(epoched, extra_info, cwt_freqs, methods=['coh', 'imcoh']):
     reref_type_cortical = [reref_types[i] for i in indices[0]]
     reref_type_deep = [reref_types[i] for i in indices[1]]
 
+    # Channel coordinates
+    ch_coords_cortical = [ch_coords[i] for i in indices[0]]
+    ch_coords_deep = [ch_coords[i] for i in indices[1]]
+
     # Gets frequency-wise coherence
     cohs = []
     coh_methods = []
@@ -225,13 +235,16 @@ def get_coherence(epoched, extra_info, cwt_freqs, methods=['coh', 'imcoh']):
 
     # Collects data
     coh_data = list(zip(np.tile(ch_names_cortical, n_methods).tolist(), np.tile(ch_names_deep, n_methods).tolist(), 
+                        np.tile(ch_coords_cortical, n_methods).tolist(), np.tile(ch_coords_deep, n_methods).tolist(),
                         np.tile(data_types, n_methods).tolist(), np.tile(reref_type_cortical, n_methods).tolist(),
                         np.tile(reref_type_deep, n_methods).tolist(), freqs, coh_methods, cohs))
-    coh_data = pd.DataFrame(data=coh_data, columns=['ch_name_cortical', 'ch_name_deep', 'data_type',
-                                                    'reref_type_cortical', 'reref_type_deep', 'freqs', 'method', 'coh'])
+    coh_data = pd.DataFrame(data=coh_data, columns=['ch_name_cortical', 'ch_name_deep',
+                                                    'ch_coords_cortical', 'ch_coords_deep',
+                                                    'data_type', 'reref_type_cortical',
+                                                    'reref_type_deep', 'freqs', 'method', 'coh'])
 
     # Gets band-wise coherence
-    coh_data = helpers.coherence_by_band(coh_data, methods, band_names=['theta','alpha','low beta','high beta','gamma'])
+    coh_data = helpers.data_by_band(coh_data, ['coh'], band_names=['theta','alpha','low beta','high beta','gamma'])
 
     # Average shuffled LFP values
     fbands_keys = ['fbands_avg', 'fbands_max', 'fbands_fmax']

@@ -1077,56 +1077,57 @@ def average_shuffled(data, keys_to_avg, group_keys):
 
 
 
-def coherence_by_band(data, methods, band_names=None):
-    """ Calculates band-wise coherence values based on the frequency-wise data.
+def data_by_band(data, measures, band_names=None):
+    """ Calculates band-wise values based on the frequency-wise data.
 
     PARAMETERS
     ----------
     data : pandas DataFrame
-    -   The frequency-wise coherence data.
+    -   The frequency-wise data.
 
-    methods : list of str
-    -   The methods used to calculate coherence.
+    measures : list of str
+    -   The key(s) in data to calculate the band-wise values for.
 
     band_names : list of str | None (default)
-    -   The frequency bands to calculate band-wise coherence values for. If None (default), all frequency bands provided
+    -   The frequency bands to calculate band-wise values for. If None (default), all frequency bands provided
         by the helpers.freq_band_info function are used.
     
     
     RETURNS
     ----------
     data : pandas DataFrame
-    -   The original frequency-wise coherence data, plus band-wise coherence values. These values include: the average
-        coherence in each band (avg); the maximum coherence in each band (max); and the frequency at which this maximum
-        coherence occurs (fmax).
+    -   The original frequency-wise data, plus band-wise values. These values include: the average in each band (avg);
+        the maximum in each band (max); and the frequency at which this maximum occurs (fmax).
     """
 
     # Gets the band-wise data
     bands = freq_band_info(band_names) # the frequency bands to analyse
 
-    band_data = {}
-    band_data['bands'] = []
-    band_data['avg'] = [] # average coherence in each frequency band
-    band_data['max'] = [] # maximum coherence in each frequency band
-    band_data['fmax'] = [] # frequency of maximum coherence in each frequency band
-    for data_i in range(len(data.index)):
-        band_data['bands'].append(list(bands.keys()))
-        band_data['avg'].append([])
-        band_data['max'].append([])
-        band_data['fmax'].append([])
-        band_idc = freq_band_indices(data['freqs'][data_i], bands)
-        for key in bands.keys():
-            band_data['avg'][data_i].append(data.iloc[data_i].coh[band_idc[key][0]:band_idc[key][1]+1].mean())
-            band_data['max'][data_i].append(data.iloc[data_i].coh[band_idc[key][0]:band_idc[key][1]+1].max())
-            band_data['fmax'][data_i].append(data['freqs'][data_i][np.where(data.iloc[data_i].coh == band_data['max'][data_i][-1])[0]])
-    
-    # Collects band-wise data
-    band_data = list(zip(band_data['bands'], band_data['avg'], band_data['max'], band_data['fmax']))
-    fbands_keys = ['fbands_avg', 'fbands_max', 'fbands_fmax']
-    band_data = pd.DataFrame(data=band_data, columns=['fbands', *fbands_keys])
+    for measure in measures:
+        band_data = {}
+        band_data['bands'] = []
+        band_data['avg'] = [] # average in each frequency band
+        band_data['max'] = [] # maximum in each frequency band
+        band_data['fmax'] = [] # frequency of maximum in each frequency band
+        for data_i in range(len(data.index)):
+            band_data['bands'].append(list(bands.keys()))
+            band_data['avg'].append([])
+            band_data['max'].append([])
+            band_data['fmax'].append([])
+            band_idc = freq_band_indices(data['freqs'][data_i], bands)
+            for key in bands.keys():
+                band_data['avg'][data_i].append(data.iloc[data_i][measure][band_idc[key][0]:band_idc[key][1]+1].mean())
+                band_data['max'][data_i].append(data.iloc[data_i][measure][band_idc[key][0]:band_idc[key][1]+1].max())
+                band_data['fmax'][data_i].append(data['freqs'][data_i][np.where(data.iloc[data_i][measure] == 
+                                                                                band_data['max'][data_i][-1])[0]])
+        
+        # Collects band-wise data
+        band_data = list(zip(band_data['bands'], band_data['avg'], band_data['max'], band_data['fmax']))
+        fbands_keys = ['fbands_avg', 'fbands_max', 'fbands_fmax']
+        band_data = pd.DataFrame(data=band_data, columns=['fbands', *fbands_keys])
 
-    # Collects frequency- and band-wise data
-    data = pd.concat([data, band_data], axis=1)
+        # Collects frequency- and band-wise data
+        data = pd.concat([data, band_data], axis=1)
 
 
     return data
