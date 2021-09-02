@@ -613,15 +613,15 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], plot_shuffled=False,
                                     # Plots data on the brain
                                     if same_y == True: # sets the colour bar limits
                                         plotted_data = axs[row_i, col_i].scatter(
-                                            [data[coords_key].iloc[i][0]*1000 for i in range(np.shape(data[coords_key])[0])], # x-coords
-                                            [data[coords_key].iloc[i][1]*1000 for i in range(np.shape(data[coords_key])[0])], # y-coords
+                                            [data[coords_key].iloc[i][0] for i in range(np.shape(data[coords_key])[0])], # x-coords
+                                            [data[coords_key].iloc[i][1] for i in range(np.shape(data[coords_key])[0])], # y-coords
                                             c=[data[plot_key].iloc[i][fband_i] for i in range(np.shape(data[plot_key])[0])], # values
                                             s=30, alpha=.8, edgecolor='black', cmap='viridis', vmin=group_ylim[0], vmax=group_ylim[1]
                                         )
                                     else:
                                         plotted_data = axs[row_i, col_i].scatter(
-                                            [data[coords_key].iloc[i][0]*1000 for i in range(np.shape(data[coords_key])[0])], # x-coords
-                                            [data[coords_key].iloc[i][1]*1000 for i in range(np.shape(data[coords_key])[0])], # y-coords
+                                            [data[coords_key].iloc[i][0] for i in range(np.shape(data[coords_key])[0])], # x-coords
+                                            [data[coords_key].iloc[i][1] for i in range(np.shape(data[coords_key])[0])], # y-coords
                                             c=[data[plot_key].iloc[i][fband_i] for i in range(np.shape(data[plot_key])[0])], # values
                                             s=30, alpha=.8, edgecolor='black', cmap='viridis'
                                         )
@@ -1235,15 +1235,15 @@ def coh_bandwise_gb(coh, areas, group_master, group_fig=[], plot_shuffled=False,
                                     # Plots data on the brain
                                     if same_y == True: # sets the colour bar limits
                                         plotted_data = axs[row_i, col_i].scatter(
-                                            [data[coords_key].iloc[i][0]*1000 for i in range(np.shape(data[coords_key])[0])], # x-coords
-                                            [data[coords_key].iloc[i][1]*1000 for i in range(np.shape(data[coords_key])[0])], # y-coords
+                                            [data[coords_key].iloc[i][0] for i in range(np.shape(data[coords_key])[0])], # x-coords
+                                            [data[coords_key].iloc[i][1] for i in range(np.shape(data[coords_key])[0])], # y-coords
                                             c=[data[plot_key].iloc[i][fband_i] for i in range(np.shape(data[plot_key])[0])], # values
                                             s=30, alpha=.8, edgecolor='black', cmap='viridis', vmin=group_ylim[0], vmax=group_ylim[1]
                                         )
                                     else:
                                         plotted_data = axs[row_i, col_i].scatter(
-                                            [data[coords_key].iloc[i][0]*1000 for i in range(np.shape(data[coords_key])[0])], # x-coords
-                                            [data[coords_key].iloc[i][1]*1000 for i in range(np.shape(data[coords_key])[0])], # y-coords
+                                            [data[coords_key].iloc[i][0] for i in range(np.shape(data[coords_key])[0])], # x-coords
+                                            [data[coords_key].iloc[i][1] for i in range(np.shape(data[coords_key])[0])], # y-coords
                                             c=[data[plot_key].iloc[i][fband_i] for i in range(np.shape(data[plot_key])[0])], # values
                                             s=30, alpha=.8, edgecolor='black', cmap='viridis'
                                         )

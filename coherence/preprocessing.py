@@ -332,9 +332,11 @@ def process(raw, epoch_len, annotations=None, channels=None, rereferencing=None,
     
     # Gets data from the Raw object
     channels = raw.info.ch_names.copy()
-    ch_coords = raw._get_channel_positions().copy().tolist()
+    ch_coords = raw._get_channel_positions().copy().tolist() # coordinates of the channels
+    for ch_i, ch_coord in enumerate(ch_coords): # need to alter the units for correct plotting
+        ch_coords[ch_i] = [ch_coord[coord_i]*1000 for coord_i in range(len(ch_coord))]
     raw.load_data()
-    raw_data = raw.get_data(reject_by_annotation='omit').copy()
+    raw_data = raw.get_data(reject_by_annotation='omit').copy() # the data itself
 
 
     ## Rereferencing

@@ -25,7 +25,7 @@ from helpers import combine_data
 
 ## Setup =====
 # Loads settings for analysis
-sub = '001'
+sub = '003'
 task = 'Rest'
 med = 'MedOff'
 stim = 'StimOff'
