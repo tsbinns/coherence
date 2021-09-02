@@ -22,7 +22,7 @@ from helpers import average_dataset
 
 ### Setup & Processing
 # Loads data
-datasets = ['Rest-003-MedOff-StimOff', 'Rest-003-MedOn-StimOff']
+datasets = ['Rest-001-MedOff-StimOff', 'Rest-001-MedOn-StimOff']
 
 psds = []
 cohs = []

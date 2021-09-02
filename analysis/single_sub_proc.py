@@ -27,7 +27,7 @@ from helpers import combine_data
 # Loads settings for analysis
 sub = '001'
 task = 'Rest'
-med = 'MedOn'
+med = 'MedOff'
 stim = 'StimOff'
 with open(os.path.join(project_path, 'settings.json')) as json_file:
     settings = json.load(json_file)
@@ -61,9 +61,9 @@ for i in sub_data:
                                                   resample=analysis['resample'], highpass=analysis['highpass'],
                                                   lowpass=analysis['lowpass'], notch=notch)
 
-    psd, _ = processing.get_psd(processed, extra_info, analysis['psd_lowfreq'], analysis['psd_highfreq'],
+    psd = processing.get_psd(processed, extra_info, analysis['psd_lowfreq'], analysis['psd_highfreq'],
                     line_noise=analysis['line_noise'])
-    coh, _ = processing.get_coherence(processed, extra_info, wavelet_freqs, analysis['coherence_methods'])
+    coh = processing.get_coherence(processed, extra_info, wavelet_freqs, analysis['coherence_methods'])
 
     # Collects data
     all_psds.append(psd)

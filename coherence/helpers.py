@@ -393,7 +393,7 @@ def window_title(info, base_title='', full_info=True):
                 title += f'{key}-{info[key][0]}'
                 first = False
             else: # if this is not the first key to be added, add a comma to separate the different factors
-                title += f',{key}-{info[key][0]}'
+                title += f', {key}-{info[key][0]}'
             included.append(key)
 
 
@@ -459,7 +459,7 @@ def plot_title(info, already_included=[], base_title='', full_info=True):
                 title += f'{key}-{info[key][0]}'
                 first = False
             else: # if this is not the first key to be added, add a comma to separate the different factors
-                title += f',{key}-{info[key][0]}'
+                title += f', {key}-{info[key][0]}'
             included.append(key)
 
 
@@ -516,7 +516,7 @@ def data_title(info, already_included=[], full_info=True):
                 title += f'{key}-{info[key][0]}'
                 first = False
             else: # if this is not the first key to be added, add a comma to separate the different factors
-                title += f',{key}-{info[key][0]}'
+                title += f', {key}-{info[key][0]}'
 
 
     return title
@@ -542,7 +542,7 @@ def get_colour_info(data, keys):
         'non-binary' marker (reflecting the nature of the data) followed by the unique values of the data.
     """
 
-    binary_info = ['med', 'stim', 'data_type', 'ch_type']
+    binary_info = ['med', 'stim', 'data_type', 'ch_type', 'method']
     info = {}
     for key in keys:
         info[key] = [0,0]
