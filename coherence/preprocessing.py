@@ -129,36 +129,49 @@ def reref_data(data, info, rereferencing, ch_coords):
         if ref_type in rereferencing.keys():
 
             if ref_type == 'none': # leaves the data as is
-                for chann_i in range(len(rereferencing['none']['old'])): # for each channel to leave untouched
-                    old_name = rereferencing['none']['old'][chann_i]
-                    new_name = rereferencing['none']['new'][chann_i]
+                reref = rereferencing['none']
+                for chann_i in range(len(reref['old'])): # for each channel to leave untouched
+                    old_name = reref['old'][chann_i]
+                    new_name = reref['new'][chann_i]
                     new_channs.append(new_name)
                     reref_data.append(data[channels.index(old_name)]) # adds the original data,...
-                    reref_type.append(rereferencing['none']['ref_type'][chann_i]) #... the desired type of...
+                    reref_type.append(reref['ref_type'][chann_i]) #... the desired type of...
                     #... rereferencing to set,...
-                    channs_type.append(rereferencing['none']['chann_type'][chann_i]) #... the type of the...
-                    #... data,
-                    new_coords.append(ch_coords[channels.index(old_name)]) #... and the coordinates of
-                    #... the channel to their respective holders
-            
+                    channs_type.append(reref['chann_type'][chann_i]) #... the type of the data,
+                    # and the coordinates of the channel to their respective holders
+                    if reref['coords'] == []: # if no coordinates are specified,...
+                        new_coords.append(ch_coords[channels.index(old_name)]) #... use those from the original channels
+                    else: # if coordinates are specified,...
+                        if len(reref['coords']) != len(reref['new']): #... check they are the correct format,
+                            raise ValueError(f"There is a mismatch between channels ({len(reref['new'])}) and coordinates ({len(reref['coords'])}).")
+                        new_coords.append(reref['coords'][reref['new'].index(new_name)]) #... then add the coordinates
+
             if ref_type == 'bipolar': # bipolar rereferences data
-                for chann_i in range(len(rereferencing['bipolar']['old'])): # for each set of two channels to reref.
-                    if len(rereferencing['bipolar']['old'][chann_i]) > 2:
-                        raise ValueError(f"Only 2 channels should be used for bipolar referencing, but {len(rereferencing['bipolar']['old'][chann_i])} are requested.")
-                    old_names = rereferencing['bipolar']['old'][chann_i] # names of the channels to bipolar reref.
-                    new_name = rereferencing['bipolar']['new'][chann_i] # name of the new channel to create
+                reref = rereferencing['bipolar']
+                for chann_i in range(len(reref['old'])): # for each set of two channels to reref.
+                    if len(reref['old'][chann_i]) > 2:
+                        raise ValueError(f"Only 2 channels should be used for bipolar referencing, but {len(reref['old'][chann_i])} are requested.")
+                    old_names = reref['old'][chann_i] # names of the channels to bipolar reref.
+                    new_name = reref['new'][chann_i] # name of the new channel to create
                     new_channs.append(new_name)
                     reref_data.append(data[channels.index(old_names[0])] -
                                         data[channels.index(old_names[1])]) # anode - cathode => bipolar reref.
                     reref_type.append('bipolar')
-                    channs_type.append(rereferencing['bipolar']['chann_type'][chann_i])
-                    new_coords.append(np.mean([ch_coords[channels.index(old_names[0])],
-                                                ch_coords[channels.index(old_names[1])]], axis=0).tolist())
-
+                    channs_type.append(reref['chann_type'][chann_i])
+                    if reref['coords'] == []: # if no coordinates are specified,...
+                        #... calculate the new coordinates based on the original channel coordinates
+                        new_coords.append(np.mean([ch_coords[channels.index(old_names[0])],
+                                                   ch_coords[channels.index(old_names[1])]], axis=0).tolist())
+                    else: # if coordinates are specified,...
+                        if len(reref['coords']) != len(reref['new']): #... check they are the correct format,
+                            raise ValueError(f"There is a mismatch between channels ({len(reref['new'])}) and coordinates ({len(reref['coords'])}).")
+                        new_coords.append(reref['coords'][reref['new'].index(new_name)]) #... then add the coordinates
+                        
             if ref_type == 'CAR': # common average rereferences data
-                for channs_i in range(len(rereferencing['CAR']['old'])): # for each group of channels to average
-                    old_names = rereferencing['CAR']['old'][channs_i] # names of the original channels
-                    new_names = rereferencing['CAR']['new'][channs_i] # new names for the averaged data
+                reref = rereferencing['CAR']
+                for channs_i in range(len(reref['old'])): # for each group of channels to average
+                    old_names = reref['old'][channs_i] # names of the original channels
+                    new_names = reref['new'][channs_i] # new names for the averaged data
                     avg_data = data[[i for i, x in enumerate(channels) if x in old_names]].mean(axis=0) # the...
                     #... average of the data in these channels
                     for chann_i in range(len(new_names)): # for each of the original channels
@@ -168,8 +181,13 @@ def reref_data(data, info, rereferencing, ch_coords):
                         reref_data.append(data[channels.index(old_name)] - avg_data) # original - average...
                         #... => CAR reref.
                         reref_type.append('CAR')
-                        channs_type.append(rereferencing['CAR']['chann_type'][channs_i][chann_i])
-                        new_coords.append(ch_coords[channels.index(old_name)])
+                        channs_type.append(reref['chann_type'][channs_i][chann_i])
+                        if reref['coords'] == []: # if no coordinates are specified,...
+                            new_coords.append(ch_coords[channels.index(old_name)]) #... use those from the original channels
+                        else: # if coordinates are specified,...
+                            if len(reref['coords'][channs_i]) != len(new_names): #... check they are the correct format,
+                                raise ValueError(f"There is a mismatch between channels ({len(new_names)}) and coordinates ({len(reref['coords'][channs_i])}).")
+                            new_coords.append(reref['coords'][channs_i][reref['new'][channs_i].index(new_name)]) #... then add the coordinates
 
             n_refs += 1
     if n_refs != len(rereferencing.keys()): # makes sure the proper number of rereferencing methods have been used
@@ -261,8 +279,8 @@ def epoch_data(raw, extra_info, epoch_len, include_shuffled=True):
 
 
 
-def process(raw, epoch_len, annotations=None, channels=None, rereferencing=None, resample=None, highpass=None,
-            lowpass=None, notch=None, include_shuffled=True, verbose=True):
+def process(raw, epoch_len, annotations=None, channels=None, coords=[], rereferencing=None, resample=None,
+            highpass=None, lowpass=None, notch=None, include_shuffled=True, verbose=True):
     """ Preprocessing of the raw data in preparation for coherence analysis.
     
     PARAMETERS
@@ -274,10 +292,13 @@ def process(raw, epoch_len, annotations=None, channels=None, rereferencing=None,
     -   The duration (in seconds) of segments to epoch the data into.
 
     annotations : MNE Annotations object | None (default)
-    -   The annotations to eliminate BAD segments from the data.
+    -   The annotations to eliminate BAD segments from the data. If None (default), no segments are excluded.
 
     channels : list of str | None (default)
-    -   The names of the channels to pick from the data.
+    -   The names of the channels to pick from the data. If None (default), all channels in raw are chosen.
+
+    coords: list of lists
+    -   The coordinates of the picked channels. If an empty list (default), the coordinates from raw are used.
 
     rereferencing : dict
     -   A dictionary containing instructions for rereferencing. The keys of the dictionary can be 'CAR' (common
@@ -332,11 +353,20 @@ def process(raw, epoch_len, annotations=None, channels=None, rereferencing=None,
     
     # Gets data from the Raw object
     channels = raw.info.ch_names.copy()
-    ch_coords = raw._get_channel_positions().copy().tolist() # coordinates of the channels
-    for ch_i, ch_coord in enumerate(ch_coords): # need to alter the units for correct plotting
-        ch_coords[ch_i] = [ch_coord[coord_i]*1000 for coord_i in range(len(ch_coord))]
     raw.load_data()
     raw_data = raw.get_data(reject_by_annotation='omit').copy() # the data itself
+
+    # Gets channel coordinates from the Raw object
+    ch_coords = raw._get_channel_positions().copy().tolist() # coordinates of the channels
+    if coords == []: # if no coordinates are specified, use those from raw
+        if np.isnan(np.mean(ch_coords)): # makes sure coordinates are present and not just NaN
+            raise ValueError("There are missing coordinate values for the channels.")
+        for ch_i, ch_coord in enumerate(ch_coords): # need to alter the units for correct plotting if taken from raw
+            ch_coords[ch_i] = [ch_coord[coord_i]*1000 for coord_i in range(len(ch_coord))]
+    else: # if coordinates are specified, use those instead of the ones from raw
+        if np.shape(coords) != np.shape(ch_coords): # makes sure the supplied coordinates are in the correct format
+            raise ValueError(f"Coordinates for the channels have been provided, but the dimensions do not match those in the original data.\nShould have shape {np.shape(ch_coords)}, but instead have shape {np.shape(coords)}.")
+        ch_coords = coords
 
 
     ## Rereferencing

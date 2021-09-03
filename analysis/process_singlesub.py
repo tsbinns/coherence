@@ -25,9 +25,9 @@ from helpers import combine_data
 
 ## Setup =====
 # Loads settings for analysis
-sub = '003'
+sub = '005'
 task = 'Rest'
-med = 'MedOff'
+med = 'MedOn'
 stim = 'StimOff'
 with open(os.path.join(project_path, 'settings.json')) as json_file:
     settings = json.load(json_file)
@@ -57,6 +57,7 @@ for i in sub_data:
     # Process data
     processed, extra_info = preprocessing.process(raw, analysis['epoch_length'], annotations=annots,
                                                   channels=sub_data[i]['channels'],
+                                                  coords=sub_data[i]['coords'],
                                                   rereferencing=sub_data[i]['rereferencing'],
                                                   resample=analysis['resample'], highpass=analysis['highpass'],
                                                   lowpass=analysis['lowpass'], notch=notch)
