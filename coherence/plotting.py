@@ -2,11 +2,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy
 from scipy import io
+import pandas as pd
 import helpers
 
 
 def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_std=True, n_plots_per_page=6,
-                 freq_limit=None, power_limit=None, same_y=True):
+                 freq_limit=None, power_limit=None, same_y=True, avg_as_equal=True):
     """ Plots frequency-wise PSDs of the data.
 
     PARAMETERS
@@ -44,28 +45,19 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     same_y : bool, default True
     -   Whether or not to use the same y-axis boundaries for data of the same type. If True (default), the same axes are
         used; if False, the same axes are not used.
+    
+    avg_as_equal : bool, default True
+    -   Whether or not to treat averaged data as equivalent, regardless of what was averaged over. E.g. if some data had
+        been averaged across subjects 1 & 2, but other data across subjects 3 & 4, avg_as_equal = True would treat this
+        data as if it was the same group of data.
 
 
     RETURNS
     ----------
     N/A
-    
     """
 
     ### Setup
-    # Establishes groups
-    if group_fig == []:
-        group_fig = group_master
-    if group_plot == []:
-        group_plot = group_fig
-
-    # Keys containing data that do not represent different conditions
-    psd_data_keys = ['ch_coords', 'freqs', 'psd', 'psd_std', 'fbands', 'fbands_avg', 'fbands_avg_std', 'fbands_max',
-                     'fbands_max_std', 'fbands_fmax', 'fbands_fmax_std']
-    fig_keys = [key for key in psd.keys() if key not in psd_data_keys and key not in group_plot]
-    plot_keys = [key for key in psd.keys() if key not in psd_data_keys and key not in group_fig]
-    data_keys = [key for key in psd.keys() if key not in psd_data_keys and key not in group_fig]
-
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
         remove = []
@@ -75,6 +67,45 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
         psd.drop(remove, inplace=True)
         psd.reset_index(drop=True, inplace=True)
 
+    # Sets averaged data to the same type, if requested
+    if avg_as_equal == True:
+        for key in psd.keys():
+            for data_i, data in enumerate(psd[key]):
+                if type(data) == str or type(data) == np.str_:
+                    if data[:3] == 'avg':
+                        psd[key].iloc[data_i] = 'avg'
+
+    # Establishes groups
+    if group_fig == []:
+        group_fig = group_master
+    if group_plot == []:
+        group_plot = group_fig
+
+    # Keys used to label figures, plots, and data
+    psd_data_keys = ['ch_coords', 'ch_coords_std', 'freqs', 'psd', 'psd_std', 'fbands', 'fbands_avg', 'fbands_avg_std',
+                     'fbands_max', 'fbands_max_std', 'fbands_fmax', 'fbands_fmax_std']
+    data_keys = [key for key in psd.keys() if key not in group_fig+group_plot+psd_data_keys]
+    plot_keys = [key for key in psd.keys() if key not in group_fig+psd_data_keys+data_keys]
+    fig_keys = [key for key in psd.keys() if key not in psd_data_keys+data_keys+plot_keys]
+
+    ## Alters level of keys depending on the values in the data
+    # Moves eligible labels from data to subplot level
+    move_up = []
+    for key in data_keys:
+        if len(np.unique(psd[key])) == 1: # if there is only one type of data present...
+            move_up.append(key) #... move this data to a higher labelling level (avoids label redundancy and clutter)
+    data_keys = [key for key in data_keys if key not in move_up]
+    plot_keys += move_up
+    plot_keys = pd.unique(plot_keys).tolist()
+    # Moves eligible labels from subplot to figure level
+    move_up = []
+    for key in plot_keys:
+        if len(np.unique(psd[key])) == 1: # if there is only one type of data present...
+            move_up.append(key) #... move this data to a higher labelling level (avoids label redundancy and clutter)
+    plot_keys = [key for key in plot_keys if key not in move_up]
+    fig_keys += move_up
+    fig_keys = pd.unique(fig_keys).tolist()
+
     # Gets indices of master-grouped data
     names_master = helpers.combine_names(psd, group_master, joining=',')
     names_group_master, idcs_group_master = helpers.unique_names(names_master)
@@ -83,7 +114,7 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     colour_info = helpers.get_colour_info(psd, [key for key in psd.keys() if key not in psd_data_keys
                                                 and key not in group_master and key not in group_fig
                                                 and key not in group_plot])
-    colours = helpers.data_colour(colour_info, not_for_unique=True, avg_as_equal=True)
+    colours = helpers.data_colour(colour_info, not_for_unique=True, avg_as_equal=avg_as_equal)
 
 
     ### Plotting
@@ -221,7 +252,7 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
 
 
 def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_std=True, n_plots_per_page=6,
-                 keys_to_plot=['avg', 'max'], same_y=True):
+                 keys_to_plot=['avg', 'max'], same_y=True, avg_as_equal=True):
     """ Plots frequency band-wise PSDs of the data.
 
     PARAMETERS
@@ -255,6 +286,15 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     keys_to_plot : list of strs
     -   The keys of the band-wise values to plot.
 
+    same_y : bool, default True
+    -   Whether or not to use the same y-axis boundaries for data of the same type. If True (default), the same axes are
+        used; if False, the same axes are not used.
+
+    avg_as_equal : bool, default True
+    -   Whether or not to treat averaged data as equivalent, regardless of what was averaged over. E.g. if some data had
+        been averaged across subjects 1 & 2, but other data across subjects 3 & 4, avg_as_equal = True would treat this
+        data as if it was the same group of data.
+
 
     RETURNS
     ----------
@@ -262,18 +302,6 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     """
 
     ### Setup
-    # Establishes groups
-    if group_fig == []:
-        group_fig = group_master
-    if group_plot == []:
-        group_plot = group_fig
-
-    # Keys containing data that do not represent different conditions
-    psd_data_keys = ['ch_coords', 'freqs', 'psd', 'psd_std', 'fbands', 'fbands_avg', 'fbands_avg_std', 'fbands_max',
-                     'fbands_max_std', 'fbands_fmax', 'fbands_fmax_std']
-    fig_keys = [key for key in psd.keys() if key not in psd_data_keys and key not in group_plot]
-    plot_keys = [key for key in psd.keys() if key not in psd_data_keys and key not in group_fig]
-
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
         remove = []
@@ -282,6 +310,48 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                 remove.append(i)
         psd.drop(remove, inplace=True)
         psd.reset_index(drop=True, inplace=True)
+
+    # Sets averaged data to the same type, if requested
+    if avg_as_equal == True:
+        for key in psd.keys():
+            for data_i, data in enumerate(psd[key]):
+                if type(data) == str or type(data) == np.str_:
+                    if data[:3] == 'avg':
+                        psd[key].iloc[data_i] = 'avg'
+
+    # Establishes groups
+    if group_fig == []:
+        group_fig = group_master
+    if group_plot == []:
+        group_plot = group_fig
+
+    # Keys containing data that do not represent different conditions
+    psd_data_keys = ['ch_coords', 'ch_coords_std', 'freqs', 'psd', 'psd_std', 'fbands', 'fbands_avg', 'fbands_avg_std',
+                     'fbands_max', 'fbands_max_std', 'fbands_fmax', 'fbands_fmax_std']
+    data_keys = [key for key in psd.keys() if key not in group_fig+group_plot+psd_data_keys]
+    plot_keys = [key for key in psd.keys() if key not in group_fig+psd_data_keys+data_keys]
+    fig_keys = [key for key in psd.keys() if key not in psd_data_keys+data_keys+plot_keys]
+
+    ## Alters level of keys depending on the values in the data
+    # Moves eligible labels from data to subplot level
+    move_up = []
+    for key in data_keys:
+        if len(np.unique(psd[key])) == 1: # if there is only one type of data present...
+            move_up.append(key) #... move this data to a higher labelling level (avoids label redundancy and clutter)
+    data_keys = [key for key in data_keys if key not in move_up]
+    plot_keys += move_up
+    plot_keys = pd.unique(plot_keys).tolist()
+    # Moves eligible labels from subplot to figure level
+    move_up = []
+    for key in plot_keys:
+        if len(np.unique(psd[key])) == 1: # if there is only one type of data present...
+            move_up.append(key) #... move this data to a higher labelling level (avoids label redundancy and clutter)
+    plot_keys = [key for key in plot_keys if key not in move_up]
+    fig_keys += move_up
+    fig_keys = pd.unique(fig_keys).tolist()
+
+    if data_keys != []:
+        raise ValueError(f"When plotting band-wise data, only data of the same type should be plotted on a single subplot,\nbut data with different {data_keys} characteristics is going to be plotted on the same subplot.")
 
     # Gets indices of master-grouped data
     names_master = helpers.combine_names(psd, group_master, joining=',')
@@ -456,7 +526,7 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
 
 
 def psd_bandwise_gb(psd, areas, group_master, group_fig=[], plot_shuffled=False, n_plots_per_page=6,
-                    keys_to_plot=['avg', 'max'], same_y=True):
+                    keys_to_plot=['avg', 'max'], same_y=True, avg_as_equal=True):
     """ Plots frequency band-wise PSDs of the data on a glass brain.
 
     PARAMETERS
@@ -486,6 +556,15 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], plot_shuffled=False,
     keys_to_plot : list of strs
     -   The keys of the band-wise values to plot.
 
+    same_y : bool, default True
+    -   Whether or not to use the same y-axis boundaries for data of the same type. If True (default), the same axes are
+        used; if False, the same axes are not used.
+    
+    avg_as_equal : bool, default True
+    -   Whether or not to treat averaged data as equivalent, regardless of what was averaged over. E.g. if some data had
+        been averaged across subjects 1 & 2, but other data across subjects 3 & 4, avg_as_equal = True would treat this
+        data as if it was the same group of data.
+
 
     RETURNS
     ----------
@@ -493,20 +572,6 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], plot_shuffled=False,
     """
 
     ### Setup
-    # Establishes groups
-    if group_fig == []:
-        group_fig = group_master
-
-    # Keys containing data that do not represent different conditions
-    psd_data_keys = ['ch_coords', 'freqs', 'psd', 'psd_std', 'fbands', 'fbands_avg', 'fbands_avg_std', 'fbands_max',
-                     'fbands_max_std', 'fbands_fmax', 'fbands_fmax_std']
-    fig_keys = [key for key in psd.keys() if key not in psd_data_keys]
-
-    # Keys of the values to plot
-    fullkeys_to_plot = []
-    for key in keys_to_plot:
-        fullkeys_to_plot.append(f'fbands_{key}')
-
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
         remove = []
@@ -515,6 +580,28 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], plot_shuffled=False,
                 remove.append(i)
         psd.drop(remove, inplace=True)
         psd.reset_index(drop=True, inplace=True)
+
+    # Sets averaged data to the same type, if requested
+    if avg_as_equal == True:
+        for key in psd.keys():
+            for data_i, data in enumerate(psd[key]):
+                if type(data) == str or type(data) == np.str_:
+                    if data[:3] == 'avg':
+                        psd[key].iloc[data_i] = 'avg'
+
+    # Establishes groups
+    if group_fig == []:
+        group_fig = group_master
+
+    # Keys containing data that do not represent different conditions
+    psd_data_keys = ['ch_coords', 'ch_coords_std', 'freqs', 'psd', 'psd_std', 'fbands', 'fbands_avg', 'fbands_avg_std',
+                     'fbands_max', 'fbands_max_std', 'fbands_fmax', 'fbands_fmax_std']
+    fig_keys = [key for key in psd.keys() if key not in psd_data_keys]
+
+    # Keys of the values to plot
+    fullkeys_to_plot = []
+    for key in keys_to_plot:
+        fullkeys_to_plot.append(f'fbands_{key}')
     
     og_psd = psd.copy()
     for area in areas:
@@ -646,7 +733,7 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], plot_shuffled=False,
 
 
 def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_std=True, n_plots_per_page=6,
-                 freq_limit=None, same_y=True):
+                 freq_limit=None, same_y=True, avg_as_equal=True):
     """ Plots single-frequency-wise coherence data.
 
     PARAMETERS
@@ -681,6 +768,15 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     freq_limit : int | float
     -   The frequency (in Hz) at which to stop plotting data. If None (default), up to the maximum frequency in the data
         is plotted.
+    
+    same_y : bool, default True
+    -   Whether or not to use the same y-axis boundaries for data of the same type. If True (default), the same axes are
+        used; if False, the same axes are not used.
+
+    avg_as_equal : bool, default True
+    -   Whether or not to treat averaged data as equivalent, regardless of what was averaged over. E.g. if some data had
+        been averaged across subjects 1 & 2, but other data across subjects 3 & 4, avg_as_equal = True would treat this
+        data as if it was the same group of data.
 
 
     RETURNS
@@ -689,19 +785,6 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     """
 
     ### Setup
-    # Establishes groups
-    if group_fig == []:
-        group_fig = group_master
-    if group_plot == []:
-        group_plot = group_fig
-
-    # Keys containing data that do not represent different conditions
-    coh_data_keys = ['ch_coords_cortical', 'ch_coords_deep', 'freqs', 'coh', 'coh_std', 'fbands', 'fbands_avg',
-                     'fbands_avg_std', 'fbands_max', 'fbands_max_std', 'fbands_fmax', 'fbands_fmax_std']
-    fig_keys = [key for key in coh.keys() if key not in coh_data_keys and key not in group_plot]
-    plot_keys = [key for key in coh.keys() if key not in coh_data_keys and key not in group_fig]
-    data_keys = [key for key in coh.keys() if key not in coh_data_keys and key not in group_fig]
-
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
         remove = []
@@ -710,6 +793,46 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                 remove.append(i)
         coh.drop(remove, inplace=True)
         coh.reset_index(drop=True, inplace=True)
+
+    # Sets averaged data to the same type, if requested
+    if avg_as_equal == True:
+        for key in coh.keys():
+            for data_i, data in enumerate(coh[key]):
+                if type(data) == str or type(data) == np.str_:
+                    if data[:3] == 'avg':
+                        coh[key].iloc[data_i] = 'avg'
+
+    # Establishes groups
+    if group_fig == []:
+        group_fig = group_master
+    if group_plot == []:
+        group_plot = group_fig
+
+    # Keys used to label figures, plots, and data
+    coh_data_keys = ['ch_coords_cortical', 'ch_coords_deep', 'ch_coords_cortical_std', 'ch_coords_deep_std', 'freqs',
+                     'coh', 'coh_std', 'fbands', 'fbands_avg', 'fbands_avg_std', 'fbands_max', 'fbands_max_std',
+                     'fbands_fmax', 'fbands_fmax_std']
+    data_keys = [key for key in coh.keys() if key not in group_fig+group_plot+coh_data_keys]
+    plot_keys = [key for key in coh.keys() if key not in group_fig+coh_data_keys+data_keys]
+    fig_keys = [key for key in coh.keys() if key not in coh_data_keys+data_keys+plot_keys]
+
+    ## Alters level of keys depending on the values in the data
+    # Moves eligible labels from data to subplot level
+    move_up = []
+    for key in data_keys:
+        if len(np.unique(coh[key])) == 1: # if there is only one type of data present...
+            move_up.append(key) #... move this data to a higher labelling level (avoids label redundancy and clutter)
+    data_keys = [key for key in data_keys if key not in move_up]
+    plot_keys += move_up
+    plot_keys = pd.unique(plot_keys).tolist()
+    # Moves eligible labels from subplot to figure level
+    move_up = []
+    for key in plot_keys:
+        if len(np.unique(coh[key])) == 1: # if there is only one type of data present...
+            move_up.append(key) #... move this data to a higher labelling level (avoids label redundancy and clutter)
+    plot_keys = [key for key in plot_keys if key not in move_up]
+    fig_keys += move_up
+    fig_keys = pd.unique(fig_keys).tolist()
     
     # Gets indices of master-grouped data
     names_master = helpers.combine_names(coh, group_master, joining=',')
@@ -719,7 +842,7 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     colour_info = helpers.get_colour_info(coh, [key for key in coh.keys() if key not in coh_data_keys
                                                 and key not in group_master and key not in group_fig
                                                 and key not in group_plot])
-    colours = helpers.data_colour(colour_info, not_for_unique=True, avg_as_equal=True)
+    colours = helpers.data_colour(colour_info, not_for_unique=True, avg_as_equal=avg_as_equal)
 
 
     ### Plotting
@@ -855,7 +978,7 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
 
 
 def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_std=True, n_plots_per_page=6,
-                 keys_to_plot=['avg', 'max'], same_y=True):
+                 keys_to_plot=['avg', 'max'], same_y=True, avg_as_equal=True):
     """ Plots frequency band-wise coherence data.
 
     PARAMETERS
@@ -890,6 +1013,15 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     keys_to_plot : list of strs
     -   The keys of the band-wise values to plot.
 
+    same_y : bool, default True
+    -   Whether or not to use the same y-axis boundaries for data of the same type. If True (default), the same axes are
+        used; if False, the same axes are not used.
+
+    avg_as_equal : bool, default True
+    -   Whether or not to treat averaged data as equivalent, regardless of what was averaged over. E.g. if some data had
+        been averaged across subjects 1 & 2, but other data across subjects 3 & 4, avg_as_equal = True would treat this
+        data as if it was the same group of data.
+
 
     RETURNS
     ----------
@@ -897,18 +1029,6 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     """
 
     ### Setup
-    # Establishes groups
-    if group_fig == []:
-        group_fig = group_master
-    if group_plot == []:
-        group_plot = group_fig
-
-    # Keys containing data that do not represent different conditions
-    coh_data_keys = ['ch_coords_cortical', 'ch_coords_deep', 'freqs', 'coh', 'coh_std', 'fbands', 'fbands_avg',
-                     'fbands_avg_std', 'fbands_max', 'fbands_max_std', 'fbands_fmax', 'fbands_fmax_std']
-    fig_keys = [key for key in coh.keys() if key not in coh_data_keys and key not in group_plot]
-    plot_keys = [key for key in coh.keys() if key not in coh_data_keys and key not in group_fig]
-
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
         remove = []
@@ -917,6 +1037,46 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                 remove.append(i)
         coh.drop(remove, inplace=True)
         coh.reset_index(drop=True, inplace=True)
+
+    # Sets averaged data to the same type, if requested
+    if avg_as_equal == True:
+        for key in coh.keys():
+            for data_i, data in enumerate(coh[key]):
+                if type(data) == str or type(data) == np.str_:
+                    if data[:3] == 'avg':
+                        coh[key].iloc[data_i] = 'avg'
+
+    # Establishes groups
+    if group_fig == []:
+        group_fig = group_master
+    if group_plot == []:
+        group_plot = group_fig
+
+    # Keys used to label figures, plots, and data
+    coh_data_keys = ['ch_coords_cortical', 'ch_coords_deep', 'ch_coords_cortical_std', 'ch_coords_deep_std', 'freqs',
+                     'coh', 'coh_std', 'fbands', 'fbands_avg', 'fbands_avg_std', 'fbands_max', 'fbands_max_std',
+                     'fbands_fmax', 'fbands_fmax_std']
+    data_keys = [key for key in coh.keys() if key not in group_fig+group_plot+coh_data_keys]
+    plot_keys = [key for key in coh.keys() if key not in group_fig+coh_data_keys+data_keys]
+    fig_keys = [key for key in coh.keys() if key not in coh_data_keys+data_keys+plot_keys]
+
+    ## Alters level of keys depending on the values in the data
+    # Moves eligible labels from data to subplot level
+    move_up = []
+    for key in data_keys:
+        if len(np.unique(coh[key])) == 1: # if there is only one type of data present...
+            move_up.append(key) #... move this data to a higher labelling level (avoids label redundancy and clutter)
+    data_keys = [key for key in data_keys if key not in move_up]
+    plot_keys += move_up
+    plot_keys = pd.unique(plot_keys).tolist()
+    # Moves eligible labels from subplot to figure level
+    move_up = []
+    for key in plot_keys:
+        if len(np.unique(coh[key])) == 1: # if there is only one type of data present...
+            move_up.append(key) #... move this data to a higher labelling level (avoids label redundancy and clutter)
+    plot_keys = [key for key in plot_keys if key not in move_up]
+    fig_keys += move_up
+    fig_keys = pd.unique(fig_keys).tolist()
 
     # Gets indices of master-grouped data
     names_master = helpers.combine_names(coh, group_master, joining=',')
@@ -1090,7 +1250,7 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
 
 
 def coh_bandwise_gb(coh, areas, group_master, group_fig=[], plot_shuffled=False, n_plots_per_page=6,
-                    keys_to_plot=['avg', 'max'], same_y=True):
+                    keys_to_plot=['avg', 'max'], same_y=True, avg_as_equal=True):
     """ Plots frequency band-wise coherence of the data on a glass brain.
 
     PARAMETERS
@@ -1121,6 +1281,15 @@ def coh_bandwise_gb(coh, areas, group_master, group_fig=[], plot_shuffled=False,
     keys_to_plot : list of strs
     -   The keys of the band-wise values to plot.
 
+    same_y : bool, default True
+    -   Whether or not to use the same y-axis boundaries for data of the same type. If True (default), the same axes are
+        used; if False, the same axes are not used.
+
+    avg_as_equal : bool, default True
+    -   Whether or not to treat averaged data as equivalent, regardless of what was averaged over. E.g. if some data had
+        been averaged across subjects 1 & 2, but other data across subjects 3 & 4, avg_as_equal = True would treat this
+        data as if it was the same group of data.
+
 
     RETURNS
     ----------
@@ -1128,20 +1297,6 @@ def coh_bandwise_gb(coh, areas, group_master, group_fig=[], plot_shuffled=False,
     """
 
     ### Setup
-    # Establishes groups
-    if group_fig == []:
-        group_fig = group_master
-
-    # Keys containing data that do not represent different conditions
-    coh_data_keys = ['ch_coords_cortical', 'ch_coords_deep', 'freqs', 'coh', 'coh_std', 'fbands', 'fbands_avg',
-                     'fbands_avg_std', 'fbands_max', 'fbands_max_std', 'fbands_fmax', 'fbands_fmax_std']
-    fig_keys = [key for key in coh.keys() if key not in coh_data_keys]
-
-    # Keys of the values to plot
-    fullkeys_to_plot = []
-    for key in keys_to_plot:
-        fullkeys_to_plot.append(f'fbands_{key}')
-
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
         remove = []
@@ -1150,6 +1305,29 @@ def coh_bandwise_gb(coh, areas, group_master, group_fig=[], plot_shuffled=False,
                 remove.append(i)
         coh.drop(remove, inplace=True)
         coh.reset_index(drop=True, inplace=True)
+
+    # Sets averaged data to the same type, if requested
+    if avg_as_equal == True:
+        for key in coh.keys():
+            for data_i, data in enumerate(coh[key]):
+                if type(data) == str or type(data) == np.str_:
+                    if data[:3] == 'avg':
+                        coh[key].iloc[data_i] = 'avg'
+
+    # Establishes groups
+    if group_fig == []:
+        group_fig = group_master
+
+    # Keys containing data that do not represent different conditions
+    coh_data_keys = ['ch_coords_cortical', 'ch_coords_deep', 'ch_coords_cortical_std', 'ch_coords_deep_std', 'freqs',
+                     'coh', 'coh_std', 'fbands', 'fbands_avg', 'fbands_avg_std', 'fbands_max', 'fbands_max_std',
+                     'fbands_fmax', 'fbands_fmax_std']
+    fig_keys = [key for key in coh.keys() if key not in coh_data_keys]
+
+    # Keys of the values to plot
+    fullkeys_to_plot = []
+    for key in keys_to_plot:
+        fullkeys_to_plot.append(f'fbands_{key}')
     
     for area in areas:
 

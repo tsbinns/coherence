@@ -235,11 +235,13 @@ def get_coherence(epoched, extra_info, cwt_freqs, methods=['coh', 'imcoh']):
 
     # Collects data
     coh_data = list(zip(np.tile(ch_names_cortical, n_methods).tolist(), np.tile(ch_names_deep, n_methods).tolist(), 
-                        np.tile(ch_coords_cortical, n_methods).tolist(), np.tile(ch_coords_deep, n_methods).tolist(),
+                        np.tile(ch_coords_cortical, (n_methods,1)).tolist(),
+                        np.tile(ch_coords_deep, (n_methods,1)).tolist(),
                         np.tile(data_types, n_methods).tolist(), np.tile(reref_type_cortical, n_methods).tolist(),
                         np.tile(reref_type_deep, n_methods).tolist(), freqs, coh_methods, cohs))
     coh_data = pd.DataFrame(data=coh_data, columns=['ch_name_cortical', 'ch_name_deep',
-                                                    'ch_coords_cortical', 'ch_coords_deep',
+                                                    'ch_coords_cortical',
+                                                    'ch_coords_deep',
                                                     'data_type', 'reref_type_cortical',
                                                     'reref_type_deep', 'freqs', 'method', 'coh'])
 

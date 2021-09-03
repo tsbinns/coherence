@@ -773,26 +773,32 @@ def average_dataset(data, avg_over, separate, x_keys, y_keys):
             if identical == False:
                 raise ValueError(f'The {x_key} values for the data do not match, and therefore the data cannot be averaged over.')
     
+    # Gets the keys of the data whose values should be combined
+    comb_keys = [key for key in data.keys() if key not in avg_over and key not in separate and key not in x_keys and 
+                 key not in y_keys]
+    std_keys = [f'{key}_std' for key in y_keys]
+    discard = []
+    for comb_key in comb_keys: # prevents keys containing S.D. data from being combined, as this...
+    #... needs to be recalculated
+        if comb_key in std_keys:
+            discard.append(comb_key)
+    if discard != []:
+        comb_keys = [key for key in comb_keys if key not in discard]
 
+    
     ### Processing
     # Averages across the y_keys for each unique channel
-    all_avg = []
-    all_std = []
+    all_avg = {}
+    all_std = {}
     for y_key in y_keys:
-        all_avg.append([])
-        all_std.append([])
+        all_avg[y_key] = []
+        all_std[f'{y_key}_std'] = []
         for unique_i in unique_idc:
             avg, std = average_data(data[y_key][unique_i])
-            all_avg[-1].append(avg)
-            all_std[-1].append(std)
+            all_avg[y_key].append(avg)
+            all_std[f'{y_key}_std'].append(std)
     avg = all_avg
     std = all_std
-
-    # Makes new names for the averaged-over factor
-    new_name = []
-    for unique_i in unique_idc:
-        new_name.append(f'avg{list(data[avg_over][unique_i])}')
-        #new_name.append('avg')
 
     # Adds new columns for std data of each y_key (if not already present)
     holder = np.repeat(np.nan, np.shape(data)[0])
@@ -803,23 +809,28 @@ def average_dataset(data, avg_over, separate, x_keys, y_keys):
 
     # Collates data for new DataFrame
     new_cols = []
-    avg_i = 0
-    std_i = 0
     for key in data.columns:
         new_cols.append([])
-        if key == avg_over: # the averaged-over factor gets a special name, specifying what was averaged over
-        #... (e.g. run IDs, subject IDs, etc...)
+        if key == avg_over or key in comb_keys: # the averaged-over factor and factors that are inadvertently...
+        #... averaged over gets special names, specifying what was averaged over (e.g. run IDs, subject IDs, etc...)
             for unique_i in unique_idc:
-                new_cols[-1].append(f'avg{list(data[key][unique_i])}')
+                new_entry = np.unique(data[key][unique_i]).tolist()
+                if len(new_entry) == 1:
+                    new_entry = ','.join(new_entry)
+                    new_cols[-1].append(new_entry)
+                else:
+                    new_entry = ','.join(new_entry)
+                    new_cols[-1].append(f'avg[{new_entry}]')
         elif key in y_keys: # the values that were averaged get used in place of the original values
-            new_cols[-1].extend(avg[avg_i])
-            avg_i += 1
-        elif 'std' in key: # the std values (should not be in y_keys, as you don't want to average over std)
-            new_cols[-1].extend(std[std_i])
-            std_i += 1
-        else: # the non-averaged/non-averaged-over entries can be repeated from the original data
+            new_cols[-1].extend(avg[key])
+        elif key in x_keys or key in separate: # values which are identical across the averaged group, so can just be...
+        #... copied from the original data
             for unique_i in unique_idc:
                 new_cols[-1].append(data[key][unique_i[0]])
+        elif 'std' in key: # the std values (should not be in y_keys, as you don't want to average over std)
+            new_cols[-1].extend(std[key])
+        else:
+            raise ValueError(f"Unknown key '{key}' present when averaging data.")
     
     # Creates new DataFrame
     new_data = list(zip(*new_cols[:]))
