@@ -3,6 +3,7 @@ import numpy as np
 import scipy
 from scipy import io
 import pandas as pd
+import datetime
 import helpers
 
 
@@ -115,6 +116,9 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                                 and key not in group_master and key not in group_fig
                                                 and key not in group_plot])
     colours = helpers.data_colour(colour_info, not_for_unique=True, avg_as_equal=avg_as_equal)
+
+    # Name of the folder in which to save figures (based on the current time)
+    foldername = 'psd_freqwise-'+''.join([str(x) for x in datetime.datetime.now().timetuple()[:-3]])
 
 
     ### Plotting
@@ -247,7 +251,11 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                         elif stop is True and extra > 0: # if there is no more data to plot for this type...
                             fig.delaxes(axs[row_i, col_i]) # ... delete the extra subplots
 
+                # Shows the figure
                 plt.show()
+
+                # Saves the figure
+                helpers.save_fig(fig, wind_title, filetype='png', foldername=foldername)
 
 
 
@@ -362,6 +370,9 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     fullkeys_to_plot = []
     for key in keys_to_plot:
         fullkeys_to_plot.append(f'fbands_{key}')
+
+    # Name of the folder in which to save figures (based on the current time)
+    foldername = 'psd_bandwise-'+''.join([str(x) for x in datetime.datetime.now().timetuple()[:-3]])
 
 
     ## Plotting
@@ -521,7 +532,11 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                         elif stop is True and extra > 0: # if there is no more data to plot for this type...
                             fig.delaxes(axs[row_i, col_i]) # ... delete the extra subplots
 
+                # Shows the figure
                 plt.show()
+
+                # Saves the figure
+                helpers.save_fig(fig, wind_title, filetype='png', foldername=foldername)
 
 
 
@@ -602,7 +617,10 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], plot_shuffled=False,
     fullkeys_to_plot = []
     for key in keys_to_plot:
         fullkeys_to_plot.append(f'fbands_{key}')
-    
+
+    # Name of the folder in which to save figures (based on the current time)
+    foldername = 'psd_bandwise_gb-'+''.join([str(x) for x in datetime.datetime.now().timetuple()[:-3]])
+
     og_psd = psd.copy()
     for area in areas:
 
@@ -728,7 +746,11 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], plot_shuffled=False,
                                 elif stop is True and extra > 0: # if there is no more data to plot for this type...
                                     fig.delaxes(axs[row_i, col_i]) # ... delete the extra subplots
 
+                        # Shows the figure
                         plt.show()
+
+                        # Saves the figure
+                        helpers.save_fig(fig, wind_title, filetype='png', foldername=foldername)
 
 
 
@@ -843,6 +865,9 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                                 and key not in group_master and key not in group_fig
                                                 and key not in group_plot])
     colours = helpers.data_colour(colour_info, not_for_unique=True, avg_as_equal=avg_as_equal)
+
+    # Name of the folder in which to save figures (based on the current time)
+    foldername = 'coh_freqwise-'+''.join([str(x) for x in datetime.datetime.now().timetuple()[:-3]])
 
 
     ### Plotting
@@ -973,7 +998,11 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                         elif stop is True and extra > 0: # if there is no more data to plot for this type...
                             fig.delaxes(axs[row_i, col_i]) # ... delete the extra subplots
 
+                # Shows the figure
                 plt.show()
+
+                # Saves the figure
+                helpers.save_fig(fig, wind_title, filetype='png', foldername=foldername)
 
 
 
@@ -1087,6 +1116,9 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     fullkeys_to_plot = []
     for key in keys_to_plot:
         fullkeys_to_plot.append(f'fbands_{key}')
+
+    # Name of the folder in which to save figures (based on the current time)
+    foldername = 'coh_bandwise-'+''.join([str(x) for x in datetime.datetime.now().timetuple()[:-3]])
 
 
     ## Plotting
@@ -1245,7 +1277,11 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                         elif stop is True and extra > 0: # if there is no more data to plot for this type...
                             fig.delaxes(axs[row_i, col_i]) # ... delete the extra subplots
 
+                # Shows the figure
                 plt.show()
+
+                # Saves the figure
+                helpers.save_fig(fig, wind_title, filetype='png', foldername=foldername)
 
 
 
@@ -1329,6 +1365,10 @@ def coh_bandwise_gb(coh, areas, group_master, group_fig=[], plot_shuffled=False,
     for key in keys_to_plot:
         fullkeys_to_plot.append(f'fbands_{key}')
     
+    # Name of the folder in which to save figures (based on the current time)
+    foldername = 'coh_bandwise_gb-'+''.join([str(x) for x in datetime.datetime.now().timetuple()[:-3]])
+
+
     for area in areas:
 
         if area == 'cortical':
@@ -1441,4 +1481,8 @@ def coh_bandwise_gb(coh, areas, group_master, group_fig=[], plot_shuffled=False,
                                 elif stop is True and extra > 0: # if there is no more data to plot for this type...
                                     fig.delaxes(axs[row_i, col_i]) # ... delete the extra subplots
 
+                        # Shows the figure
                         plt.show()
+
+                        # Saves the figure
+                        helpers.save_fig(fig, wind_title, filetype='png', foldername=foldername)

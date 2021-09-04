@@ -20,7 +20,7 @@ project_path = 'C:\\Users\\tomth\\OneDrive\\My Documents\\Work\\Courses\\Berlin\
 import plotting
 from helpers import average_dataset
 
-"""
+
 #### PLOTS DATA FOR A SINGLE SUBJECT, AVERAGED ACROSS RUNS
 ### Setup & Processing
 # Loads data
@@ -34,13 +34,14 @@ for data in datasets:
 
     # Averages data over runs
     psds[-1] = average_dataset(data=psds[-1], avg_over='run',
-                               separate=['ch_name', 'data_type'],
-                               x_keys=['med','stim','task','subject','ch_type','freqs'],
+                               separate=['ch_name', 'data_type', 'reref_type'],
+                               x_keys=['med', 'stim', 'task', 'subject', 'ch_type', 'freqs', 'fbands', 'ch_coords'],
                                y_keys=['psd', 'fbands_avg', 'fbands_max', 'fbands_fmax'])
 
     cohs[-1] = average_dataset(data=cohs[-1], avg_over='run',
                                separate=['ch_name_cortical', 'ch_name_deep', 'data_type', 'method'],
-                               x_keys=['med','stim','task','subject','freqs','fbands'],
+                               x_keys=['med', 'stim', 'task', 'subject', 'freqs', 'fbands', 'ch_coords_cortical',
+                                       'ch_coords_deep', 'reref_type_cortical', 'reref_type_deep'],
                                y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'])
 
 psd = pd.concat(psds[:], ignore_index=True)
@@ -71,7 +72,7 @@ plotting.coh_bandwise(coh, group_master=['reref_type_cortical', 'reref_type_deep
 plotting.coh_bandwise_gb(coh, areas=['cortical'], group_master=['reref_type_cortical', 'reref_type_deep', 'method'],
                          group_fig=['reref_type_cortical', 'reref_type_deep', 'method', 'med', 'data_type'],
                          plot_shuffled=False, same_y=True)
-"""
+
 
 """
 ##### PLOTS DATA FOR MULTIPLE SUBJECTS, AVERAGED ACROSS RUNS, CHANNELS, AND (OPTIONALLY) SUBJECTS
@@ -138,7 +139,8 @@ plotting.psd_freqwise(psd, group_master=['reref_type', 'ch_type', 'subject'],
                       group_plot=['ch_name'],
                       plot_shuffled=False, plot_std=True, n_plots_per_page=1, freq_limit=50, power_limit=15)
 plotting.psd_bandwise(psd, group_master=['reref_type', 'ch_type', 'subject'],
-                      group_plot=['ch_name', 'med', 'data_type'],
+                      group_fig-['data_type],
+                      group_plot=['ch_name', 'med'],
                       plot_shuffled=False, plot_std=True, n_plots_per_page=2)
 
 # Coherence
@@ -150,7 +152,7 @@ plotting.coh_bandwise(coh, group_master=['reref_type_cortical', 'reref_type_deep
                             plot_shuffled=False, plot_std=True, n_plots_per_page=2)
 """
 
-""""""
+"""
 ##### PLOTS DATA FOR MULTIPLE SUBJECTS, AVERAGED ACROSS RUNS (BUT NOT CHANNELS OR SUBJECTS) ON SURFACE PLOTS
 ### Setup & Processing
 # Loads data
@@ -193,4 +195,4 @@ plotting.psd_bandwise_gb(psd, areas=['cortical'], group_master=['reref_type', 'c
 plotting.coh_bandwise_gb(coh, areas=['cortical'], group_master=['reref_type_cortical', 'reref_type_deep', 'method'],
                          group_fig=['reref_type_cortical', 'reref_type_deep', 'method', 'med', 'data_type'],
                          plot_shuffled=False, same_y=True)
-""""""
+"""

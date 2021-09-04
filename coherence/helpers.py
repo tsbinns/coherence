@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
+import os
 from copy import deepcopy
+from matplotlib import pyplot as plt
 
 
 
@@ -658,6 +660,98 @@ def data_colour(info, not_for_unique=False, avg_as_equal=False):
     return colours
 
 
+
+def save_fig(fig, filename, filetype, directory='figures', foldername=''):
+    """ Saves plotted figures.
+
+    PARAMETERS
+    ----------
+    fig : matplotlib Figure object
+    -   The figure to be saved.
+
+    filename : str
+    -   The name of the file to save the figure as.
+
+    filetype : str
+    -   The filetype to save the image as (e.g. 'png', 'jpg'). No fullstop is necessary (e.g. incorrect: '.png',
+        correct: 'png').
+    
+    directory : str
+    -   The location where the images should be saved.
+
+    foldername : str
+    -   If given (default an empty string), images are saved in this folder within the directory (the folder is created
+        if it does not already exist).
+
+    
+    RETURNS
+    ----------
+    N/A
+
+
+    NOTES
+    ----------
+    -   This function should be called after the figures have already been shown and manipulated (e.g. the window
+        maximised to achieve the desired layout of the subplots and text).
+    """
+
+    dir_folder = os.path.join(directory, foldername) # folder directory
+
+    # Makes sure the filename is legal and replaces any illegal characters with a semicolon
+    legal_name = ''
+    for char in filename:
+        if char in "\/:*?<>|": # if character is illegal...
+            char = ';' #... replace with a legal character
+        legal_name += char
+    filename = legal_name
+
+    # Creates the folder, if requested
+    if foldername != '':
+        try: # if the folder doesn't exist, make a new one,...
+            os.mkdir(dir_folder)
+        except: #... otherwise, do nothing
+            dir_folder = dir_folder
+
+    # Creates the file
+    curr_files = os.listdir(dir_folder) # gets files in the directory
+    if curr_files != []:
+        n_copies = 0 # the number of files in the directory sharing the same name
+        copy = True # whether there are multiple files with the same name
+        first = True # whether this is the first instance of the filenames repeating
+        while copy == True:
+            if first == True:
+                if f'{filename}.{filetype}' in curr_files: # checks if the filename is already being used
+                    n_copies += 1 # notes the number of files sharing this name
+                    first = False
+                    if f'{filename}({str(n_copies)}).{filetype}' in curr_files: # if a file is using the next...
+                    #... available name (e.g. filename(1).png), further increase the number of files sharing names
+                        n_copies += 1
+                    else: # if not, use the name filename(1).png
+                        copy = False
+                        break
+                else: # if the filename is not being used, no need to change anything
+                    copy = False
+                    first = False
+                    break
+            else: # checks if the modified name (e.g. filename(2).png) is in use...
+                if f'{filename}({str(n_copies)}).{filetype}' in curr_files: #... if so, increment n_copies to check...
+                #... for the next available name,
+                        n_copies += 1
+                else: #... otherwise, use the modified filename
+                    copy = False
+                    break
+        if n_copies != 0: # sets the filename so that it is unique and not overwriting previous files
+            filename += f'({str(n_copies)})'
+    
+    # Gets the complete filename and save directory
+    filename += f'.{filetype}'
+    dir_file = os.path.join(dir_folder, filename)
+
+    # Saves the figure
+    fig.savefig(dir_file, bbox_inches='tight')
+    print(f"Saving figure as {dir_file}")
+
+    
 
 def check_identical(data, return_result=False):
     """ Checks to see if multiple sets of data are identical.
