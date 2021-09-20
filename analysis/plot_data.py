@@ -20,7 +20,7 @@ project_path = 'C:\\Users\\tomth\\OneDrive\\My Documents\\Work\\Courses\\Berlin\
 import plotting
 from helpers import average_dataset
 
-"""
+
 #### PLOTS DATA FOR A SINGLE SUBJECT, AVERAGED ACROSS RUNS
 ### Setup & Processing
 # Loads data
@@ -72,7 +72,7 @@ plotting.coh_bandwise(coh, group_master=['reref_type_cortical', 'reref_type_deep
 plotting.coh_bandwise_gb(coh, areas=['cortical'], group_master=['reref_type_cortical', 'reref_type_deep', 'method'],
                          group_fig=['reref_type_cortical', 'reref_type_deep', 'method', 'med', 'data_type'],
                          plot_shuffled=False, same_y=True)
-"""
+
 
 """
 ##### PLOTS DATA FOR MULTIPLE SUBJECTS, AVERAGED ACROSS RUNS, CHANNELS, AND (OPTIONALLY) SUBJECTS
@@ -152,7 +152,7 @@ plotting.coh_bandwise(coh, group_master=['reref_type_cortical', 'reref_type_deep
                             plot_shuffled=False, plot_std=True, n_plots_per_page=2)
 """
 
-
+"""
 ##### PLOTS DATA FOR MULTIPLE SUBJECTS, AVERAGED ACROSS RUNS (BUT NOT CHANNELS OR SUBJECTS) ON SURFACE PLOTS
 ### Setup & Processing
 # Loads data
@@ -195,3 +195,4 @@ plotting.psd_bandwise_gb(psd, areas=['cortical'], group_master=['reref_type', 'c
 plotting.coh_bandwise_gb(coh, areas=['cortical'], group_master=['reref_type_cortical', 'reref_type_deep', 'method'],
                          group_fig=['reref_type_cortical', 'reref_type_deep', 'method', 'med', 'data_type'],
                          plot_shuffled=False, same_y=True)
+"""

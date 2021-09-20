@@ -730,6 +730,9 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], plot_shuffled=False,
                                             c=[data[plot_key].iloc[i][fband_i] for i in range(np.shape(data[plot_key])[0])], # values
                                             s=30, alpha=.8, edgecolor='black', cmap='viridis'
                                         )
+                                    
+                                    # Stops brains from getting squashed due to aspect ratio changes
+                                    axs[row_i, col_i].set_aspect('equal')
 
                                     # Adds a colour map to the plot
                                     cbar = fig.colorbar(plotted_data, ax=axs[row_i, col_i])
