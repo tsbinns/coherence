@@ -50,16 +50,16 @@ coh = pd.concat(cohs[:], ignore_index=True)
 
 ### Plotting
 # PSD
-plotting.psd_freqwise(psd, group_master=['reref_type', 'ch_type'],
-                      group_plot=['ch_name'],
-                      plot_shuffled=False, plot_std=False, freq_limit=50, power_limit=15)
-plotting.psd_bandwise(psd, group_master=['reref_type', 'ch_type'],
-                      group_fig=['reref_type', 'ch_type', 'med', 'data_type'],
-                      group_plot=['ch_name'],
-                      plot_shuffled=False, plot_std=False, same_y=True)
+#plotting.psd_freqwise(psd, group_master=['reref_type', 'ch_type'],
+#                      group_plot=['ch_name'],
+#                      plot_shuffled=False, plot_std=False, freq_limit=50, power_limit=15)
+#plotting.psd_bandwise(psd, group_master=['reref_type', 'ch_type'],
+#                      group_fig=['reref_type', 'ch_type', 'med', 'data_type'],
+#                      group_plot=['ch_name'],
+#                      plot_shuffled=False, plot_std=False, same_y=True)
 plotting.psd_bandwise_gb(psd, areas=['cortical'], group_master=['reref_type', 'ch_type'],
                          group_fig=['reref_type', 'ch_type', 'med', 'data_type'],
-                         plot_shuffled=False, same_y=True)
+                         plot_shuffled=False, same_y_bandwise=True)
 
 # Coherence
 plotting.coh_freqwise(coh, group_master=['reref_type_cortical', 'reref_type_deep', 'method'],

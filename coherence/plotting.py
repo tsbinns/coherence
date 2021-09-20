@@ -541,7 +541,7 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
 
 
 def psd_bandwise_gb(psd, areas, group_master, group_fig=[], plot_shuffled=False, n_plots_per_page=6,
-                    keys_to_plot=['avg', 'max'], same_y=True, avg_as_equal=True):
+                    keys_to_plot=['avg', 'max'], same_y_groupwise=False, same_y_bandwise=True, avg_as_equal=True):
     """ Plots frequency band-wise PSDs of the data on a glass brain.
 
     PARAMETERS
@@ -571,9 +571,13 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], plot_shuffled=False,
     keys_to_plot : list of strs
     -   The keys of the band-wise values to plot.
 
-    same_y : bool, default True
-    -   Whether or not to use the same y-axis boundaries for data of the same type. If True (default), the same axes are
-        used; if False, the same axes are not used.
+    same_y_groupwise : bool, default False
+    -   Whether or not to use the same y-axis boundaries for data of the same type. If True, the same axes are
+        used; if False (default), the same axes are not used.
+
+    same_y_bandwise : bool, default True
+    -   Whether or not to use the same y-axis boundaries for data of the same type and frequency band. If True
+        (default), the same axes are used; if False, the same axes are not used.
     
     avg_as_equal : bool, default True
     -   Whether or not to treat averaged data as equivalent, regardless of what was averaged over. E.g. if some data had
@@ -587,6 +591,10 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], plot_shuffled=False,
     """
 
     ### Setup
+    # Checks that only one same_y is used
+    if same_y_groupwise == True and same_y_bandwise == True:
+        raise ValueError("The same y-axes can only be used across groups (same_y_groupwise), or groups and frequency bands (same_y_bandwise), but both have been requested. Set only one to be True.")
+
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
         remove = []
@@ -674,8 +682,13 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], plot_shuffled=False,
                 for plot_key in fullkeys_to_plot:
 
                     # Gets a global y-axis for all data of the same type (if requested)
-                    if same_y == True:
-                        group_ylim = helpers.same_axes(psd[plot_key].iloc[idc_group_master])
+                    if same_y_groupwise == True:
+                        ylim = helpers.same_axes(psd[plot_key].iloc[idc_group_master])
+                    # Gets a global y-axis for all data of the same type and frequency band (if requested)
+                    if same_y_bandwise == True:
+                        ylims = []
+                        for fband_i in range(len(fbands)):
+                            ylims.append(helpers.same_axes([x[fband_i] for x in psd[plot_key].iloc[idc_group_master]]))
 
                     # Gets the characteristics for all data of this type so that a title for the window can be generated
                     fig_info = {}
@@ -715,13 +728,17 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], plot_shuffled=False,
                                     # Adds the glass brain
                                     axs[row_i, col_i].scatter(gb_x, gb_y, c='gray', s=.001)
 
+                                    # Gets the colour bar limits for the particular frequency band
+                                    if same_y_bandwise == True:
+                                        ylim = ylims[fband_i]
+
                                     # Plots data on the brain
-                                    if same_y == True: # sets the colour bar limits
+                                    if same_y_groupwise == True or same_y_bandwise == True: # sets the colour bar limits
                                         plotted_data = axs[row_i, col_i].scatter(
                                             [data[coords_key].iloc[i][0] for i in range(np.shape(data[coords_key])[0])], # x-coords
                                             [data[coords_key].iloc[i][1] for i in range(np.shape(data[coords_key])[0])], # y-coords
                                             c=[data[plot_key].iloc[i][fband_i] for i in range(np.shape(data[plot_key])[0])], # values
-                                            s=30, alpha=.8, edgecolor='black', cmap='viridis', vmin=group_ylim[0], vmax=group_ylim[1]
+                                            s=30, alpha=.8, edgecolor='black', cmap='viridis', vmin=ylim[0], vmax=ylim[1]
                                         )
                                     else:
                                         plotted_data = axs[row_i, col_i].scatter(

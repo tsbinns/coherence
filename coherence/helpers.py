@@ -304,7 +304,7 @@ def same_axes(data, border=2, floor=None):
 
     PARAMETERS
     ----------
-    data : pandas DataFrame
+    data : pandas DataFrame or list
     -   The data to set an axis limit for.
 
     border : int | float
@@ -321,16 +321,22 @@ def same_axes(data, border=2, floor=None):
     -   A list specifying the lower (entry 0) and upper (entry 1) axis limits.
     """
 
-    # Flattens data into a 1D list
-    flat_data = [item for sublist in data.values.flatten() for item in sublist]
+    ## Setup
+    if isinstance(data, pd.DataFrame) == True: # If data is in a DataFrame, flattens data into a 1D list
+        data = [item for sublist in data.values.flatten() for item in sublist]
+    elif isinstance(data, list) == True: # If data is in a list, no flattening is necessary
+        data = data
+    else: # Checks the correct datatype is given
+        raise ValueError("The data must be given as a pandas DataFrame or a list.")
+        
 
     # Finds the minimum and maximum values in the dataset
     lim = [0, 0]
     if floor == None:
-        lim[0] = min(flat_data)
+        lim[0] = min(data)
     else:
         lim[0] = floor
-    lim[1] = max(flat_data)
+    lim[1] = max(data)
 
     # If requested, adds a buffer to the axis limits
     if border:
