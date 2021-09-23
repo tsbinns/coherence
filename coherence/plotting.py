@@ -801,8 +801,8 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], group_plot=[], plot_
 
                                     # Adds the name of the subgroup to each hemisphere, if necessary
                                     if subgroup_names != []:
-                                        ylim = axs[row_i, col_i].get_ylim()
-                                        axs[row_i, col_i].text(.05, ylim[0], f"{subgroup_names[0]} / {subgroup_names[1]}",
+                                        bot = axs[row_i, col_i].get_ylim()[0]
+                                        axs[row_i, col_i].text(.05, bot, f"{subgroup_names[0]} / {subgroup_names[1]}",
                                                                ha='center')
 
                                     fband_i+= 1 # moves on to the next data to plot
@@ -1353,8 +1353,8 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
 
 
 
-def coh_bandwise_gb(coh, areas, group_master, group_fig=[], plot_shuffled=False, n_plots_per_page=6,
-                    keys_to_plot=['avg', 'max'], same_y=True, avg_as_equal=True):
+def coh_bandwise_gb(coh, areas, group_master, group_fig=[], group_plot=[], plot_shuffled=False, n_plots_per_page=6,
+                    keys_to_plot=['avg', 'max'], same_y_groupwise=False, same_y_bandwise=True, avg_as_equal=True):
     """ Plots frequency band-wise coherence of the data on a glass brain.
 
     PARAMETERS
@@ -1376,6 +1376,12 @@ def coh_bandwise_gb(coh, areas, group_master, group_fig=[], plot_shuffled=False,
         subgroups used for plotting the same figure(s) with the same title. If empty, the same groups as group_master
         are used.
 
+    group_plot : list of strs
+    -   Keys of psd containing the data characteristics which should be used to separate the subgrouped data (specified
+        by group_figure) into further subgroups used for plotting data on the same plot. Should only have one entry and 
+        be for a binary data characteristic (e.g. 'med': Off & On), otherwise an error is raised. If the data is binary,
+        the subtypes are plotted on different hemispheres (e.g. MedOff on left hemisphere, MedOn on right hemisphere).
+
     plot_shuffled : bool, default False
     -   Whether or not to plot coherence values for the shuffled LFP data.
 
@@ -1385,10 +1391,14 @@ def coh_bandwise_gb(coh, areas, group_master, group_fig=[], plot_shuffled=False,
     keys_to_plot : list of strs
     -   The keys of the band-wise values to plot.
 
-    same_y : bool, default True
-    -   Whether or not to use the same y-axis boundaries for data of the same type. If True (default), the same axes are
-        used; if False, the same axes are not used.
+    same_y_groupwise : bool, default False
+    -   Whether or not to use the same y-axis boundaries for data of the same type. If True, the same axes are
+        used; if False (default), the same axes are not used.
 
+    same_y_bandwise : bool, default True
+    -   Whether or not to use the same y-axis boundaries for data of the same type and frequency band. If True
+        (default), the same axes are used; if False, the same axes are not used.
+    
     avg_as_equal : bool, default True
     -   Whether or not to treat averaged data as equivalent, regardless of what was averaged over. E.g. if some data had
         been averaged across subjects 1 & 2, but other data across subjects 3 & 4, avg_as_equal = True would treat this
@@ -1401,6 +1411,33 @@ def coh_bandwise_gb(coh, areas, group_master, group_fig=[], plot_shuffled=False,
     """
 
     ### Setup
+    # Checks that only one same_y is used
+    if same_y_groupwise == True and same_y_bandwise == True:
+        raise ValueError("The same y-axes can only be used across groups (same_y_groupwise), or groups and frequency bands (same_y_bandwise), but both have been requested. Set only one to be True.")
+
+    # Checks for correct group_plot inputs and makes adjustments to coordinates (if necessary)
+    subgroup_names = []
+    if group_plot != []:
+
+        # Checks that only one datatype is provided in group_plot
+        if len(group_plot) > 1:
+            raise ValueError(f"Only one type of data can be plotted on the same glass brain, but {group_plot} are requested.")
+
+        subgroups = np.unique(coh[group_plot[0]])
+        subgroup_names = [group_plot[0]+subgroup for subgroup in subgroups]
+        # Checks that the datatype provided in group_plot is binary
+        if len(subgroups) > 2:
+            raise ValueError(f"The {group_plot[0]} group to plot on the same glass brain is not binary.")
+        
+        # Switches the coordinates so that each subgroup (e.g. MedOff vs. MedOn) is plotted on a different hemisphere
+        for data_i, subgroup in enumerate(coh[group_plot[0]]):
+            if coh.ch_coords[data_i][0] > 0 and subgroup == subgroups[0]: # if the x-coord is in the right hemisphere...
+            #... and is for data from e.g. group MedOff
+                coh.ch_coords[data_i][0] = coh.ch_coords[data_i][0]*-1 # switch the x-coord to the left hemisphere
+            if coh.ch_coords[data_i][0] < 0 and subgroup == subgroups[1]: # if the x-coord is in the left hemisphere...
+            #... and is for data from e.g. group MedOn
+                coh.ch_coords[data_i][0] = coh.ch_coords[data_i][0]*-1 # switch the x-coord to the right hemisphere
+
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
         remove = []
@@ -1421,6 +1458,8 @@ def coh_bandwise_gb(coh, areas, group_master, group_fig=[], plot_shuffled=False,
     # Establishes groups
     if group_fig == []:
         group_fig = group_master
+    if group_plot == []:
+        group_plot = group_fig
 
     # Keys containing data that do not represent different conditions
     coh_data_keys = ['ch_coords_cortical', 'ch_coords_deep', 'ch_coords_cortical_std', 'ch_coords_deep_std', 'freqs',
@@ -1435,7 +1474,6 @@ def coh_bandwise_gb(coh, areas, group_master, group_fig=[], plot_shuffled=False,
     
     # Name of the folder in which to save figures (based on the current time)
     foldername = 'coh_bandwise_gb-'+''.join([str(x) for x in datetime.datetime.now().timetuple()[:-3]])
-
 
     for area in areas:
 
@@ -1474,11 +1512,19 @@ def coh_bandwise_gb(coh, areas, group_master, group_fig=[], plot_shuffled=False,
                         if fbands != data.fbands[idx] != True:
                             raise ValueError("The frequency bands do not match for data of the same group.")
 
+                names_plot = helpers.combine_names(coh, group_plot, joining=',')
+                names_group_plot, idcs_group_plot = helpers.unique_names([names_plot[i] for i in idc_group_fig])
+
                 for plot_key in fullkeys_to_plot:
 
                     # Gets a global y-axis for all data of the same type (if requested)
-                    if same_y == True:
-                        group_ylim = helpers.same_axes(coh[plot_key].iloc[idc_group_master])
+                    if same_y_groupwise == True:
+                        ylim = helpers.same_axes(coh[plot_key].iloc[idc_group_master])
+                    # Gets a global y-axis for all data of the same type and frequency band (if requested)
+                    if same_y_bandwise == True:
+                        ylims = []
+                        for fband_i in range(len(fbands)):
+                            ylims.append(helpers.same_axes([x[fband_i] for x in coh[plot_key].iloc[idc_group_master]]))
 
                     # Gets the characteristics for all data of this type so that a title for the window can be generated
                     fig_info = {}
@@ -1518,27 +1564,48 @@ def coh_bandwise_gb(coh, areas, group_master, group_fig=[], plot_shuffled=False,
                                     # Adds the glass brain
                                     axs[row_i, col_i].scatter(gb_x, gb_y, c='gray', s=.001)
 
+                                    # Gets the colour bar limits for the particular frequency band
+                                    if same_y_bandwise == True:
+                                        ylim = ylims[fband_i]
+
                                     # Plots data on the brain
-                                    if same_y == True: # sets the colour bar limits
-                                        plotted_data = axs[row_i, col_i].scatter(
-                                            [data[coords_key].iloc[i][0] for i in range(np.shape(data[coords_key])[0])], # x-coords
-                                            [data[coords_key].iloc[i][1] for i in range(np.shape(data[coords_key])[0])], # y-coords
-                                            c=[data[plot_key].iloc[i][fband_i] for i in range(np.shape(data[plot_key])[0])], # values
-                                            s=30, alpha=.8, edgecolor='black', cmap='viridis', vmin=group_ylim[0], vmax=group_ylim[1]
-                                        )
-                                    else:
-                                        plotted_data = axs[row_i, col_i].scatter(
-                                            [data[coords_key].iloc[i][0] for i in range(np.shape(data[coords_key])[0])], # x-coords
-                                            [data[coords_key].iloc[i][1] for i in range(np.shape(data[coords_key])[0])], # y-coords
-                                            c=[data[plot_key].iloc[i][fband_i] for i in range(np.shape(data[plot_key])[0])], # values
-                                            s=30, alpha=.8, edgecolor='black', cmap='viridis'
-                                        )
+                                    for idc_group_plot in idcs_group_plot:
+                                        if same_y_groupwise == True or same_y_bandwise == True: # sets the colour bar limits
+                                            plotted_data = axs[row_i, col_i].scatter(
+                                                [data.iloc[idc_group_plot][coords_key].iloc[i][0] for i in
+                                                 range(np.shape(data.iloc[idc_group_plot][coords_key])[0])], # x-coords
+                                                [data.iloc[idc_group_plot][coords_key].iloc[i][1] for i in
+                                                 range(np.shape(data.iloc[idc_group_plot][coords_key])[0])], # y-coords
+                                                c=[data.iloc[idc_group_plot][plot_key].iloc[i][fband_i] for i in
+                                                   range(np.shape(data.iloc[idc_group_plot][plot_key])[0])], # values
+                                                s=30, alpha=.8, edgecolor='black', cmap='viridis',
+                                                vmin=ylim[0], vmax=ylim[1]
+                                            )
+                                        else:
+                                            plotted_data = axs[row_i, col_i].scatter(
+                                                [data.iloc[idc_group_plot][coords_key].iloc[i][0] for i in
+                                                 range(np.shape(data.iloc[idc_group_plot][coords_key])[0])], # x-coords
+                                                [data.iloc[idc_group_plot][coords_key].iloc[i][1] for i in
+                                                 range(np.shape(data.iloc[idc_group_plot][coords_key])[0])], # y-coords
+                                                c=[data.iloc[idc_group_plot][plot_key].iloc[i][fband_i] for i in
+                                                   range(np.shape(data.iloc[idc_group_plot][plot_key])[0])], # values
+                                                s=30, alpha=.8, edgecolor='black', cmap='viridis'
+                                            )
+
+                                    # Stops brains from getting squashed due to aspect ratio changes
+                                    axs[row_i, col_i].set_aspect('equal')
 
                                     # Adds a colour map to the plot
                                     cbar = fig.colorbar(plotted_data, ax=axs[row_i, col_i])
                                     cbar.set_label('Coherence')
                                     cbar.ax.tick_params(axis='y')
-                                    #cbar.ax.set_yticklabels(labels=np.round(cbar.get_ticks(),2))
+
+                                    # Adds the name of the subgroup to each hemisphere, if necessary
+                                    if subgroup_names != []:
+                                        bot = axs[row_i, col_i].get_ylim()[0]
+                                        axs[row_i, col_i].text(.05, bot, f"{subgroup_names[0]} / {subgroup_names[1]}",
+                                                               ha='center')
+
 
                                     fband_i+= 1 # moves on to the next data to plot
                                     if fband_i == len(fbands): # if there is no more data to plot for this type...
