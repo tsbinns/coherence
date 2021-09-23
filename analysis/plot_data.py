@@ -58,7 +58,8 @@ coh = pd.concat(cohs[:], ignore_index=True)
 #                      group_plot=['ch_name'],
 #                      plot_shuffled=False, plot_std=False, same_y=True)
 plotting.psd_bandwise_gb(psd, areas=['cortical'], group_master=['reref_type', 'ch_type'],
-                         group_fig=['reref_type', 'ch_type', 'med', 'data_type'],
+                         group_fig=['reref_type', 'ch_type', 'data_type'],
+                         group_plot=['med'],
                          plot_shuffled=False, same_y_bandwise=True)
 
 # Coherence

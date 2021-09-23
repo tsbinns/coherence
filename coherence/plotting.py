@@ -269,16 +269,16 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     -   A DataFrame containing the channel names, their types, and the normalised power values.
 
     group_master : list of strs
-    -   Keys of coh containing the data characteristics which should be used to separate data into groups that share the
+    -   Keys of psd containing the data characteristics which should be used to separate data into groups that share the
         same y-axis limits (if applicable)
 
     group_fig : list of strs
-    -   Keys of coh containing the data characteristics which should be used to separate the grouped data into
+    -   Keys of psd containing the data characteristics which should be used to separate the grouped data into
         subgroups used for plotting the same figure(s) with the same title. If empty, the same groups as group_master
         are used.
 
     group_plot : list of strs
-    -   Keys of coh containing the data characteristics which should be used to separate the subgrouped data (specified
+    -   Keys of psd containing the data characteristics which should be used to separate the subgrouped data (specified
         by group_figure) into further subgroups used for plotting data on the same plot. If empty, the same groups as
         group_fig are used.
 
@@ -540,7 +540,7 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
 
 
 
-def psd_bandwise_gb(psd, areas, group_master, group_fig=[], plot_shuffled=False, n_plots_per_page=6,
+def psd_bandwise_gb(psd, areas, group_master, group_fig=[], group_plot=[], plot_shuffled=False, n_plots_per_page=6,
                     keys_to_plot=['avg', 'max'], same_y_groupwise=False, same_y_bandwise=True, avg_as_equal=True):
     """ Plots frequency band-wise PSDs of the data on a glass brain.
 
@@ -554,13 +554,19 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], plot_shuffled=False,
         'cortical' is currently supported!!!
 
     group_master : list of strs
-    -   Keys of coh containing the data characteristics which should be used to separate data into groups that share the
+    -   Keys of psd containing the data characteristics which should be used to separate data into groups that share the
         same y-axis limits (if applicable)
 
     group_fig : list of strs
-    -   Keys of coh containing the data characteristics which should be used to separate the grouped data into
+    -   Keys of psd containing the data characteristics which should be used to separate the grouped data into
         subgroups used for plotting the same figure(s) with the same title. If empty, the same groups as group_master
         are used.
+
+    group_plot : list of strs
+    -   Keys of psd containing the data characteristics which should be used to separate the subgrouped data (specified
+        by group_figure) into further subgroups used for plotting data on the same plot. Should only have one entry and 
+        be for a binary data characteristic (e.g. 'med': Off & On), otherwise an error is raised. If the data is binary,
+        the subtypes are plotted on different hemispheres (e.g. MedOff on left hemisphere, MedOn on right hemisphere).
 
     plot_shuffled : bool, default False
     -   Whether or not to plot coherence values for the shuffled LFP data.
@@ -595,6 +601,30 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], plot_shuffled=False,
     if same_y_groupwise == True and same_y_bandwise == True:
         raise ValueError("The same y-axes can only be used across groups (same_y_groupwise), or groups and frequency bands (same_y_bandwise), but both have been requested. Set only one to be True.")
 
+    # Checks for correct group_plot inputs and makes adjustments to coordinates (if necessary)
+    subgroup_names = []
+    if group_plot != []:
+
+        # Checks that only one datatype is provided in group_plot
+        if len(group_plot) > 1:
+            raise ValueError(f"Only one type of data can be plotted on the same glass brain, but {group_plot} are requested.")
+
+        subgroups = np.unique(psd[group_plot[0]])
+        subgroup_names = [group_plot[0]+subgroup for subgroup in subgroups]
+        # Checks that the datatype provided in group_plot is binary
+        if len(subgroups) > 2:
+            raise ValueError(f"The {group_plot[0]} group to plot on the same glass brain is not binary.")
+        
+        # Switches the coordinates so that each subgroup (e.g. MedOff vs. MedOn) is plotted on a different hemisphere
+        for data_i, subgroup in enumerate(psd[group_plot[0]]):
+            if psd.ch_coords[data_i][0] > 0 and subgroup == subgroups[0]: # if the x-coord is in the right hemisphere...
+            #... and is for data from e.g. group MedOff
+                psd.ch_coords[data_i][0] = psd.ch_coords[data_i][0]*-1 # switch the x-coord to the left hemisphere
+            if psd.ch_coords[data_i][0] < 0 and subgroup == subgroups[1]: # if the x-coord is in the left hemisphere...
+            #... and is for data from e.g. group MedOn
+                psd.ch_coords[data_i][0] = psd.ch_coords[data_i][0]*-1 # switch the x-coord to the right hemisphere
+
+
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
         remove = []
@@ -615,6 +645,8 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], plot_shuffled=False,
     # Establishes groups
     if group_fig == []:
         group_fig = group_master
+    if group_plot == []:
+        group_plot = group_fig
 
     # Keys containing data that do not represent different conditions
     psd_data_keys = ['ch_coords', 'ch_coords_std', 'freqs', 'psd', 'psd_std', 'fbands', 'fbands_avg', 'fbands_avg_std',
@@ -679,6 +711,9 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], plot_shuffled=False,
                         if fbands != data.fbands[idx] != True:
                             raise ValueError("The frequency bands do not match for data of the same group.")
 
+                names_plot = helpers.combine_names(psd, group_plot, joining=',')
+                names_group_plot, idcs_group_plot = helpers.unique_names([names_plot[i] for i in idc_group_fig])
+
                 for plot_key in fullkeys_to_plot:
 
                     # Gets a global y-axis for all data of the same type (if requested)
@@ -733,20 +768,28 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], plot_shuffled=False,
                                         ylim = ylims[fband_i]
 
                                     # Plots data on the brain
-                                    if same_y_groupwise == True or same_y_bandwise == True: # sets the colour bar limits
-                                        plotted_data = axs[row_i, col_i].scatter(
-                                            [data[coords_key].iloc[i][0] for i in range(np.shape(data[coords_key])[0])], # x-coords
-                                            [data[coords_key].iloc[i][1] for i in range(np.shape(data[coords_key])[0])], # y-coords
-                                            c=[data[plot_key].iloc[i][fband_i] for i in range(np.shape(data[plot_key])[0])], # values
-                                            s=30, alpha=.8, edgecolor='black', cmap='viridis', vmin=ylim[0], vmax=ylim[1]
-                                        )
-                                    else:
-                                        plotted_data = axs[row_i, col_i].scatter(
-                                            [data[coords_key].iloc[i][0] for i in range(np.shape(data[coords_key])[0])], # x-coords
-                                            [data[coords_key].iloc[i][1] for i in range(np.shape(data[coords_key])[0])], # y-coords
-                                            c=[data[plot_key].iloc[i][fband_i] for i in range(np.shape(data[plot_key])[0])], # values
-                                            s=30, alpha=.8, edgecolor='black', cmap='viridis'
-                                        )
+                                    for idc_group_plot in idcs_group_plot:
+                                        if same_y_groupwise == True or same_y_bandwise == True: # sets the colour bar limits
+                                            plotted_data = axs[row_i, col_i].scatter(
+                                                [data.iloc[idc_group_plot][coords_key].iloc[i][0] for i in
+                                                 range(np.shape(data.iloc[idc_group_plot][coords_key])[0])], # x-coords
+                                                [data.iloc[idc_group_plot][coords_key].iloc[i][1] for i in
+                                                 range(np.shape(data.iloc[idc_group_plot][coords_key])[0])], # y-coords
+                                                c=[data.iloc[idc_group_plot][plot_key].iloc[i][fband_i] for i in
+                                                   range(np.shape(data.iloc[idc_group_plot][plot_key])[0])], # values
+                                                s=30, alpha=.8, edgecolor='black', cmap='viridis',
+                                                vmin=ylim[0], vmax=ylim[1]
+                                            )
+                                        else:
+                                            plotted_data = axs[row_i, col_i].scatter(
+                                                [data.iloc[idc_group_plot][coords_key].iloc[i][0] for i in
+                                                 range(np.shape(data.iloc[idc_group_plot][coords_key])[0])], # x-coords
+                                                [data.iloc[idc_group_plot][coords_key].iloc[i][1] for i in
+                                                 range(np.shape(data.iloc[idc_group_plot][coords_key])[0])], # y-coords
+                                                c=[data.iloc[idc_group_plot][plot_key].iloc[i][fband_i] for i in
+                                                   range(np.shape(data.iloc[idc_group_plot][plot_key])[0])], # values
+                                                s=30, alpha=.8, edgecolor='black', cmap='viridis'
+                                            )
                                     
                                     # Stops brains from getting squashed due to aspect ratio changes
                                     axs[row_i, col_i].set_aspect('equal')
@@ -755,7 +798,12 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], plot_shuffled=False,
                                     cbar = fig.colorbar(plotted_data, ax=axs[row_i, col_i])
                                     cbar.set_label('Normalised Power (% total)')
                                     cbar.ax.tick_params(axis='y')
-                                    #cbar.ax.set_yticklabels(labels=np.round(cbar.get_ticks(),2))
+
+                                    # Adds the name of the subgroup to each hemisphere, if necessary
+                                    if subgroup_names != []:
+                                        ylim = axs[row_i, col_i].get_ylim()
+                                        axs[row_i, col_i].text(.05, ylim[0], f"{subgroup_names[0]} / {subgroup_names[1]}",
+                                                               ha='center')
 
                                     fband_i+= 1 # moves on to the next data to plot
                                     if fband_i == len(fbands): # if there is no more data to plot for this type...
