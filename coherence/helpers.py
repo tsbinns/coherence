@@ -322,7 +322,7 @@ def same_axes(data, border=2, floor=None):
     """
 
     ## Setup
-    if isinstance(data, pd.DataFrame) == True: # If data is in a DataFrame, flattens data into a 1D list
+    if isinstance(data, pd.DataFrame) or isinstance(data, pd.Series) == True: # If data is in a DataFrame, flattens data into a 1D list
         data = [item for sublist in data.values.flatten() for item in sublist]
     elif isinstance(data, list) == True: # If data is in a list, no flattening is necessary
         data = data
@@ -350,7 +350,7 @@ def same_axes(data, border=2, floor=None):
 
 
 
-def window_title(info, base_title='', full_info=True):
+def window_title(info, base_title='', full_info=True, alphabetical=True):
     """ Generates a title for a figure window based on information in the data.
     
     PARAMETERS
@@ -366,6 +366,9 @@ def window_title(info, base_title='', full_info=True):
     -   Whether or not full information about the data should be provided for averaged results. If True (default), full
         information (e.g. the IDs of the runs, subjects, etc... that the data was averaged over). If False, only a
         generic 'avg' tag is returned, useful for avoiding clutter on figures.
+
+    alphabetical : bool, default True
+    -   Whether or not to reorganise the keys of info alphabetically. Useful for ensuring consistency in titles.
 
 
     RETURNS
@@ -383,13 +386,19 @@ def window_title(info, base_title='', full_info=True):
     """
 
     ## Setup
-    if full_info == False: # If partial information is requested, provide a general 'avg' tag rather than a tag...
+    if full_info == False: # if partial information is requested, provide a general 'avg' tag rather than a tag...
     #... containing details of each piece of data involved
         for key in info.keys():
             for val_i, val in enumerate(info[key]):
                 if val[:3] == 'avg': # if the data has been averaged, discard any additional info
                     info[key][val_i] = 'avg'
             info[key] = pd.unique(info[key])
+
+    if alphabetical == True: # rearrange keys of info alphabetically, if requested
+        new_info = {}
+        for key in sorted(info):
+            new_info[key] = info[key]
+        info = new_info
 
     ## Title creation
     title = base_title
@@ -406,7 +415,7 @@ def window_title(info, base_title='', full_info=True):
 
 
 
-def plot_title(info, already_included=[], base_title='', full_info=True):
+def plot_title(info, already_included=[], base_title='', full_info=True, alphabetical=True):
     """ Generates a title for a subplot based on information in the data.
     
     PARAMETERS
@@ -426,6 +435,9 @@ def plot_title(info, already_included=[], base_title='', full_info=True):
     -   Whether or not full information about the data should be provided for averaged results. If True (default), full
         information (e.g. the IDs of the runs, subjects, etc... that the data was averaged over). If False, only a
         generic 'avg' tag is returned, useful for avoiding clutter on figures.
+    
+    alphabetical : bool, default True
+    -   Whether or not to reorganise the keys of info alphabetically. Useful for ensuring consistency in titles.
 
 
     RETURNS
@@ -451,6 +463,12 @@ def plot_title(info, already_included=[], base_title='', full_info=True):
                     info[key][val_i] = 'avg'
             info[key] = pd.unique(info[key])
 
+    if alphabetical == True: # rearrange keys of info alphabetically, if requested
+        new_info = {}
+        for key in sorted(info):
+            new_info[key] = info[key]
+        info = new_info
+
     ## Title creation
     title = base_title
     included = []
@@ -469,7 +487,7 @@ def plot_title(info, already_included=[], base_title='', full_info=True):
 
 
 
-def data_title(info, already_included=[], full_info=True):
+def data_title(info, already_included=[], full_info=True, alphabetical=True):
     """ Generates a title for a subplot based on information in the data.
     
     PARAMETERS
@@ -490,6 +508,8 @@ def data_title(info, already_included=[], full_info=True):
         information (e.g. the IDs of the runs, subjects, etc... that the data was averaged over). If False, only a
         generic 'avg' tag is returned, useful for avoiding clutter on figures.
 
+    alphabetical : bool, default True
+    -   Whether or not to reorganise the keys of info alphabetically. Useful for ensuring consistency in titles.
 
     RETURNS
     ----------
@@ -506,6 +526,12 @@ def data_title(info, already_included=[], full_info=True):
                 if val[:3] == 'avg': # if the data has been averaged, discard any additional info
                     info[key][val_i] = 'avg'
             info[key] = pd.unique(info[key])
+
+    if alphabetical == True: # rearrange keys of info alphabetically, if requested
+        new_info = {}
+        for key in sorted(info):
+            new_info[key] = info[key]
+        info = new_info
 
     ## Title creation
     title = ''
