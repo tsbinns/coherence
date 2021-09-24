@@ -183,7 +183,8 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                 plot_info[key] = list(np.unique(psd[key][idc_group_plot]))
                             plot_title, plot_included = helpers.plot_title(plot_info, already_included=included,
                                                                             full_info=False)
-                            now_included = included + plot_included # keeps track of what is already included in the titles
+                            now_included = included + plot_included # keeps track of what is already included in the...
+                            #... titles
 
                             # Sets up subplot
                             axs[row_i, col_i].set_title(plot_title)
@@ -196,7 +197,7 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
 
                                 if freq_limit != None: # finds limit of frequencies to plot (if applicable)...
                                     freq_limit_i = int(np.where(data.freqs == data.freqs[data.freqs >=
-                                                freq_limit].min())[0])
+                                                                freq_limit].min())[0])
                                 else: #... or plots all data
                                     freq_limit_i = len(data.freqs)
 
@@ -204,7 +205,8 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                 data_info = {}
                                 for key in data_keys:
                                     data_info[key] = data[key]
-                                data_title = helpers.data_title(data_info, already_included=now_included, full_info=False)
+                                data_title = helpers.data_title(data_info, already_included=now_included,
+                                                                full_info=False)
                                 if data_title == '': # don't label the data if there is no info to add
                                     data_title = None
 
@@ -213,8 +215,8 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                 for key in colours.keys():
                                     colour.append(colours[key][colour_info[key][1].index(data[key])])
                                 if colour:
-                                    colour = np.nanmean(colour, axis=0) # takes the average colour based on the data's...
-                                    #... characteristics
+                                    colour = np.nanmean(colour, axis=0) # takes the average colour based on the...
+                                    #... data's characteristics
                                 else: # if there is no colour info, set the colour to black
                                     colour = [0, 0, 0, 1]
                                 
@@ -245,8 +247,8 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                             plotgroup_i += 1
                             if ch_idx == idc_group_fig[-1]: # if there is no more data to plot for this type...
                                 stop = True #... don't plot anything else
-                                extra = n_plots_per_page*n_pages - n_plots # checks if there are extra subplots than can...
-                                #... be removed
+                                extra = n_plots_per_page*n_pages - n_plots # checks if there are extra subplots that...
+                                #... can be removed
 
                         elif stop is True and extra > 0: # if there is no more data to plot for this type...
                             fig.delaxes(axs[row_i, col_i]) # ... delete the extra subplots
@@ -358,8 +360,13 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     fig_keys += move_up
     fig_keys = pd.unique(fig_keys).tolist()
 
-    if data_keys != []:
-        raise ValueError(f"When plotting band-wise data, only data of the same type should be plotted on a single subplot,\nbut data with different {data_keys} characteristics is going to be plotted on the same subplot.")
+    # If each plot should contain data from multiple subgroups, make sure these subgroups are binary (e.g. MedOff vs....
+    #... MedOn) and only one such group is present (e.g. only med, not med and stim)
+    if len(data_keys) > 0:
+        if len(data_keys) > 1:
+            raise ValueError(f"Data from too many conditions {data_keys} are being plotted on the same plot. Only one is allowed.")
+        if len(np.unique(psd[data_keys[0]])) > 2:
+            raise ValueError(f"Data of different types ({np.unique(psd[data_keys][0])}) from the {data_keys[0]} condition are being plotted on the same plot, but this is only allowed for binary condition data.")
 
     # Gets indices of master-grouped data
     names_master = helpers.combine_names(psd, group_master, joining=',')
@@ -449,9 +456,9 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                             axs[row_i, col_i].set_title(plot_title)
                             axs[row_i, col_i].set_ylabel('Normalised Power (% total)')
 
-                            for ch_idx in idc_group_plot: # for each data entry
+                            if len(data_keys) == 0: # if data of multiple conditions is not being plotted
                             
-                                data = psd.iloc[ch_idx] # the data to plot
+                                data = psd.iloc[idc_group_plot[0]] # the data to plot
 
                                 # Sets up data for plotting as bars
                                 n_groups = len(keys_to_plot)
@@ -460,8 +467,8 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                 width = 1/n_bars
 
                                 # Location of bars in the groups
-                                start_locs = np.arange(n_groups, step=width*(n_bars+2)) # makes sure the bars of each group...
-                                #... don't overlap
+                                start_locs = np.arange(n_groups, step=width*(n_bars+2)) # makes sure the bars of each...
+                                #... group don't overlap
                                 group_locs = []
                                 for start_loc in start_locs: # x-axis bar positions, grouped by group
                                     group_locs.append([start_loc+width*i for i in np.arange(n_bars)])
@@ -520,14 +527,152 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                         # adds the fmax values at an angle to the bars one at a time
                                         axs[row_i, col_i].text(group_locs[1][fmax_i], text_ypos, fmax+'Hz', ha='center',
                                                                rotation=60)
-                                    axs[row_i, col_i].set_ylim([ylim[0], ylim[1]+ylim[1]*.07]) # increases the subplot height...
-                                    #... to accomodate the text
+                                    axs[row_i, col_i].set_ylim([ylim[0], ylim[1]+ylim[1]*.07]) # increases the...
+                                    #... subplot height to accomodate the text
 
-                            plotgroup_i+= 1 # moves on to the next data to plot
-                            if ch_idx == idc_group_fig[-1]: # if there is no more data to plot for this type...
-                                stop = True #... don't plot anything else
-                                extra = n_plots_per_page*n_pages - n_plots # checks if there are extra subplots than can...
-                                #... be removed
+                                plotgroup_i+= 1 # moves on to the next data to plot
+                                if idc_group_plot[0] == idc_group_fig[-1]: # if there is no more data to plot for...
+                                #... this type...
+                                    stop = True #... don't plot anything else
+                                    extra = n_plots_per_page*n_pages - n_plots # checks if there are extra subplots...
+                                    #... than can be removed
+                            
+                            elif len(data_keys) == 1: # if data of multiple conditions is being plotted
+                                
+                                if len(idc_group_plot) != 2:
+                                    raise ValueError(f"Subgroups of data from the condition {data_keys[0]} is being plotted on the same figure. A maximum of data from two subgroups (e.g. MedOff vs. MedOn) is supported, but data from {len(idc_group_plot)} subgroups is being plotted.")
+
+                                data = psd.iloc[idc_group_plot] # the data to plot
+                                subgroup_names= [data_keys[0]+x for x in np.unique(psd[data_keys[0]])] # names of the...
+                                #... subgroups being plotted (e.g. medOff, medOn)
+
+                                # Sets up data for plotting as bars
+                                n_groups = len(keys_to_plot)
+                                bands = data.iloc[0].fbands
+                                n_bars = len(bands)*len(idc_group_plot) # one bar for each subgroup of each freq band
+                                width = 1/n_bars
+
+                                # Location of bars in the groups
+                                start_locs = np.arange(n_groups, step=width*(n_bars+2)) # makes sure the bars of each...
+                                #... group don't overlap
+                                group_locs = []
+                                for start_loc in start_locs: # x-axis bar positions, grouped by group
+                                    group_locs.append([start_loc+width*i for i in np.arange(n_bars)])
+                                bar_locs = []
+                                for bar_i in range(n_bars): # x-axis bar positions, grouped by band
+                                    bar_locs.append([])
+                                    for group_i in range(n_groups):
+                                        bar_locs[bar_i].append(group_locs[group_i][bar_i])
+
+                                # Colours of the bars
+                                colours = plt.rcParams['axes.prop_cycle'].by_key()['color'][:len(bands)]
+                                alphas = [.8, .4]
+
+                                ## Gets the data to plot and plots the data
+                                if 'max' in keys_to_plot:
+                                    fmaxs = []
+                                    for i in idc_group_plot:
+                                        fmaxs.append([])
+
+                                data_i = 0
+                                for band_i, band in enumerate(bands): # for each frequency band
+                                    for ch_i, ch_idx in enumerate(idc_group_plot): # for each piece of data in the group
+
+                                        to_plot = []
+                                        if plot_std == True:
+                                            stds = []
+
+                                        for key in fullkeys_to_plot:
+                                                to_plot.append(data.loc[ch_idx][key][band_i]) # gets the data to be...
+                                                #... plotted...
+                                                if plot_std == True: #... and the std of this data (if applicable)
+                                                    if f'{key}_std' in data.keys():
+                                                        stds.append(data.loc[ch_idx][f'{key}_std'][band_i])
+                                                    else:
+                                                        stds.append(np.nan)
+
+                                                if 'fbands_max' in key: # gets the std of the fmax data to add to the...
+                                                #... plots
+                                                    fmaxs[ch_i].append(str(int(data.loc[ch_idx].fbands_fmax[band_i])))
+                                                    if plot_std == True:
+                                                        fmax_std = u'\u00B1'+str(int(
+                                                                   np.ceil(data.loc[ch_idx].fbands_fmax_std[band_i])))
+                                                        fmaxs[ch_i][-1] += fmax_std
+
+                                        # Plots the data
+                                        if ch_i == 0:
+                                            axs[row_i, col_i].bar(bar_locs[data_i], to_plot, width=width, label=band,
+                                                                  color=colours[band_i], alpha=alphas[ch_i])
+                                        else:
+                                            axs[row_i, col_i].bar(bar_locs[data_i], to_plot, width=width,
+                                                                  color=colours[band_i], alpha=alphas[ch_i])
+                                        if plot_std == True:
+                                            axs[row_i, col_i].errorbar(bar_locs[data_i], to_plot, yerr=stds, capsize=3,
+                                                                       fmt=' ')
+                                        data_i += 1
+
+                                # Adds surrogate data for the legend
+                                ylim = axs[row_i, col_i].get_ylim()
+                                xlim = axs[row_i, col_i].get_xlim()
+                                for subgroup_i in range(len(subgroup_names)):
+                                    axs[row_i, col_i].scatter([0,1], [-1,-1], label=subgroup_names[subgroup_i],
+                                                              color='black', alpha=alphas[subgroup_i])
+                                axs[row_i, col_i].set_ylim(ylim)
+                                axs[row_i, col_i].set_xlim(xlim)
+
+                                # Sets all y-axes to be equal (if requested)
+                                if same_y == True:
+                                    axs[row_i, col_i].set_ylim(group_ylim[0], group_ylim[1])
+
+                                # Tidies up the x-axis ticks and labels
+                                axs[row_i, col_i].set_xticks((start_locs-width/2)+(width*(n_bars/2)))
+                                axs[row_i, col_i].set_xticklabels(keys_to_plot)
+                                axs[row_i, col_i].legend()
+
+                                # Adds the fmax data to the bars (if applicable)
+                                if 'max' in keys_to_plot:
+                                    ylim = axs[row_i, col_i].get_ylim()
+
+                                    sorted_fmaxs = [] # combines fmax values from the two groups (e.g. MedOff vs....
+                                    #... MedOn) for alternative plotting (e.g. MedOff value, MedOn value, etc...)
+                                    sorted_ypos = [] # generates the y-axis text coordinates using data from the two...
+                                    #... groups (e.g. MedOff vs. MedOn) for alternative plotting (e.g. MedOff value,...
+                                    #... MedOn Value, etc...)
+                                    for fmax_i in range(len(fmaxs[0])):
+                                        sorted_fmaxs.append(fmaxs[0][fmax_i])
+                                        sorted_fmaxs.append(fmaxs[1][fmax_i])
+                                        sorted_ypos.append(data.iloc[0].fbands_max[fmax_i]+ylim[1]*.02)
+                                        if plot_std == True:
+                                            sorted_ypos[-1] += data.iloc[0].fbands_max_std[fmax_i]
+                                        sorted_ypos.append(data.iloc[1].fbands_max[fmax_i]+ylim[1]*.02)
+                                        if plot_std == True:
+                                            sorted_ypos[-1] += data.iloc[1].fbands_max_std[fmax_i]
+
+                                    data_i = 0
+                                    for subgroup_i in range(len(fmaxs)):
+                                        for fmax_i in range(len(fmaxs[subgroup_i])):
+                                            fmax = sorted_fmaxs[data_i]
+                                            text_ypos = sorted_ypos[data_i]
+                                            # adds the fmax values at an angle to the bars one at a time
+                                            axs[row_i, col_i].text(group_locs[1][data_i], text_ypos, fmax+'Hz',
+                                                                   ha='center', rotation=90)
+                                            data_i += 1
+                                    if plot_std == False:
+                                        added_height = .1
+                                    else:
+                                        added_height = .2
+                                    axs[row_i, col_i].set_ylim([ylim[0], ylim[1]+ylim[1]*added_height]) # increases...
+                                    #... the subplot height to accomodate the text
+
+                                plotgroup_i+= 1 # moves on to the next data to plot
+                                if idc_group_plot[-1] == idc_group_fig[-1]: # if there is no more data to plot for...
+                                #... this type...
+                                    stop = True #... don't plot anything else
+                                    extra = n_plots_per_page*n_pages - n_plots # checks if there are extra subplots...
+                                    #... than can be removed
+
+                            else:
+                                raise ValueError(f"Multiple types of data from different conditions ({data_keys}) are being plotted on the same plot, but this is not allowed.")
 
                         elif stop is True and extra > 0: # if there is no more data to plot for this type...
                             fig.delaxes(axs[row_i, col_i]) # ... delete the extra subplots
@@ -769,7 +914,8 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], group_plot=[], plot_
 
                                     # Plots data on the brain
                                     for idc_group_plot in idcs_group_plot:
-                                        if same_y_groupwise == True or same_y_bandwise == True: # sets the colour bar limits
+                                        if same_y_groupwise == True or same_y_bandwise == True: # sets the colour bar...
+                                        #... limits
                                             plotted_data = axs[row_i, col_i].scatter(
                                                 [data.iloc[idc_group_plot][coords_key].iloc[i][0] for i in
                                                  range(np.shape(data.iloc[idc_group_plot][coords_key])[0])], # x-coords
@@ -808,8 +954,8 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], group_plot=[], plot_
                                     fband_i+= 1 # moves on to the next data to plot
                                     if fband_i == len(fbands): # if there is no more data to plot for this type...
                                         stop = True #... don't plot anything else
-                                        extra = n_plots_per_page*n_pages - n_plots # checks if there are extra subplots than can...
-                                        #... be removed
+                                        extra = n_plots_per_page*n_pages - n_plots # checks if there are extra...
+                                        #... subplots that can be removed
 
                                 elif stop is True and extra > 0: # if there is no more data to plot for this type...
                                     fig.delaxes(axs[row_i, col_i]) # ... delete the extra subplots
@@ -1005,7 +1151,8 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                 plot_info[key] = list(np.unique(coh[key][idc_group_plot]))
                             plot_title, plot_included = helpers.plot_title(plot_info, already_included=included,
                                                                             full_info=False)
-                            now_included = included + plot_included # keeps track of what is already included in the titles
+                            now_included = included + plot_included # keeps track of what is already included in the...
+                            #... titles
 
                             # Sets up subplot
                             axs[row_i, col_i].set_title(plot_title)
@@ -1026,7 +1173,8 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                 data_info = {}
                                 for key in data_keys:
                                     data_info[key] = data[key]
-                                data_title = helpers.data_title(data_info, already_included=now_included, full_info=False)
+                                data_title = helpers.data_title(data_info, already_included=now_included,
+                                                                full_info=False)
                                 if data_title == '': # don't label the data if there is no info to add
                                     data_title = None
 
@@ -1035,14 +1183,14 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                 for key in colours.keys():
                                     colour.append(colours[key][colour_info[key][1].index(data[key])])
                                 if colour:
-                                    colour = np.nanmean(colour, axis=0) # takes the average colour based on the data's...
-                                    #... characteristics
+                                    colour = np.nanmean(colour, axis=0) # takes the average colour based on the...
+                                    #... data's characteristics
                                 else: # if there is no colour info, set the colour to black
                                     colour = [0, 0, 0, 1]
                                 
                                 # Plots data
                                 axs[row_i, col_i].plot(data.freqs[:freq_limit_i+1], data.coh[:freq_limit_i+1],
-                                                        label=data_title, linewidth=2, color=colour)
+                                                       label=data_title, linewidth=2, color=colour)
                                 if data_title != None: # if data has been labelled, plot the legend
                                     axs[row_i, col_i].legend()
                                 
@@ -1051,7 +1199,7 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                     std_plus = data.coh[:freq_limit_i+1] + data.coh_std[:freq_limit_i+1]
                                     std_minus = data.coh[:freq_limit_i+1] - data.coh_std[:freq_limit_i+1]
                                     axs[row_i, col_i].fill_between(data.freqs[:freq_limit_i+1], std_plus, std_minus,
-                                                                    color=colour, alpha=colour[-1]*.2)
+                                                                   color=colour, alpha=colour[-1]*.2)
                                 
                                 # Sets all y-axes to be equal (if requested)
                                 if same_y == True:
@@ -1060,8 +1208,8 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                             plotgroup_i += 1 # moves on to the next data to plot
                             if ch_idx == idc_group_fig[-1]: # if there is no more data to plot for this type...
                                 stop = True #... don't plot anything else
-                                extra = n_plots_per_page*n_pages - n_plots # checks if there are extra subplots than can...
-                                #... be removed
+                                extra = n_plots_per_page*n_pages - n_plots # checks if there are extra subplots than...
+                                #... can be removed
 
                         elif stop is True and extra > 0: # if there is no more data to plot for this type...
                             fig.delaxes(axs[row_i, col_i]) # ... delete the extra subplots
@@ -1175,6 +1323,15 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     fig_keys += move_up
     fig_keys = pd.unique(fig_keys).tolist()
 
+    # If each plot should contain data from multiple subgroups, make sure these subgroups are binary (e.g. MedOff vs....
+    #... MedOn) and only one such group is present (e.g. only med, not med and stim)
+    if len(data_keys) > 0:
+        if len(data_keys) > 1:
+            raise ValueError(f"Data from too many conditions {data_keys} are being plotted on the same plot. Only one is allowed.")
+        if len(np.unique(coh[data_keys[0]])) > 2:
+            raise ValueError(f"Data of different types ({np.unique(coh[data_keys][0])}) from the {data_keys[0]} condition are being plotted on the same plot, but this is only allowed for binary condition data.")
+
+
     # Gets indices of master-grouped data
     names_master = helpers.combine_names(coh, group_master, joining=',')
     names_group_master, idcs_group_master = helpers.unique_names(names_master)
@@ -1263,9 +1420,9 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                             axs[row_i, col_i].set_title(plot_title)
                             axs[row_i, col_i].set_ylabel('Coherence')
 
-                            for ch_idx in idc_group_plot: # for each data entry
+                            if len(data_keys) == 0: # if data of multiple conditions is not being plotted
                             
-                                data = coh.iloc[ch_idx] # the data to plot
+                                data = coh.iloc[idc_group_plot[0]] # the data to plot
 
                                 # Sets up data for plotting as bars
                                 n_groups = len(keys_to_plot)
@@ -1336,11 +1493,149 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                     axs[row_i, col_i].set_ylim([ylim[0], ylim[1]+ylim[1]*.07]) # increases the subplot height...
                                     #... to accomodate the text
 
-                            plotgroup_i+= 1 # moves on to the next data to plot
-                            if ch_idx == idc_group_fig[-1]: # if there is no more data to plot for this type...
-                                stop = True #... don't plot anything else
-                                extra = n_plots_per_page*n_pages - n_plots # checks if there are extra subplots than can...
-                                #... be removed
+                                plotgroup_i+= 1 # moves on to the next data to plot
+                                if idc_group_plot[0] == idc_group_fig[-1]: # if there is no more data to plot for this type...
+                                    stop = True #... don't plot anything else
+                                    extra = n_plots_per_page*n_pages - n_plots # checks if there are extra subplots than can...
+                                    #... be removed
+
+                            elif len(data_keys) == 1:
+
+                                if len(idc_group_plot) != 2:
+                                    raise ValueError(f"Subgroups of data from the condition {data_keys[0]} is being plotted on the same figure. A maximum of data from two subgroups (e.g. MedOff vs. MedOn) is supported, but data from {len(idc_group_plot)} subgroups is being plotted.")
+
+                                data = coh.iloc[idc_group_plot] # the data to plot
+                                subgroup_names= [data_keys[0]+x for x in np.unique(coh[data_keys[0]])] # names of the...
+                                #... subgroups being plotted (e.g. medOff, medOn)
+
+                                # Sets up data for plotting as bars
+                                n_groups = len(keys_to_plot)
+                                bands = data.iloc[0].fbands
+                                n_bars = len(bands)*len(idc_group_plot) # one bar for each subgroup of each freq band
+                                width = 1/n_bars
+
+                                # Location of bars in the groups
+                                start_locs = np.arange(n_groups, step=width*(n_bars+2)) # makes sure the bars of each...
+                                #... group don't overlap
+                                group_locs = []
+                                for start_loc in start_locs: # x-axis bar positions, grouped by group
+                                    group_locs.append([start_loc+width*i for i in np.arange(n_bars)])
+                                bar_locs = []
+                                for bar_i in range(n_bars): # x-axis bar positions, grouped by band
+                                    bar_locs.append([])
+                                    for group_i in range(n_groups):
+                                        bar_locs[bar_i].append(group_locs[group_i][bar_i])
+
+                                # Colours of the bars
+                                colours = plt.rcParams['axes.prop_cycle'].by_key()['color'][:len(bands)]
+                                alphas = [.8, .4]
+
+                                ## Gets the data to plot and plots the data
+                                if 'max' in keys_to_plot:
+                                    fmaxs = []
+                                    for i in idc_group_plot:
+                                        fmaxs.append([])
+
+                                data_i = 0
+                                for band_i, band in enumerate(bands): # for each frequency band
+                                    for ch_i, ch_idx in enumerate(idc_group_plot): # for each piece of data in the group
+
+                                        to_plot = []
+                                        if plot_std == True:
+                                            stds = []
+
+                                        for key in fullkeys_to_plot:
+                                                to_plot.append(data.loc[ch_idx][key][band_i]) # gets the data to be...
+                                                #... plotted...
+                                                if plot_std == True: #... and the std of this data (if applicable)
+                                                    if f'{key}_std' in data.keys():
+                                                        stds.append(data.loc[ch_idx][f'{key}_std'][band_i])
+                                                    else:
+                                                        stds.append(np.nan)
+
+                                                if 'fbands_max' in key: # gets the std of the fmax data to add to the...
+                                                #... plots
+                                                    fmaxs[ch_i].append(str(int(data.loc[ch_idx].fbands_fmax[band_i])))
+                                                    if plot_std == True:
+                                                        fmax_std = u'\u00B1'+str(int(
+                                                                   np.ceil(data.loc[ch_idx].fbands_fmax_std[band_i])))
+                                                        fmaxs[ch_i][-1] += fmax_std
+
+                                        # Plots the data
+                                        if ch_i == 0:
+                                            axs[row_i, col_i].bar(bar_locs[data_i], to_plot, width=width, label=band,
+                                                                  color=colours[band_i], alpha=alphas[ch_i])
+                                        else:
+                                            axs[row_i, col_i].bar(bar_locs[data_i], to_plot, width=width,
+                                                                  color=colours[band_i], alpha=alphas[ch_i])
+                                        if plot_std == True:
+                                            axs[row_i, col_i].errorbar(bar_locs[data_i], to_plot, yerr=stds, capsize=3,
+                                                                       fmt=' ')
+                                        data_i += 1
+
+                                # Adds surrogate data for the legend
+                                ylim = axs[row_i, col_i].get_ylim()
+                                xlim = axs[row_i, col_i].get_xlim()
+                                for subgroup_i in range(len(subgroup_names)):
+                                    axs[row_i, col_i].scatter([0,1], [-1,-1], label=subgroup_names[subgroup_i],
+                                                              color='black', alpha=alphas[subgroup_i])
+                                axs[row_i, col_i].set_ylim(ylim)
+                                axs[row_i, col_i].set_xlim(xlim)
+
+                                # Sets all y-axes to be equal (if requested)
+                                if same_y == True:
+                                    axs[row_i, col_i].set_ylim(group_ylim[0], group_ylim[1])
+
+                                # Tidies up the x-axis ticks and labels
+                                axs[row_i, col_i].set_xticks((start_locs-width/2)+(width*(n_bars/2)))
+                                axs[row_i, col_i].set_xticklabels(keys_to_plot)
+                                axs[row_i, col_i].legend()
+
+                                # Adds the fmax data to the bars (if applicable)
+                                if 'max' in keys_to_plot:
+                                    ylim = axs[row_i, col_i].get_ylim()
+
+                                    sorted_fmaxs = [] # combines fmax values from the two groups (e.g. MedOff vs....
+                                    #... MedOn) for alternative plotting (e.g. MedOff value, MedOn value, etc...)
+                                    sorted_ypos = [] # generates the y-axis text coordinates using data from the two...
+                                    #... groups (e.g. MedOff vs. MedOn) for alternative plotting (e.g. MedOff value,...
+                                    #... MedOn Value, etc...)
+                                    for fmax_i in range(len(fmaxs[0])):
+                                        sorted_fmaxs.append(fmaxs[0][fmax_i])
+                                        sorted_fmaxs.append(fmaxs[1][fmax_i])
+                                        sorted_ypos.append(data.iloc[0].fbands_max[fmax_i]+ylim[1]*.02)
+                                        if plot_std == True:
+                                            sorted_ypos[-1] += data.iloc[0].fbands_max_std[fmax_i]
+                                        sorted_ypos.append(data.iloc[1].fbands_max[fmax_i]+ylim[1]*.02)
+                                        if plot_std == True:
+                                            sorted_ypos[-1] += data.iloc[1].fbands_max_std[fmax_i]
+
+                                    data_i = 0
+                                    for subgroup_i in range(len(fmaxs)):
+                                        for fmax_i in range(len(fmaxs[subgroup_i])):
+                                            fmax = sorted_fmaxs[data_i]
+                                            text_ypos = sorted_ypos[data_i]
+                                            # adds the fmax values at an angle to the bars one at a time
+                                            axs[row_i, col_i].text(group_locs[1][data_i], text_ypos, fmax+'Hz',
+                                                                   ha='center', rotation=90)
+                                            data_i += 1
+                                    if plot_std == False:
+                                        added_height = .1
+                                    else:
+                                        added_height = .2
+                                    axs[row_i, col_i].set_ylim([ylim[0], ylim[1]+ylim[1]*added_height]) # increases...
+                                    #... the subplot height to accomodate the text
+
+                                plotgroup_i+= 1 # moves on to the next data to plot
+                                if idc_group_plot[-1] == idc_group_fig[-1]: # if there is no more data to plot for...
+                                #... this type...
+                                    stop = True #... don't plot anything else
+                                    extra = n_plots_per_page*n_pages - n_plots # checks if there are extra subplots...
+                                    #... than can be removed
+
+                            else:
+                                raise ValueError(f"Multiple types of data from different conditions ({data_keys}) are being plotted on the same plot, but this is not allowed.")
+
 
                         elif stop is True and extra > 0: # if there is no more data to plot for this type...
                             fig.delaxes(axs[row_i, col_i]) # ... delete the extra subplots
