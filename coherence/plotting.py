@@ -615,7 +615,7 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                 ylim = axs[row_i, col_i].get_ylim()
                                 xlim = axs[row_i, col_i].get_xlim()
                                 for subgroup_i in range(len(subgroup_names)):
-                                    axs[row_i, col_i].scatter([0,1], [-1,-1], label=subgroup_names[subgroup_i],
+                                    axs[row_i, col_i].scatter(0, -99, label=subgroup_names[subgroup_i],
                                                               color='black', alpha=alphas[subgroup_i])
                                 axs[row_i, col_i].set_ylim(ylim)
                                 axs[row_i, col_i].set_xlim(xlim)
@@ -1577,7 +1577,7 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                 ylim = axs[row_i, col_i].get_ylim()
                                 xlim = axs[row_i, col_i].get_xlim()
                                 for subgroup_i in range(len(subgroup_names)):
-                                    axs[row_i, col_i].scatter([0,1], [-1,-1], label=subgroup_names[subgroup_i],
+                                    axs[row_i, col_i].scatter(0, -99, label=subgroup_names[subgroup_i],
                                                               color='black', alpha=alphas[subgroup_i])
                                 axs[row_i, col_i].set_ylim(ylim)
                                 axs[row_i, col_i].set_xlim(xlim)
