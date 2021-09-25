@@ -527,8 +527,12 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                         # adds the fmax values at an angle to the bars one at a time
                                         axs[row_i, col_i].text(group_locs[1][fmax_i], text_ypos, fmax+'Hz', ha='center',
                                                                rotation=60)
-                                    axs[row_i, col_i].set_ylim([ylim[0], ylim[1]+ylim[1]*.07]) # increases the...
-                                    #... subplot height to accomodate the text
+                                    if plot_std == False:
+                                        added_height = .1
+                                    else:
+                                        added_height = .2
+                                    axs[row_i, col_i].set_ylim([ylim[0], ylim[1]+ylim[1]*added_height]) # increases...
+                                    #... the subplot height to accomodate the text
 
                                 plotgroup_i+= 1 # moves on to the next data to plot
                                 if idc_group_plot[0] == idc_group_fig[-1]: # if there is no more data to plot for...
@@ -756,18 +760,20 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], group_plot=[], plot_
 
         subgroups = np.unique(psd[group_plot[0]])
         subgroup_names = [group_plot[0]+subgroup for subgroup in subgroups]
-        # Checks that the datatype provided in group_plot is binary
-        if len(subgroups) > 2:
-            raise ValueError(f"The {group_plot[0]} group to plot on the same glass brain is not binary.")
-        
-        # Switches the coordinates so that each subgroup (e.g. MedOff vs. MedOn) is plotted on a different hemisphere
-        for data_i, subgroup in enumerate(psd[group_plot[0]]):
-            if psd.ch_coords[data_i][0] > 0 and subgroup == subgroups[0]: # if the x-coord is in the right hemisphere...
-            #... and is for data from e.g. group MedOff
-                psd.ch_coords[data_i][0] = psd.ch_coords[data_i][0]*-1 # switch the x-coord to the left hemisphere
-            if psd.ch_coords[data_i][0] < 0 and subgroup == subgroups[1]: # if the x-coord is in the left hemisphere...
-            #... and is for data from e.g. group MedOn
-                psd.ch_coords[data_i][0] = psd.ch_coords[data_i][0]*-1 # switch the x-coord to the right hemisphere
+        # Checks that there are multiple subgroups (e.g. MedOff & MedOn) to plot
+        if len(subgroups) > 1:
+            # Checks that the datatype provided in group_plot is binary
+            if len(subgroups) > 2:
+                raise ValueError(f"The {group_plot[0]} group to plot on the same glass brain is not binary.")
+            # Switches the coordinates so that each subgroup (e.g. MedOff vs. MedOn) is plotted on a different...
+            #... hemisphere
+            for data_i, subgroup in enumerate(psd[group_plot[0]]):
+                if psd.ch_coords[data_i][0] > 0 and subgroup == subgroups[0]: # if the x-coord is in the right...
+                #... hemisphere and is for data from e.g. group MedOff
+                    psd.ch_coords[data_i][0] = psd.ch_coords[data_i][0]*-1 # switch the x-coord to the left hemisphere
+                if psd.ch_coords[data_i][0] < 0 and subgroup == subgroups[1]: # if the x-coord is in the left...
+                #... hemisphere and is for data from e.g. group MedOn
+                    psd.ch_coords[data_i][0] = psd.ch_coords[data_i][0]*-1 # switch the x-coord to the right hemisphere
 
 
     # Discards shuffled data from being plotted, if requested
@@ -1720,24 +1726,25 @@ def coh_bandwise_gb(coh, areas, group_master, group_fig=[], group_plot=[], plot_
 
         subgroups = np.unique(coh[group_plot[0]])
         subgroup_names = [group_plot[0]+subgroup for subgroup in subgroups]
-        # Checks that the datatype provided in group_plot is binary
-        if len(subgroups) > 2:
-            raise ValueError(f"The {group_plot[0]} group to plot on the same glass brain is not binary.")
-        
-        # Switches the coordinates so that each subgroup (e.g. MedOff vs. MedOn) is plotted on a different hemisphere
-        coords_keys = []
-        for area in areas:
-            coords_keys.append(f"ch_coords_{area}")
-        for coords_key in coords_keys:
-            for data_i, subgroup in enumerate(coh[group_plot[0]]):
-                if coh[coords_key][data_i][0] > 0 and subgroup == subgroups[0]: # if the x-coord is in the right...
-                #... hemisphere and is for data from e.g. group MedOff
-                    coh[coords_key][data_i][0] = coh[coords_key][data_i][0]*-1 # switch the x-coord to the left...
-                #... hemisphere
-                if coh[coords_key][data_i][0] < 0 and subgroup == subgroups[1]: # if the x-coord is in the left...
-                #... hemisphere and is for data from e.g. group MedOn
-                    coh[coords_key][data_i][0] = coh[coords_key][data_i][0]*-1 # switch the x-coord to the right...
-                #... hemisphere
+        # Checks that there are multiple subgroups (e.g. MedOff & MedOn) to plot
+        if len(subgroups) > 1:
+            # Checks that the datatype provided in group_plot is binary
+            if len(subgroups) > 2:
+                raise ValueError(f"The {group_plot[0]} group to plot on the same glass brain is not binary.")
+            # Switches the coordinates so that each subgroup (e.g. MedOff vs. MedOn) is plotted on a different hemisphere
+            coords_keys = []
+            for area in areas:
+                coords_keys.append(f"ch_coords_{area}")
+            for coords_key in coords_keys:
+                for data_i, subgroup in enumerate(coh[group_plot[0]]):
+                    if coh[coords_key][data_i][0] > 0 and subgroup == subgroups[0]: # if the x-coord is in the right...
+                    #... hemisphere and is for data from e.g. group MedOff
+                        coh[coords_key][data_i][0] = coh[coords_key][data_i][0]*-1 # switch the x-coord to the left...
+                    #... hemisphere
+                    if coh[coords_key][data_i][0] < 0 and subgroup == subgroups[1]: # if the x-coord is in the left...
+                    #... hemisphere and is for data from e.g. group MedOn
+                        coh[coords_key][data_i][0] = coh[coords_key][data_i][0]*-1 # switch the x-coord to the right...
+                    #... hemisphere
 
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
