@@ -952,7 +952,7 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], group_plot=[], plot_
                                     cbar.ax.tick_params(axis='y')
 
                                     # Adds the name of the subgroup to each hemisphere, if necessary
-                                    if subgroup_names != []:
+                                    if len(subgroup_names) > 1:
                                         bot = axs[row_i, col_i].get_ylim()[0]
                                         axs[row_i, col_i].text(.05, bot, f"{subgroup_names[0]} / {subgroup_names[1]}",
                                                                ha='center')
@@ -1909,7 +1909,7 @@ def coh_bandwise_gb(coh, areas, group_master, group_fig=[], group_plot=[], plot_
                                     cbar.ax.tick_params(axis='y')
 
                                     # Adds the name of the subgroup to each hemisphere, if necessary
-                                    if subgroup_names != []:
+                                    if len(subgroup_names) > 1:
                                         bot = axs[row_i, col_i].get_ylim()[0]
                                         axs[row_i, col_i].text(.05, bot, f"{subgroup_names[0]} / {subgroup_names[1]}",
                                                                ha='center')
