@@ -413,7 +413,7 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
             fig_info = {}
             for key in fig_keys:
                 fig_info[key] = list(np.unique(psd[key][idc_group_fig]))
-            wind_title, included = helpers.window_title(fig_info, base_title='Coh:', full_info=False)
+            wind_title, included = helpers.window_title(fig_info, base_title='PSD:', full_info=False)
 
             names_plot = helpers.combine_names(psd, group_plot, joining=',')
             names_group_plot, idcs_group_plot = helpers.unique_names([names_plot[i] for i in idc_group_fig])
