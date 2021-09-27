@@ -21,78 +21,23 @@ import plotting
 from helpers import average_dataset
 
 
+singlesubj_allchann = False # plots data for a single subject, averaged across runs
+singlesubj_avgchann = True # plots data for a single subject, averaged across runs and channels
+multiplesubj_avgchann = False # plots data for multiple subjects, averaged across runs, channels, and subjects
+multiplesubj_allchann = False # plots data for multiple subjects, averaged across runs
+
+
 #### PLOTS DATA FOR A SINGLE SUBJECT, AVERAGED ACROSS RUNS
-### Setup & Processing
-# Loads data
-datasets = ['Rest-005-MedOff-StimOff', 'Rest-005-MedOn-StimOff']
+if singlesubj_allchann == True:
+    ### Setup & Processing
+    # Loads data
+    datasets = ['Rest-007-MedOff-StimOff', 'Rest-007-MedOn-StimOff']
 
-psds = []
-cohs = []
-for data in datasets:
-    psds.append(pd.read_pickle(os.path.join(project_path, 'derivatives', f'{data}-psd.pkl')))
-    cohs.append(pd.read_pickle(os.path.join(project_path, 'derivatives', f'{data}-coh.pkl')))
-
-    # Averages data over runs
-    psds[-1] = average_dataset(data=psds[-1], avg_over='run',
-                               separate=['ch_name', 'data_type', 'reref_type'],
-                               x_keys=['med', 'stim', 'task', 'subject', 'ch_type', 'freqs', 'fbands', 'ch_coords'],
-                               y_keys=['psd', 'fbands_avg', 'fbands_max', 'fbands_fmax'])
-
-    cohs[-1] = average_dataset(data=cohs[-1], avg_over='run',
-                               separate=['ch_name_cortical', 'ch_name_deep', 'data_type', 'method'],
-                               x_keys=['med', 'stim', 'task', 'subject', 'freqs', 'fbands', 'ch_coords_cortical',
-                                       'ch_coords_deep', 'reref_type_cortical', 'reref_type_deep'],
-                               y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'])
-
-psd = pd.concat(psds[:], ignore_index=True)
-coh = pd.concat(cohs[:], ignore_index=True)
-
-
-### Plotting
-# PSD
-#plotting.psd_freqwise(psd, group_master=['reref_type', 'ch_type'],
-#                      group_plot=['ch_name'],
-#                      plot_shuffled=False, plot_std=False, freq_limit=50, power_limit=15)
-plotting.psd_bandwise(psd, group_master=['reref_type', 'ch_type'],
-                      group_fig=['reref_type', 'ch_type', 'data_type'],
-                      group_plot=['ch_name'],
-                      plot_shuffled=False, plot_std=False, same_y=True)
-#plotting.psd_bandwise_gb(psd, areas=['cortical'], group_master=['reref_type', 'ch_type'],
-#                         group_fig=['reref_type', 'ch_type', 'data_type'],
-#                         group_plot=['med'],
-#                         plot_shuffled=False, same_y_bandwise=True)
-
-# Coherence
-#plotting.coh_freqwise(coh, group_master=['reref_type_cortical', 'reref_type_deep', 'method'],
-#                      group_plot=['ch_name_cortical', 'ch_name_deep'],
-#                      plot_shuffled=True, plot_std=False, freq_limit=50, same_y=True)
-plotting.coh_bandwise(coh, group_master=['reref_type_cortical', 'reref_type_deep', 'method'],
-                      group_fig=['reref_type_cortical', 'reref_type_deep', 'method', 'data_type'],
-                      group_plot=['ch_name_cortical', 'ch_name_deep'],
-                      plot_shuffled=False, plot_std=False, same_y=True)
-plotting.coh_bandwise_gb(coh, areas=['cortical'], group_master=['reref_type_cortical', 'reref_type_deep', 'method'],
-                         group_fig=['reref_type_cortical', 'reref_type_deep', 'method', 'data_type'],
-                         grouo_plot=['med'],
-                         plot_shuffled=False, same_y=True)
-
-
-"""
-##### PLOTS DATA FOR MULTIPLE SUBJECTS, AVERAGED ACROSS RUNS, CHANNELS, AND (OPTIONALLY) SUBJECTS
-### Setup & Processing
-avg_subjects = True
-
-# Loads data
-datasets = ['Rest-001-MedOff-StimOff', 'Rest-001-MedOn-StimOff',
-            'Rest-002-MedOff-StimOff', 
-            'Rest-003-MedOff-StimOff', 'Rest-003-MedOn-StimOff',
-            'Rest-004-MedOff-StimOff', 'Rest-004-MedOn-StimOff',
-            'Rest-005-MedOff-StimOff', 'Rest-005-MedOn-StimOff']
-
-psds = []
-cohs = []
-for set_i, data in enumerate(datasets):
-    psds.append(pd.read_pickle(os.path.join(project_path, 'derivatives', f'{data}-psd.pkl')))
-    cohs.append(pd.read_pickle(os.path.join(project_path, 'derivatives', f'{data}-coh.pkl')))
+    psds = []
+    cohs = []
+    for data in datasets:
+        psds.append(pd.read_pickle(os.path.join(project_path, 'derivatives', f'{data}-psd.pkl')))
+        cohs.append(pd.read_pickle(os.path.join(project_path, 'derivatives', f'{data}-coh.pkl')))
 
     # Averages data over runs
     psds[-1] = average_dataset(data=psds[-1], avg_over='run',
@@ -106,24 +51,145 @@ for set_i, data in enumerate(datasets):
                                        'ch_coords_deep', 'reref_type_cortical', 'reref_type_deep'],
                                y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'])
 
-    # Averages data over channels
-    psds[-1] = average_dataset(data=psds[-1], avg_over='ch_name',
-                               separate=['ch_type', 'data_type', 'reref_type'],
-                               x_keys=['med','stim','task','subject','freqs', 'fbands'],
-                               y_keys=['psd', 'fbands_avg', 'fbands_max', 'fbands_fmax', 'ch_coords'])
+    psd = pd.concat(psds[:], ignore_index=True)
+    coh = pd.concat(cohs[:], ignore_index=True)
 
-    cohs[-1] = average_dataset(data=cohs[-1], avg_over='ch_name_cortical',
-                               separate=['ch_name_deep', 'data_type', 'reref_type_cortical', 'reref_type_deep', 'method'],
-                               x_keys=['med', 'stim', 'task', 'subject', 'freqs', 'fbands'],
-                               y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax', 'ch_coords_cortical',
-                                       'ch_coords_deep'])
 
-    if set_i == len(datasets)-1:
-        psd = pd.concat(psds[:], ignore_index=True)
-        coh = pd.concat(cohs[:], ignore_index=True)
+    ### Plotting
+    # PSD
+    plotting.psd_freqwise(psd, group_master=['reref_type', 'ch_type'],
+                          group_plot=['ch_name'],
+                          plot_shuffled=False, plot_std=False, freq_limit=50, power_limit=15)
+    plotting.psd_bandwise(psd, group_master=['reref_type', 'ch_type'],
+                          group_fig=['reref_type', 'ch_type', 'data_type'],
+                          group_plot=['ch_name'],
+                          plot_shuffled=False, plot_std=False, same_y=True)
+    plotting.psd_bandwise_gb(psd, areas=['cortical'], group_master=['reref_type', 'ch_type'],
+                             group_fig=['reref_type', 'ch_type', 'data_type'],
+                             group_plot=['med'],
+                             plot_shuffled=False, same_y_bandwise=True)
 
-# Averages over subjects
-if avg_subjects == True:
+    # Coherence
+    plotting.coh_freqwise(coh, group_master=['reref_type_cortical', 'reref_type_deep', 'method'],
+                          group_plot=['ch_name_cortical', 'ch_name_deep'],
+                          plot_shuffled=True, plot_std=False, freq_limit=50, same_y=True)
+    plotting.coh_bandwise(coh, group_master=['reref_type_cortical', 'reref_type_deep', 'method'],
+                          group_fig=['reref_type_cortical', 'reref_type_deep', 'method', 'data_type'],
+                          group_plot=['ch_name_cortical', 'ch_name_deep'],
+                          plot_shuffled=False, plot_std=False, same_y=True)
+    plotting.coh_bandwise_gb(coh, areas=['cortical'], group_master=['reref_type_cortical', 'reref_type_deep', 'method'],
+                             group_fig=['reref_type_cortical', 'reref_type_deep', 'method', 'data_type'],
+                             group_plot=['med'],
+                             plot_shuffled=False, same_y_bandwise=True)
+
+
+##### PLOTS DATA FOR A SINGLE SUBJECT, AVERAGED ACROSS RUNS AND CHANNELS
+if singlesubj_avgchann == True:
+    ### Setup & Processing
+    # Loads data
+    datasets = ['Rest-007-MedOff-StimOff', 'Rest-007-MedOn-StimOff']
+
+    psds = []
+    cohs = []
+    for set_i, data in enumerate(datasets):
+        psds.append(pd.read_pickle(os.path.join(project_path, 'derivatives', f'{data}-psd.pkl')))
+        cohs.append(pd.read_pickle(os.path.join(project_path, 'derivatives', f'{data}-coh.pkl')))
+
+        # Averages data over runs
+        psds[-1] = average_dataset(data=psds[-1], avg_over='run',
+                                   separate=['ch_name', 'data_type', 'reref_type'],
+                                   x_keys=['med', 'stim', 'task', 'subject', 'ch_type', 'freqs', 'fbands', 'ch_coords'],
+                                   y_keys=['psd', 'fbands_avg', 'fbands_max', 'fbands_fmax'])
+
+        cohs[-1] = average_dataset(data=cohs[-1], avg_over='run',
+                                   separate=['ch_name_cortical', 'ch_name_deep', 'data_type', 'method'],
+                                   x_keys=['med', 'stim', 'task', 'subject', 'freqs', 'fbands', 'ch_coords_cortical',
+                                           'ch_coords_deep', 'reref_type_cortical', 'reref_type_deep'],
+                                   y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'])
+
+        # Averages data over channels
+        psds[-1] = average_dataset(data=psds[-1], avg_over='ch_name',
+                                   separate=['ch_type', 'data_type', 'reref_type'],
+                                   x_keys=['med','stim','task','subject','freqs', 'fbands'],
+                                   y_keys=['psd', 'fbands_avg', 'fbands_max', 'fbands_fmax', 'ch_coords'])
+
+        cohs[-1] = average_dataset(data=cohs[-1], avg_over='ch_name_cortical',
+                                   separate=['ch_name_deep', 'data_type', 'reref_type_cortical', 'reref_type_deep',
+                                             'method'],
+                                   x_keys=['med', 'stim', 'task', 'subject', 'freqs', 'fbands'],
+                                   y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax', 'ch_coords_cortical',
+                                           'ch_coords_deep'])
+
+        if set_i == len(datasets)-1:
+            psd = pd.concat(psds[:], ignore_index=True)
+            coh = pd.concat(cohs[:], ignore_index=True)
+
+
+    ### Plotting
+    # PSD
+    plotting.psd_freqwise(psd, group_master=['ch_type'],
+                          group_plot=['reref_type', 'ch_name'],
+                          plot_shuffled=False, plot_std=False, n_plots_per_page=6, freq_limit=50, power_limit=15, same_y=False)
+    plotting.psd_bandwise(psd, group_master=['ch_type'],
+                          group_fig=['ch_type', 'data_type'],
+                          group_plot=['reref_type', 'ch_name'],
+                          plot_shuffled=False, plot_std=False, n_plots_per_page=6, same_y=False)
+
+    # Coherence
+    plotting.coh_freqwise(coh, group_master=['method'],
+                          group_plot=['reref_type_cortical', 'reref_type_deep', 'ch_name_cortical', 'ch_name_deep'],
+                          plot_shuffled=True, plot_std=False, n_plots_per_page=6, freq_limit=50, same_y=False)
+    plotting.coh_bandwise(coh, group_master=['method'],
+                          group_plot=['reref_type_cortical', 'reref_type_deep', 'ch_name_cortical', 'ch_name_deep', 'data_type'],
+                          plot_shuffled=False, plot_std=False, n_plots_per_page=6, same_y=False)
+
+
+##### PLOTS DATA FOR MULTIPLE SUBJECTS, AVERAGED ACROSS RUNS, CHANNELS, AND SUBJECTS
+if multiplesubj_avgchann == True:
+    ### Setup & Processing
+    # Loads data
+    datasets = ['Rest-001-MedOff-StimOff', 'Rest-001-MedOn-StimOff',
+                'Rest-002-MedOff-StimOff', 
+                'Rest-003-MedOff-StimOff', 'Rest-003-MedOn-StimOff',
+                'Rest-004-MedOff-StimOff', 'Rest-004-MedOn-StimOff',
+                'Rest-005-MedOff-StimOff', 'Rest-005-MedOn-StimOff',
+                'Rest-006-MedOff-StimOff', 'Rest-006-MedOn-StimOff']
+
+    psds = []
+    cohs = []
+    for set_i, data in enumerate(datasets):
+        psds.append(pd.read_pickle(os.path.join(project_path, 'derivatives', f'{data}-psd.pkl')))
+        cohs.append(pd.read_pickle(os.path.join(project_path, 'derivatives', f'{data}-coh.pkl')))
+
+        # Averages data over runs
+        psds[-1] = average_dataset(data=psds[-1], avg_over='run',
+                                   separate=['ch_name', 'data_type', 'reref_type'],
+                                   x_keys=['med', 'stim', 'task', 'subject', 'ch_type', 'freqs', 'fbands', 'ch_coords'],
+                                   y_keys=['psd', 'fbands_avg', 'fbands_max', 'fbands_fmax'])
+
+        cohs[-1] = average_dataset(data=cohs[-1], avg_over='run',
+                                   separate=['ch_name_cortical', 'ch_name_deep', 'data_type', 'method'],
+                                   x_keys=['med', 'stim', 'task', 'subject', 'freqs', 'fbands', 'ch_coords_cortical',
+                                           'ch_coords_deep', 'reref_type_cortical', 'reref_type_deep'],
+                                   y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'])
+
+        # Averages data over channels
+        psds[-1] = average_dataset(data=psds[-1], avg_over='ch_name',
+                                   separate=['ch_type', 'data_type', 'reref_type'],
+                                   x_keys=['med','stim','task','subject','freqs', 'fbands'],
+                                   y_keys=['psd', 'fbands_avg', 'fbands_max', 'fbands_fmax', 'ch_coords'])
+
+        cohs[-1] = average_dataset(data=cohs[-1], avg_over='ch_name_cortical',
+                                   separate=['ch_name_deep', 'data_type', 'reref_type_cortical', 'reref_type_deep', 'method'],
+                                   x_keys=['med', 'stim', 'task', 'subject', 'freqs', 'fbands'],
+                                   y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax', 'ch_coords_cortical',
+                                           'ch_coords_deep'])
+
+        if set_i == len(datasets)-1:
+            psd = pd.concat(psds[:], ignore_index=True)
+            coh = pd.concat(cohs[:], ignore_index=True)
+
+    # Averages over subjects
     psd = average_dataset(data=psd, avg_over='subject',
                           separate=['ch_type', 'data_type', 'reref_type', 'med'],
                           x_keys=['stim', 'task', 'freqs', 'fbands'],
@@ -132,43 +198,45 @@ if avg_subjects == True:
     coh = average_dataset(data=coh, avg_over='subject',
                           separate=['data_type', 'reref_type_cortical', 'reref_type_deep', 'method', 'med'],
                           x_keys=['stim', 'task', 'freqs', 'fbands'],
-                          y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax', 'ch_coords_cortical', 'ch_coords_deep'])
+                          y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax', 'ch_coords_cortical',
+                                  'ch_coords_deep'])
 
 
-### Plotting
-# PSD
-plotting.psd_freqwise(psd, group_master=['reref_type', 'ch_type', 'subject'],
-                      group_plot=['ch_name'],
-                      plot_shuffled=False, plot_std=True, n_plots_per_page=1, freq_limit=50, power_limit=15)
-plotting.psd_bandwise(psd, group_master=['reref_type', 'ch_type', 'subject'],
-                      group_fig=['reref_type', 'ch_type', 'subject', 'data_type'],
-                      group_plot=['ch_name', 'med'],
-                      plot_shuffled=False, plot_std=True, n_plots_per_page=2)
+    ### Plotting
+    # PSD
+    plotting.psd_freqwise(psd, group_master=['reref_type', 'ch_type', 'subject'],
+                          group_plot=['ch_name'],
+                          plot_shuffled=False, plot_std=True, n_plots_per_page=1, freq_limit=50, power_limit=15)
+    plotting.psd_bandwise(psd, group_master=['reref_type', 'ch_type', 'subject'],
+                          group_fig=['reref_type', 'ch_type', 'subject', 'data_type'],
+                          group_plot=['ch_name'],
+                          plot_shuffled=False, plot_std=True, n_plots_per_page=1)
 
-# Coherence
-plotting.coh_freqwise(coh, group_master=['reref_type_cortical', 'reref_type_deep', 'method', 'subject'],
-                            group_plot=['ch_name_cortical', 'ch_name_deep'],
-                            plot_shuffled=True, plot_std=True, n_plots_per_page=1, freq_limit=50, same_y=True)
-plotting.coh_bandwise(coh, group_master=['reref_type_cortical', 'reref_type_deep', 'method', 'subject'],
-                            group_plot=['ch_name_cortical', 'ch_name_deep', 'med', 'data_type'],
-                            plot_shuffled=False, plot_std=True, n_plots_per_page=2)
-"""
+    # Coherence
+    plotting.coh_freqwise(coh, group_master=['reref_type_cortical', 'reref_type_deep', 'method', 'subject'],
+                          group_plot=['ch_name_cortical', 'ch_name_deep'],
+                          plot_shuffled=True, plot_std=True, n_plots_per_page=1, freq_limit=50, same_y=True)
+    plotting.coh_bandwise(coh, group_master=['reref_type_cortical', 'reref_type_deep', 'method', 'subject'],
+                          group_plot=['ch_name_cortical', 'ch_name_deep', 'data_type'],
+                          plot_shuffled=False, plot_std=True, n_plots_per_page=1)
 
-"""
+
 ##### PLOTS DATA FOR MULTIPLE SUBJECTS, AVERAGED ACROSS RUNS (BUT NOT CHANNELS OR SUBJECTS) ON SURFACE PLOTS
-### Setup & Processing
-# Loads data
-datasets = ['Rest-001-MedOff-StimOff', 'Rest-001-MedOn-StimOff',
-            'Rest-002-MedOff-StimOff', 
-            'Rest-003-MedOff-StimOff', 'Rest-003-MedOn-StimOff',
-            'Rest-004-MedOff-StimOff', 'Rest-004-MedOn-StimOff',
-            'Rest-005-MedOff-StimOff', 'Rest-005-MedOn-StimOff']
+if multiplesubj_allchann == True:
+    ### Setup & Processing
+    # Loads data
+    datasets = ['Rest-001-MedOff-StimOff', 'Rest-001-MedOn-StimOff',
+                'Rest-002-MedOff-StimOff', 
+                'Rest-003-MedOff-StimOff', 'Rest-003-MedOn-StimOff',
+                'Rest-004-MedOff-StimOff', 'Rest-004-MedOn-StimOff',
+                'Rest-005-MedOff-StimOff', 'Rest-005-MedOn-StimOff',
+                'Rest-006-MedOff-StimOff', 'Rest-006-MedOn-StimOff']
 
-psds = []
-cohs = []
-for set_i, data in enumerate(datasets):
-    psds.append(pd.read_pickle(os.path.join(project_path, 'derivatives', f'{data}-psd.pkl')))
-    cohs.append(pd.read_pickle(os.path.join(project_path, 'derivatives', f'{data}-coh.pkl')))
+    psds = []
+    cohs = []
+    for set_i, data in enumerate(datasets):
+        psds.append(pd.read_pickle(os.path.join(project_path, 'derivatives', f'{data}-psd.pkl')))
+        cohs.append(pd.read_pickle(os.path.join(project_path, 'derivatives', f'{data}-coh.pkl')))
 
     # Averages data over runs
     psds[-1] = average_dataset(data=psds[-1], avg_over='run',
@@ -183,20 +251,19 @@ for set_i, data in enumerate(datasets):
                                y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'])
 
     if set_i == len(datasets)-1:
-        psd = pd.concat(psds[:], ignore_index=True)
-        coh = pd.concat(cohs[:], ignore_index=True)
+            psd = pd.concat(psds[:], ignore_index=True)
+            coh = pd.concat(cohs[:], ignore_index=True)
 
 
-### Plotting
-# PSD
-plotting.psd_bandwise_gb(psd, areas=['cortical'], group_master=['reref_type', 'ch_type'],
-                         group_fig=['reref_type', 'ch_type', 'data_type'],
-                         group_plot=['med'],
-                         plot_shuffled=False, same_y=True)
+    ### Plotting
+    # PSD
+    plotting.psd_bandwise_gb(psd, areas=['cortical'], group_master=['reref_type', 'ch_type'],
+                             group_fig=['reref_type', 'ch_type', 'data_type'],
+                             group_plot=['med'],
+                             plot_shuffled=False, same_y_bandwise=True)
 
-# Coherence
-plotting.coh_bandwise_gb(coh, areas=['cortical'], group_master=['reref_type_cortical', 'reref_type_deep', 'method'],
-                         group_fig=['reref_type_cortical', 'reref_type_deep', 'method', 'data_type'],
-                         group_plot=['med'],
-                         plot_shuffled=False, same_y=True)
-"""
+    # Coherence
+    plotting.coh_bandwise_gb(coh, areas=['cortical'], group_master=['reref_type_cortical', 'reref_type_deep', 'method'],
+                             group_fig=['reref_type_cortical', 'reref_type_deep', 'method', 'data_type'],
+                             group_plot=['med'],
+                             plot_shuffled=False, same_y_bandwise=True)
