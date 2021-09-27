@@ -130,7 +130,7 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                 group_ylim = helpers.same_axes(psd.psd[idc_group_master] + psd.psd_std[idc_group_master])
             else:
                 group_ylim = helpers.same_axes(psd.psd[idc_group_master])
-        group_ylim[0] = 0
+            group_ylim[0] = 0
 
         # Gets indices of figure-grouped data
         names_fig = helpers.combine_names(psd.iloc[idc_group_master], group_fig, joining=',')
@@ -224,7 +224,7 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                 axs[row_i, col_i].plot(data.freqs[:freq_limit_i+1], data.psd[:freq_limit_i+1],
                                                     label=data_title, linewidth=2, color=colour)
                                 if data_title != None: # if data has been labelled, plot the legend
-                                    axs[row_i, col_i].legend()
+                                    axs[row_i, col_i].legend(labelspacing=0)
                                 
                                 # Plots std (if applicable)
                                 if plot_std == True:
@@ -515,7 +515,7 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                 # Tidies up the x-axis ticks and labels
                                 axs[row_i, col_i].set_xticks((start_locs-width/2)+(width*(n_bars/2)))
                                 axs[row_i, col_i].set_xticklabels(keys_to_plot)
-                                axs[row_i, col_i].legend()
+                                axs[row_i, col_i].legend(loc='upper left', labelspacing=0)
 
                                 # Adds the fmax data to the bars (if applicable)
                                 if 'max' in keys_to_plot:
@@ -631,7 +631,7 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                 # Tidies up the x-axis ticks and labels
                                 axs[row_i, col_i].set_xticks((start_locs-width/2)+(width*(n_bars/2)))
                                 axs[row_i, col_i].set_xticklabels(keys_to_plot)
-                                axs[row_i, col_i].legend()
+                                axs[row_i, col_i].legend(loc='upper left', labelspacing=0)
 
                                 # Adds the fmax data to the bars (if applicable)
                                 if 'max' in keys_to_plot:
@@ -1198,7 +1198,7 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                 axs[row_i, col_i].plot(data.freqs[:freq_limit_i+1], data.coh[:freq_limit_i+1],
                                                        label=data_title, linewidth=2, color=colour)
                                 if data_title != None: # if data has been labelled, plot the legend
-                                    axs[row_i, col_i].legend()
+                                    axs[row_i, col_i].legend(labelspacing=0)
                                 
                                 # Plots std (if applicable)
                                 if plot_std == True:
@@ -1484,7 +1484,7 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                 # Tidies up the x-axis ticks and labels
                                 axs[row_i, col_i].set_xticks((start_locs-width/2)+(width*(n_bars/2)))
                                 axs[row_i, col_i].set_xticklabels(keys_to_plot)
-                                axs[row_i, col_i].legend()
+                                axs[row_i, col_i].legend(loc='upper left', labelspacing=0)
 
                                 # Adds the fmax data to the bars (if applicable)
                                 if 'max' in keys_to_plot:
@@ -1595,7 +1595,7 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                 # Tidies up the x-axis ticks and labels
                                 axs[row_i, col_i].set_xticks((start_locs-width/2)+(width*(n_bars/2)))
                                 axs[row_i, col_i].set_xticklabels(keys_to_plot)
-                                axs[row_i, col_i].legend()
+                                axs[row_i, col_i].legend(loc='upper left', labelspacing=0)
 
                                 # Adds the fmax data to the bars (if applicable)
                                 if 'max' in keys_to_plot:
