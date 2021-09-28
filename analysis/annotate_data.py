@@ -16,16 +16,16 @@ from annotations import annotate
 from helpers import filter_for_annotation
 
 # Setup
-sub = '004'
+sub = '007'
 ses = 'EphysMedOn02'
 task = 'Rest'
-acq = 'StimOn'
+acq = 'StimOff'
 run = '01'
 datatype = 'ieeg'
 
-channels = ["ECOG_L_1_SMC_AT", "ECOG_L_2_SMC_AT", "ECOG_L_3_SMC_AT", "ECOG_L_4_SMC_AT", 
-                                             "ECOG_L_5_SMC_AT", "ECOG_L_6_SMC_AT",
-                                             "LFP_L_1_STN_BS", "LFP_L_8_STN_BS"]
+channels = ["ECOG_R_1_SMC_AT", "ECOG_R_2_SMC_AT", "ECOG_R_3_SMC_AT", "ECOG_R_4_SMC_AT", 
+                                             "ECOG_R_5_SMC_AT", "ECOG_R_6_SMC_AT",
+                                             "LFP_R_1_STN_MT", "LFP_R_8_STN_MT"]
 filter_data = True
 
 # Loads data

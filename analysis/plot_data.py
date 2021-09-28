@@ -153,7 +153,8 @@ if multiplesubj_avgchann == True:
                 'Rest-003-MedOff-StimOff', 'Rest-003-MedOn-StimOff',
                 'Rest-004-MedOff-StimOff', 'Rest-004-MedOn-StimOff',
                 'Rest-005-MedOff-StimOff', 'Rest-005-MedOn-StimOff',
-                'Rest-006-MedOff-StimOff', 'Rest-006-MedOn-StimOff']
+                'Rest-006-MedOff-StimOff', 'Rest-006-MedOn-StimOff',
+                'Rest-007-MedOff-StimOff', 'Rest-007-MedOn-StimOff']
 
     psds = []
     cohs = []
@@ -204,21 +205,21 @@ if multiplesubj_avgchann == True:
 
     ### Plotting
     # PSD
-    plotting.psd_freqwise(psd, group_master=['reref_type', 'ch_type', 'subject'],
-                          group_plot=['ch_name'],
-                          plot_shuffled=False, plot_std=True, n_plots_per_page=1, freq_limit=50, power_limit=15)
-    plotting.psd_bandwise(psd, group_master=['reref_type', 'ch_type', 'subject'],
-                          group_fig=['reref_type', 'ch_type', 'subject', 'data_type'],
-                          group_plot=['ch_name'],
-                          plot_shuffled=False, plot_std=True, n_plots_per_page=1)
+    plotting.psd_freqwise(psd, group_master=['ch_type', 'subject'],
+                          group_plot=['reref_type', 'ch_name'],
+                          plot_shuffled=False, plot_std=True, n_plots_per_page=6, freq_limit=50, power_limit=15, same_y=False)
+    plotting.psd_bandwise(psd, group_master=['ch_type', 'subject'],
+                          group_fig=['ch_type', 'subject', 'data_type'],
+                          group_plot=['reref_type', 'ch_name'],
+                          plot_shuffled=False, plot_std=True, n_plots_per_page=6, same_y=False)
 
     # Coherence
-    plotting.coh_freqwise(coh, group_master=['reref_type_cortical', 'reref_type_deep', 'method', 'subject'],
-                          group_plot=['ch_name_cortical', 'ch_name_deep'],
-                          plot_shuffled=True, plot_std=True, n_plots_per_page=1, freq_limit=50, same_y=True)
-    plotting.coh_bandwise(coh, group_master=['reref_type_cortical', 'reref_type_deep', 'method', 'subject'],
-                          group_plot=['ch_name_cortical', 'ch_name_deep', 'data_type'],
-                          plot_shuffled=False, plot_std=True, n_plots_per_page=1)
+    plotting.coh_freqwise(coh, group_master=['method', 'subject'],
+                          group_plot=['reref_type_cortical', 'reref_type_deep', 'ch_name_cortical', 'ch_name_deep'],
+                          plot_shuffled=True, plot_std=True, n_plots_per_page=6, freq_limit=50, same_y=False)
+    plotting.coh_bandwise(coh, group_master=['method', 'subject'],
+                          group_plot=['reref_type_cortical', 'reref_type_deep', 'ch_name_cortical', 'ch_name_deep', 'data_type'],
+                          plot_shuffled=False, plot_std=True, n_plots_per_page=6, same_y=False)
 
 
 ##### PLOTS DATA FOR MULTIPLE SUBJECTS, AVERAGED ACROSS RUNS (BUT NOT CHANNELS OR SUBJECTS) ON SURFACE PLOTS
@@ -260,10 +261,10 @@ if multiplesubj_allchann == True:
     plotting.psd_bandwise_gb(psd, areas=['cortical'], group_master=['reref_type', 'ch_type'],
                              group_fig=['reref_type', 'ch_type', 'data_type'],
                              group_plot=['med'],
-                             plot_shuffled=False, same_y_bandwise=True)
+                             plot_shuffled=False, same_y_bandwise=True, normalise=[True, ['subject']])
 
     # Coherence
     plotting.coh_bandwise_gb(coh, areas=['cortical'], group_master=['reref_type_cortical', 'reref_type_deep', 'method'],
                              group_fig=['reref_type_cortical', 'reref_type_deep', 'method', 'data_type'],
                              group_plot=['med'],
-                             plot_shuffled=False, same_y_bandwise=True)
+                             plot_shuffled=False, same_y_bandwise=True, normalise=[True, ['subject']])
