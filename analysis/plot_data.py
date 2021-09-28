@@ -22,9 +22,9 @@ from helpers import average_dataset
 
 
 singlesubj_allchann = False # plots data for a single subject, averaged across runs
-singlesubj_avgchann = True # plots data for a single subject, averaged across runs and channels
+singlesubj_avgchann = False # plots data for a single subject, averaged across runs and channels
 multiplesubj_avgchann = False # plots data for multiple subjects, averaged across runs, channels, and subjects
-multiplesubj_allchann = False # plots data for multiple subjects, averaged across runs
+multiplesubj_allchann = True # plots data for multiple subjects, averaged across runs
 
 
 #### PLOTS DATA FOR A SINGLE SUBJECT, AVERAGED ACROSS RUNS
@@ -238,17 +238,17 @@ if multiplesubj_allchann == True:
         psds.append(pd.read_pickle(os.path.join(project_path, 'derivatives', f'{data}-psd.pkl')))
         cohs.append(pd.read_pickle(os.path.join(project_path, 'derivatives', f'{data}-coh.pkl')))
 
-    # Averages data over runs
-    psds[-1] = average_dataset(data=psds[-1], avg_over='run',
-                               separate=['ch_name', 'data_type', 'reref_type'],
-                               x_keys=['med', 'stim', 'task', 'subject', 'ch_type', 'freqs', 'fbands', 'ch_coords'],
-                               y_keys=['psd', 'fbands_avg', 'fbands_max', 'fbands_fmax'])
+        # Averages data over runs
+        psds[-1] = average_dataset(data=psds[-1], avg_over='run',
+                                separate=['ch_name', 'data_type', 'reref_type'],
+                                x_keys=['med', 'stim', 'task', 'subject', 'ch_type', 'freqs', 'fbands', 'ch_coords'],
+                                y_keys=['psd', 'fbands_avg', 'fbands_max', 'fbands_fmax'])
 
-    cohs[-1] = average_dataset(data=cohs[-1], avg_over='run',
-                               separate=['ch_name_cortical', 'ch_name_deep', 'data_type', 'method'],
-                               x_keys=['med', 'stim', 'task', 'subject', 'freqs', 'fbands', 'ch_coords_cortical',
-                                       'ch_coords_deep', 'reref_type_cortical', 'reref_type_deep'],
-                               y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'])
+        cohs[-1] = average_dataset(data=cohs[-1], avg_over='run',
+                                separate=['ch_name_cortical', 'ch_name_deep', 'data_type', 'method'],
+                                x_keys=['med', 'stim', 'task', 'subject', 'freqs', 'fbands', 'ch_coords_cortical',
+                                        'ch_coords_deep', 'reref_type_cortical', 'reref_type_deep'],
+                                y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'])
 
     if set_i == len(datasets)-1:
             psd = pd.concat(psds[:], ignore_index=True)
