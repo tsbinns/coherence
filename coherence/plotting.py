@@ -503,10 +503,12 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                                 fmaxs[-1] += fmax_std
 
                                     # Plots the data
-                                    axs[row_i, col_i].bar(bar_locs[band_i], to_plot, width=width, label=band, alpha=.7)
+                                    alpha = .8
+                                    axs[row_i, col_i].bar(bar_locs[band_i], to_plot, width=width, label=band,
+                                                          alpha=alpha)
                                     if plot_std == True:
                                         axs[row_i, col_i].errorbar(bar_locs[band_i], to_plot, yerr=stds, capsize=3,
-                                                                   fmt=' ')
+                                                                   fmt=' ', color='black', alpha=alpha)
 
                                 # Sets all y-axes to be equal (if requested)
                                 if same_y == True:
@@ -612,7 +614,7 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                                                   color=colours[band_i], alpha=alphas[ch_i])
                                         if plot_std == True:
                                             axs[row_i, col_i].errorbar(bar_locs[data_i], to_plot, yerr=stds, capsize=3,
-                                                                       fmt=' ')
+                                                                       fmt=' ', color='black', alpha=alphas[ch_i])
                                         data_i += 1
 
                                 # Adds surrogate data for the legend
@@ -1473,9 +1475,12 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                                 fmaxs[-1] += fmax_std
 
                                     # Plots the data
-                                    axs[row_i, col_i].bar(bar_locs[band_i], to_plot, width=width, label=band, alpha=.7)
+                                    alpha=.8
+                                    axs[row_i, col_i].bar(bar_locs[band_i], to_plot, width=width, label=band,
+                                                         alpha=alpha)
                                     if plot_std == True:
-                                        axs[row_i, col_i].errorbar(bar_locs[band_i], to_plot, yerr=stds, capsize=3, fmt=' ')
+                                        axs[row_i, col_i].errorbar(bar_locs[band_i], to_plot, yerr=stds, capsize=3,
+                                                                   fmt=' ', color='black', alpha=alpha)
 
                                 # Sets all y-axes to be equal (if requested)
                                 if same_y == True:
@@ -1576,7 +1581,7 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                                                   color=colours[band_i], alpha=alphas[ch_i])
                                         if plot_std == True:
                                             axs[row_i, col_i].errorbar(bar_locs[data_i], to_plot, yerr=stds, capsize=3,
-                                                                       fmt=' ')
+                                                                       fmt=' ', color='black', alpha=alphas[ch_i])
                                         data_i += 1
 
                                 # Adds surrogate data for the legend
