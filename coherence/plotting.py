@@ -1887,10 +1887,8 @@ def coh_bandwise_gb(coh, areas, group_master, group_fig=[], group_plot=[], plot_
                         names_group_norm, idcs_group_norm = helpers.unique_names(names_norm)
                         for normgroup_i, idc_group_norm in enumerate(idcs_group_norm):
                             idcs_group_norm[normgroup_i] = [idc_group_master[i] for i in idc_group_norm]
-
-                    # Gets a global y-axis for all data of the same type (if requested)
-                    if same_y_groupwise == True:
-                        if normalise[0] == True: # normalises the data
+                            
+                        if same_y_groupwise == True:
                             for idc_group_norm in idcs_group_norm:
                                 norm_vals = stats.zscore([item for sublist in 
                                                           coh[plot_key].iloc[idc_group_norm].values.flatten()
@@ -1899,11 +1897,8 @@ def coh_bandwise_gb(coh, areas, group_master, group_fig=[], group_plot=[], plot_
                                                 int(len(norm_vals)/len(coh[plot_key].iloc[idc_group_norm]))))
                                 for idx, idx_group_norm in enumerate(idc_group_norm): # assigns the normalised values
                                     coh.iloc[idx_group_norm] = norm_vals[idx]
-                        ylim = helpers.same_axes(coh[plot_key].iloc[idc_group_master]) # gets the y-axis limits
 
-                    # Gets a global y-axis for all data of the same type and frequency band (if requested)
-                    if same_y_bandwise == True:
-                        if normalise[0] == True: # normalises the data
+                        elif same_y_bandwise == True:
                             for idc_group_norm in idcs_group_norm:
                                 for fband_i in range(len(fbands)): # gets the normalised values
                                     norm_vals = stats.zscore([list(item)[fband_i] for item in 
@@ -1911,6 +1906,13 @@ def coh_bandwise_gb(coh, areas, group_master, group_fig=[], group_plot=[], plot_
                                     for idx, idx_group_norm in enumerate(idc_group_norm): # assigns the normalised...
                                     #... values
                                         coh[plot_key].iloc[idx_group_norm][fband_i] = norm_vals[idx]
+
+                    # Gets a global y-axis for all data of the same type (if requested)
+                    if same_y_groupwise == True:
+                        ylim = helpers.same_axes(coh[plot_key].iloc[idc_group_master]) # gets the y-axis limits
+
+                    # Gets a global y-axis for all data of the same type and frequency band (if requested)
+                    if same_y_bandwise == True:
                         ylims = [] # gets the y-axis limits
                         for fband_i in range(len(fbands)):
                             ylims.append(helpers.same_axes([x[fband_i] for x in coh[plot_key].iloc[idc_group_master]]))
