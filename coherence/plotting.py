@@ -1994,6 +1994,7 @@ def coh_bandwise_gb(coh, areas, group_master, group_fig=[], group_plot=[], plot_
                                         title = 'Coherence'
                                     else:
                                         title = f'Coherence (z-scored{normalise[1]})'
+                                    cbar.set_label(title)
                                     cbar.ax.tick_params(axis='y')
 
                                     # Adds the name of the subgroup to each hemisphere, if necessary
