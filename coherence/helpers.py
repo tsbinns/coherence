@@ -1,3 +1,4 @@
+from logging import warning
 import numpy as np
 import pandas as pd
 import os
@@ -941,12 +942,8 @@ def average_dataset(data, avg_over, separate, x_keys, y_keys):
         #... averaged over gets special names, specifying what was averaged over (e.g. run IDs, subject IDs, etc...)
             for unique_i in unique_idc:
                 new_entry = np.unique(data[key][unique_i]).tolist()
-                if len(new_entry) == 1:
-                    new_entry = ','.join(new_entry)
-                    new_cols[-1].append(new_entry)
-                else:
-                    new_entry = ','.join(new_entry)
-                    new_cols[-1].append(f'avg[{new_entry}]')
+                new_entry = ','.join(new_entry)
+                new_cols[-1].append(f'avg[{new_entry}]')
         elif key in y_keys: # the values that were averaged get used in place of the original values
             new_cols[-1].extend(avg[key])
         elif key in x_keys or key in separate: # values which are identical across the averaged group, so can just be...
@@ -962,6 +959,132 @@ def average_dataset(data, avg_over, separate, x_keys, y_keys):
     new_data = list(zip(*new_cols[:]))
     new_data = pd.DataFrame(data=new_data, columns=list(data.columns))
             
+
+    return new_data
+
+
+
+def alter_by_condition(data, cond, types, method, separate, x_keys, y_keys, ignore_runs=False):
+    """ Alters the data of different types for a particular condition group that are otherwise identical
+
+    PARAMETERS
+    ----------
+    data : Pandas DataFrame
+    -   The data to alter.
+
+    cond : string
+    -   The key of the condition to use to alter the data based on different subtypes of this condition (e.g. med,
+        stim).
+
+    types : list of str
+    -   Subtypes of the condition to use to alter the data (e.g. for a key of 'med', ['On', 'Off']). The order of the
+        subtypes determines how the alteration occurs.
+
+    method : str
+    -   How to alter the data (e.g. 'subtract'). So far, only 'subtract' is supported.
+
+    x_keys : list of strs
+    -   The names of the columns in the DataFrame containing the keys whose values should be identical for the entries
+        that are being altered (i.e. the independent/control variables).
+
+    y_keys : list of strs
+    -   The names of the columns in the DataFrame whose values should be altered.
+
+    ignore_runs : bool
+    -   Whether or not the runs from which the data has come should be accounted for when altering the data, if not
+        specified in the x_keys. If True (default), the runs are taken into account. If False, the runs are not taken
+        into account (as long as 'run' is not included in x_keys).
+
+
+    RETURNS
+    ----------
+    new_data : pandas DataFrame
+    -   The DataFrame of the altered data.
+
+
+    NOTES
+    ----------
+    -   E.g. The input key='med', types=['On', 'Off'], method='subtract' would mean medOff data is subtracted from
+        medOn data, whereas the input key='med', types=['Off', 'On'], method='subtract' would mean medOn data is
+        subtracted from medOff data. 
+    """
+
+    ### Setup
+    ## Error checking
+    # Checks the inputs are in the correct format
+    if type(cond) != str: # only one condition can be modified at a time
+        raise ValueError(f'Only one key should be provided, but {len(cond)} are.')
+    if method not in ['subtract']: # checks the correct method of alteration is provided
+        raise ValueError(f"Only the method 'subtract' is supported.")
+    if len(types) != 2: # makes sure the manipulation involves two groups
+        raise ValueError(f"Two, and only two, subtypes of data for the condition should be provided, but {len(types)} is/are.")
+    
+    # Checks the inputs match the data entries
+    if sorted(np.unique(data[cond])) != sorted(types):
+        raise ValueError(f"All subtypes of data should be specified in the inputs, but only {types} is/are.")
+
+    
+    ### Processing
+    # Finds data to alter
+    names = combine_names(data, separate)
+    unique_groups, unique_idc = unique_names(names)
+
+    # Removes indices where only one type of the condition is present
+    discard = []
+    for idx, unique_i in enumerate(unique_idc):
+        if len(unique_i) != 2:
+            raise Warning(f"The group {unique_groups[idx]} does not contain entries for both condition types {cond} {types}.\nThis data will be discarded.")
+            discard.append(idx)
+    unique_idc = [unique_idc[i] for i in range(len(unique_idc)) if i not in discard]
+
+    # Makes sure the x_keys each unique group are identical
+    for x_key in x_keys: # for each key whose values should be identical
+        for unique_i in unique_idc: # for each unique group
+            identical = check_identical(list(data[x_key][unique_i])) # the values to compare
+            if identical == False:
+                raise ValueError(f'The {x_key} values for the data do not match, and therefore the data cannot be averaged over.')
+
+    # Removes the S.D. columns from the data for certain alteration methods
+    std_cols = []
+    for name in data.columns:
+        if 'std' in name:
+            std_cols.append(name)
+    if method in ['subtract']:
+        data.drop(columns=std_cols, inplace=True)
+
+    # Alters the data
+    altered = {}
+    for y_key in y_keys:
+        altered[y_key] = []
+        for unique_i in unique_idc:
+            if method == 'subtract':
+                if len(unique_i) != 2:
+                    raise ValueError(f"Two, and only two, subtypes of data for the condition should be provided, but {len(unique_i)} is/are.")
+                altered[y_key].append(data.loc[unique_i[0]][y_key] - data.loc[unique_i[1]][y_key])
+
+    # Collates data for new DataFrame
+    new_cols = []
+    for key in data.columns:
+        new_cols.append([])
+        if key == cond: # the condition which the alteration has been based on
+            if method == 'subtract':
+                for unique_i in unique_idc:
+                    new_cols[-1].append(f"{data[cond][unique_i[0]]}-{data[cond][unique_i[1]]}")
+        elif key in y_keys: # the values that were averaged get used in place of the original values
+            new_cols[-1].extend(altered[key])
+        elif key in x_keys or key in separate: # values which are identical across the averaged group, so can just be...
+        #... copied from the original data
+            for unique_i in unique_idc:
+                new_cols[-1].append(data[key][unique_i[0]])
+        else:
+            if key == 'run' and ignore_runs == True:
+                new_cols[-1] = ['various']*len(unique_idc)
+            else:
+                raise ValueError(f"Unknown key '{key}' present when altering data.")
+    
+    # Creates new DataFrame
+    new_data = list(zip(*new_cols[:]))
+    new_data = pd.DataFrame(data=new_data, columns=list(data.columns))
 
     return new_data
 
