@@ -27,7 +27,7 @@ multiplesubj_allchann = False # plots data for multiple subjects, averaged acros
 multiplesubj_avgchann = False # plots data for multiple subjects, averaged across runs, channels, and subjects
 
 subtract_med = True # subtracts the MedOn coherence from the MedOff coherence
-subtract_baseline = False # subtracts the baseline coherence data from the real coherence data
+subtract_baseline = True # subtracts the baseline coherence data from the real coherence data
 
 
 #### PLOTS DATA FOR A SINGLE SUBJECT, AVERAGED ACROSS RUNS
@@ -69,12 +69,12 @@ if singlesubj_allchann == True:
 
     # Subtracts MedOn from MedOff data, if requested
     if subtract_med == True:
-        psd = alter_by_condition(data=psd, cond='med', types=['On', 'Off'], method='subtract',
+        psd = alter_by_condition(data=psd, cond='med', types=['Off', 'On'], method='subtract',
                                  separate=['ch_name', 'data_type', 'reref_type'],
                                  x_keys=['subject', 'stim', 'task', 'ch_type', 'freqs', 'fbands', 'ch_coords'],
                                  y_keys=['psd', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
                                  ignore_runs=True)
-        coh = alter_by_condition(data=coh, cond='med', types=['On', 'Off'], method='subtract',
+        coh = alter_by_condition(data=coh, cond='med', types=['Off', 'On'], method='subtract',
                                  separate=['ch_name_cortical', 'ch_name_deep', 'data_type', 'method'],
                                  x_keys=['subject', 'stim', 'task', 'freqs', 'fbands', 'ch_coords_cortical',
                                          'ch_coords_deep', 'reref_type_cortical', 'reref_type_deep'],
@@ -122,6 +122,16 @@ if singlesubj_avgchann == True:
         psds.append(pd.read_pickle(os.path.join(project_path, 'derivatives', f'{data}-psd.pkl')))
         cohs.append(pd.read_pickle(os.path.join(project_path, 'derivatives', f'{data}-coh.pkl')))
 
+        # Subtracts the baseline coherence from the genuine coherence, if requested
+        if subtract_baseline == True:
+            cohs[-1] = alter_by_condition(data=cohs[-1], cond='data_type', types=['real', 'shuffled'],
+                                          method='subtract',
+                                          separate=['run', 'ch_name_cortical', 'ch_name_deep', 'method'],
+                                          x_keys=['subject', 'med', 'stim', 'task', 'freqs', 'fbands', 'ch_coords_cortical',
+                                                  'ch_coords_deep', 'reref_type_cortical', 'reref_type_deep'],
+                                          y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
+                                          ignore_runs=False)
+
         # Averages data over runs
         psds[-1] = average_dataset(data=psds[-1], avg_over='run',
                                    separate=['ch_name', 'data_type', 'reref_type'],
@@ -153,12 +163,12 @@ if singlesubj_avgchann == True:
 
     # Subtracts MedOn from MedOff data, if requested
     if subtract_med == True:
-        psd = alter_by_condition(data=psd, cond='med', types=['On', 'Off'], method='subtract',
+        psd = alter_by_condition(data=psd, cond='med', types=['Off', 'On'], method='subtract',
                                  separate=['subject', 'ch_name', 'data_type', 'reref_type'],
                                  x_keys=['stim', 'task', 'ch_type', 'freqs', 'fbands', 'ch_coords'],
                                  y_keys=['psd', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
                                  ignore_runs=True)
-        coh = alter_by_condition(data=coh, cond='med', types=['On', 'Off'], method='subtract',
+        coh = alter_by_condition(data=coh, cond='med', types=['Off', 'On'], method='subtract',
                                  separate=['subject', 'ch_name_cortical', 'ch_name_deep', 'data_type', 'method'],
                                  x_keys=['stim', 'task', 'freqs', 'fbands', 'ch_coords_cortical',
                                          'ch_coords_deep', 'reref_type_cortical', 'reref_type_deep'],
@@ -203,6 +213,16 @@ if multiplesubj_avgchann == True:
         psds.append(pd.read_pickle(os.path.join(project_path, 'derivatives', f'{data}-psd.pkl')))
         cohs.append(pd.read_pickle(os.path.join(project_path, 'derivatives', f'{data}-coh.pkl')))
 
+        # Subtracts the baseline coherence from the genuine coherence, if requested
+        if subtract_baseline == True:
+            cohs[-1] = alter_by_condition(data=cohs[-1], cond='data_type', types=['real', 'shuffled'],
+                                          method='subtract',
+                                          separate=['run', 'ch_name_cortical', 'ch_name_deep', 'method'],
+                                          x_keys=['subject', 'med', 'stim', 'task', 'freqs', 'fbands', 'ch_coords_cortical',
+                                                  'ch_coords_deep', 'reref_type_cortical', 'reref_type_deep'],
+                                          y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
+                                          ignore_runs=False)
+
         # Averages data over runs
         psds[-1] = average_dataset(data=psds[-1], avg_over='run',
                                    separate=['ch_name', 'data_type', 'reref_type'],
@@ -243,6 +263,20 @@ if multiplesubj_avgchann == True:
                           y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax', 'ch_coords_cortical',
                                   'ch_coords_deep'])
 
+    # Subtracts MedOn from MedOff data, if requested
+    if subtract_med == True:
+        psd = alter_by_condition(data=psd, cond='med', types=['Off', 'On'], method='subtract',
+                                 separate=['ch_name', 'data_type', 'reref_type'],
+                                 x_keys=['subject', 'stim', 'task', 'ch_type', 'freqs', 'fbands', 'ch_coords'],
+                                 y_keys=['psd', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
+                                 ignore_runs=True)
+        coh = alter_by_condition(data=coh, cond='med', types=['Off', 'On'], method='subtract',
+                                 separate=['ch_name_cortical', 'ch_name_deep', 'data_type', 'method'],
+                                 x_keys=['subject', 'stim', 'task', 'freqs', 'fbands', 'ch_coords_cortical',
+                                         'ch_coords_deep', 'reref_type_cortical', 'reref_type_deep'],
+                                 y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
+                                 ignore_runs=True)
+
 
     ### Plotting
     # PSD
@@ -281,6 +315,16 @@ if multiplesubj_allchann == True:
         psds.append(pd.read_pickle(os.path.join(project_path, 'derivatives', f'{data}-psd.pkl')))
         cohs.append(pd.read_pickle(os.path.join(project_path, 'derivatives', f'{data}-coh.pkl')))
 
+        # Subtracts the baseline coherence from the genuine coherence, if requested
+        if subtract_baseline == True:
+            cohs[-1] = alter_by_condition(data=cohs[-1], cond='data_type', types=['real', 'shuffled'],
+                                          method='subtract',
+                                          separate=['run', 'ch_name_cortical', 'ch_name_deep', 'method'],
+                                          x_keys=['subject', 'med', 'stim', 'task', 'freqs', 'fbands', 'ch_coords_cortical',
+                                                  'ch_coords_deep', 'reref_type_cortical', 'reref_type_deep'],
+                                          y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
+                                          ignore_runs=False)
+
         # Averages data over runs
         psds[-1] = average_dataset(data=psds[-1], avg_over='run',
                                 separate=['ch_name', 'data_type', 'reref_type'],
@@ -296,6 +340,20 @@ if multiplesubj_allchann == True:
     if set_i == len(datasets)-1:
             psd = pd.concat(psds[:], ignore_index=True)
             coh = pd.concat(cohs[:], ignore_index=True)
+
+    # Subtracts MedOn from MedOff data, if requested
+    if subtract_med == True:
+        psd = alter_by_condition(data=psd, cond='med', types=['Off', 'On'], method='subtract',
+                                 separate=['ch_name', 'data_type', 'reref_type'],
+                                 x_keys=['subject', 'stim', 'task', 'ch_type', 'freqs', 'fbands', 'ch_coords'],
+                                 y_keys=['psd', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
+                                 ignore_runs=True)
+        coh = alter_by_condition(data=coh, cond='med', types=['Off', 'On'], method='subtract',
+                                 separate=['ch_name_cortical', 'ch_name_deep', 'data_type', 'method'],
+                                 x_keys=['subject', 'stim', 'task', 'freqs', 'fbands', 'ch_coords_cortical',
+                                         'ch_coords_deep', 'reref_type_cortical', 'reref_type_deep'],
+                                 y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
+                                 ignore_runs=True)
 
 
     ### Plotting
