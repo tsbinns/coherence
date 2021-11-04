@@ -990,9 +990,9 @@ def alter_by_condition(data, cond, types, method, separate, x_keys, y_keys, igno
     y_keys : list of strs
     -   The names of the columns in the DataFrame whose values should be altered.
 
-    ignore_runs : bool
+    ignore_runs : bool, default False
     -   Whether or not the runs from which the data has come should be accounted for when altering the data, if not
-        specified in the x_keys. If True (default), the runs are taken into account. If False, the runs are not taken
+        specified in the x_keys. If False (default), the runs are taken into account. If True, the runs are not taken
         into account (as long as 'run' is not included in x_keys).
 
 
