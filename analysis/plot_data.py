@@ -34,7 +34,7 @@ subtract_baseline = True # subtracts the baseline coherence data from the real c
 if singlesubj_allchann == True:
     ### Setup & Processing
     # Loads data
-    datasets = ['Rest-007-MedOff-StimOff', 'Rest-007-MedOn-StimOff']
+    datasets = ['Rest-007-MedOff-StimOff', 'Rest-007-MedOn-StimOf']
 
     psds = []
     cohs = []
