@@ -786,7 +786,7 @@ def save_fig(fig, filename, filetype, directory='figures', foldername=''):
 
     
 
-def check_identical(data, return_result=False):
+def check_identical(data, halt_script=True):
     """ Checks to see if multiple sets of data are identical.
 
     PARAMETERS
@@ -794,9 +794,10 @@ def check_identical(data, return_result=False):
     data : array
     -   A list containing the data to be compared.
 
-    return_result : bool, default False
-    -   Whether or not to raise an error if the data is not identical. If False (default), an error is raised and the
-        script stops. If True, the script is not stopped, but the non-identical nature of the data is returned.
+    halt_script : bool, default True
+    -   Whether or not to raise an error and stop the script if the data is not identical. If True (default), an error
+        is raised and the script stops. If False, the script is not stopped, but the non-identical nature of the data is
+        returned and a warning is raised.
     
 
     RETURNS
@@ -811,9 +812,15 @@ def check_identical(data, return_result=False):
         sample_1 = data[0] # the first set of values against which all others will be compared
         if stop == False:
             for sample_2 in data[1:]: # for the second set of values onwards...
-                if all(sample_1) != all(sample_2): #... check if the values are equal
-                    if return_result == True:
+                result = sample_1 == sample_2 #... check if the values are equal
+                if type(result) == bool:
+                    if result == False:
                         identical = False
+                else:
+                    if any(result) == False:
+                        identical = False
+                if identical == False:
+                    if halt_script == True:
                         stop = True
                         print('The values for the data do not match, and therefore should not be averaged over.')
                         break
@@ -964,7 +971,7 @@ def average_dataset(data, avg_over, separate, x_keys, y_keys):
 
 
 
-def alter_by_condition(data, cond, types, method, separate, x_keys, y_keys, ignore_runs=False):
+def alter_by_condition(data, cond, types, method, separate, x_keys, y_keys, avg_as_equal=False):
     """ Alters the data of different types for a particular condition group that are otherwise identical
 
     PARAMETERS
@@ -1025,24 +1032,31 @@ def alter_by_condition(data, cond, types, method, separate, x_keys, y_keys, igno
 
     
     ### Processing
+    # Changes the names of averaged entries, if requested
+    if avg_as_equal == True:
+        for col in data.columns:
+            for row_i in range(len(data)):
+                if data[col][row_i][:3] == 'avg':
+                    data[col][row_i] = 'avg'
+
     # Finds data to alter
     names = combine_names(data, separate)
     unique_groups, unique_idc = unique_names(names)
 
-    # Removes indices where only one type of the condition is present
-    discard = []
-    for idx, unique_i in enumerate(unique_idc):
-        if len(unique_i) != 2:
-            raise Warning(f"The group {unique_groups[idx]} does not contain entries for both condition types {cond} {types}.\nThis data will be discarded.")
-            discard.append(idx)
-    unique_idc = [unique_idc[i] for i in range(len(unique_idc)) if i not in discard]
-
-    # Makes sure the x_keys each unique group are identical
+    # Makes sure the x_keys for each unique group are identical
     for x_key in x_keys: # for each key whose values should be identical
         for unique_i in unique_idc: # for each unique group
             identical = check_identical(list(data[x_key][unique_i])) # the values to compare
             if identical == False:
                 raise ValueError(f'The {x_key} values for the data do not match, and therefore the data cannot be averaged over.')
+
+    # Removes indices where only one type of the condition is present
+    discard = []
+    for idx, unique_i in enumerate(unique_idc):
+        if len(unique_i) != 2:
+            print(f"Warning: The group {unique_groups[idx]} does not contain entries for both condition types {cond} {types}.\nThis data will be discarded.")
+            discard.append(idx)
+    unique_idc = [unique_idc[i] for i in range(len(unique_idc)) if i not in discard]
 
     # Removes the S.D. columns from the data for certain alteration methods
     std_cols = []
@@ -1077,10 +1091,8 @@ def alter_by_condition(data, cond, types, method, separate, x_keys, y_keys, igno
             for unique_i in unique_idc:
                 new_cols[-1].append(data[key][unique_i[0]])
         else:
-            if key == 'run' and ignore_runs == True:
-                new_cols[-1] = ['various']*len(unique_idc)
-            else:
-                raise ValueError(f"Unknown key '{key}' present when altering data.")
+            print(f"Warning: Unknown key '{key}' present when altering data, setting as NaN.")
+            new_cols[-1].extend([np.nan]*len(unique_idc))
     
     # Creates new DataFrame
     new_data = list(zip(*new_cols[:]))

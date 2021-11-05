@@ -64,6 +64,16 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     """
 
     ### Setup
+    # Checks to make sure that S.D. data is present if it is requested
+    if plot_std is True:
+        std_present = False
+        for col in psd.columns:
+            if 'std' in col:
+                std_present = True
+        if std_present == False:
+            print(f"Warning: Standard deviation data is not present, so it cannot be plotted.")
+            plot_std = False
+
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
         remove = []
@@ -324,6 +334,16 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     """
 
     ### Setup
+    # Checks to make sure that S.D. data is present if it is requested
+    if plot_std is True:
+        std_present = False
+        for col in psd.columns:
+            if 'std' in col:
+                std_present = True
+        if std_present == False:
+            print(f"Warning: Standard deviation data is not present, so it cannot be plotted.")
+            plot_std = False
+
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
         remove = []
@@ -1089,6 +1109,16 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     """
 
     ### Setup
+    # Checks to make sure that S.D. data is present if it is requested
+    if plot_std is True:
+        std_present = False
+        for col in coh.columns:
+            if 'std' in col:
+                std_present = True
+        if std_present == False:
+            print(f"Warning: Standard deviation data is not present, so it cannot be plotted.")
+            plot_std = False
+
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
         remove = []
@@ -1349,6 +1379,16 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     """
 
     ### Setup
+    # Checks to make sure that S.D. data is present if it is requested
+    if plot_std is True:
+        std_present = False
+        for col in coh.columns:
+            if 'std' in col:
+                std_present = True
+        if std_present == False:
+            print(f"Warning: Standard deviation data is not present, so it cannot be plotted.")
+            plot_std = False
+
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
         remove = []
