@@ -1385,3 +1385,171 @@ def data_by_band(data, measures, band_names=None):
 
 
     return data
+
+
+
+def extract_data(data, select_type={}, extract={}):
+    """ Extracts particular columns and rows from the a DataFrame to create a new DataFrame.
+
+    PARAMETERS
+    ----------
+    data : pandas DataFrame
+    -   The data from which particular entries will be taken.
+
+    select_type : dict of lists
+    -   A dictionary whose keys correspond to columns in the data and whose values (given as a list) correspond to the
+        particular entries of those columns which should be extracted. E.g. 'med': ['on'], 'subject': [001, 002]. If not
+        provided, all rows of data are taken.
+    
+    extract : dict
+    -   A dictionary whose keys respond to columns in the data which should be included in the new DataFrame, and whose
+        values correspond to the name(s) of this/these new column(s). If the value is None, the key is used as the
+        column name (i.e. the same name as in the original DataFrame). If the value is a str, the str is used as the new
+        columns name. If the value is a list (should be a list of strs), data in the original column will be extracted
+        into several new columns. In this case, the length of the list which specifies the names of the new columns
+        should match the length of the data in the original column. E.g. 'ch_coords' : ['x', 'y', 'z'] would put the
+        first entry of 'ch_coords' into a new column 'x', the second entry into 'y', and the third entry into 'z'.
+
+    RETURNS
+    ----------
+    data : pandas DataFrame
+    -   The extracted data.
+    
+    """
+
+    if select_type == {} and extract == {}:
+        ### Error checking
+        print(f"WARNING: No data is being extracted from the DataFrame, so the original data is being returned.")
+
+    if select_type != {}:
+        ### Discards the unwanted data
+        remove = []
+        for data_i in range(len(data)):
+            for key in select_type.keys():
+                if data.iloc[data_i][key] not in select_type[key]:
+                    remove.append(data_i)
+        remove = np.unique(remove)
+        data.drop(remove, inplace=True)
+        data.reset_index(drop=True, inplace=True)
+
+    if extract != {}:
+        ### Extracts the required data
+        ## Sets up the new data holder
+        extracted = {}
+        for key in extract.keys():
+            if extract[key] == None: # if the same name should be used for the column in the old and new dataset
+                extracted[key] = data[key]
+            elif type(extract[key]) == str: # if a different name should be used for the column in the old and new dataset
+                extracted[extract[key]] = data[key]
+            elif type(extract[key]) == list: # if data from a single columns in the old dataset is to be extracted into...
+            #... multiple columns in the new dataset
+                for subkey in extract[key]: # sets up the new columns
+                    extracted[subkey] = []
+                for data_i in range(len(data)):
+                    data_x = data.iloc[data_i]
+                    if len(data_x[key]) != len(extract[key]): # checks that the data is being extracted into the correct...
+                    #... number of columns
+                        raise ValueError(f"{len(data_x[key])} element(s) of data is/are attemtping to extract to {len(extract[key])} column(s).")
+                    else:
+                        for key_i, subkey in enumerate(extract[key]):
+                            extracted[subkey].append(data_x[key][key_i])
+    
+    if select_type != {} or extract != {}:
+        ## Creates the new DataFrame
+        data = pd.DataFrame.from_dict(extracted)
+    
+    return data
+
+
+
+def manipulate_data(data, calculate):
+    """ Performs manipulations on data in a DataFrame.
+
+    PARAMETERS
+    ----------
+    data : pandas DataFrame
+    -   The data to be manipulated.
+
+    calculate : dict of dicts
+    -   Instructions on how to manipulate the data. The keys in calculate are the new columns of data that will be added
+        to the DataFrame. Each entry of calculate is also a dictionary, with the following keys recognised:
+        'col' : str (REQUIRED)
+        -   The column in data that will be used for the manipulation.
+        'method' : str (REQUIRED)
+        -   The type of manipulation that will occur. 'avg', 'max', and 'min' are currently supported.
+        'entries' : list of indices (OPTIONAL)
+        -   The index of the values in the data that will be analysed. If not provided, all entries are analysed.
+        'group_by' : list of str (OPTIONAL)
+        -   Specifies the columns in data which should be used to identify the indices of data of the same type (e.g.
+            the same subject and medication condition for ['subject', 'med']) which will be analysed together. If not
+            provided, the manipulations are performed independently for each row of data. If the method requested is
+            'max' or 'min', the corresponding value (i.e. highest or lowest value, respectively) is marked with a 1,
+            whereas all other entries for this group are 0. If the method requested is 'avg', all rows for this group
+            have the same value (i.e. the average value across this group)
+        'drop_after' : bool (OPTIONAL)
+        -   This indicates whether the column specified in 'col' should be removed from the DataFrame after the
+            manipulation has occurred. If True, the column is removed. If False or if not provided, the columns is not
+            removed.
+
+    RETURNS
+    ----------
+    data : pandas DataFrame
+    -   The manipulated data.
+    
+    """
+
+    ### Performs manipulations on the data and adds new data to the DataFrame
+    drop_cols = []
+    for calc_key in calculate.keys():
+        curr_calc = calculate[calc_key]
+        new_entries = {}
+        new_entries[calc_key] = []
+        if 'drop_after' in curr_calc.keys():
+            if curr_calc['drop_after'] == True:
+                drop_cols.append(curr_calc['col'])
+            
+        if 'group_by' in curr_calc.keys():
+            # Gets indices of grouped data
+            names = combine_names(data, curr_calc['group_by'])
+            names_group, idcs_group = unique_names(names)
+            # Collects the data together and performs the calculation
+            for idc in idcs_group:
+                new_data = [0]*len(idc)
+                curr_data = data.iloc[idc][curr_calc['col']]
+                if curr_calc['method'] == 'max':
+                    new_data[np.argmax(curr_data)] = 1
+                elif curr_calc['method'] == 'min':
+                    new_data[np.argmin(curr_data)] = 1
+                elif curr_calc['method'] == 'avg':
+                    new_data = [np.mean(curr_data) for x in new_data]
+                else:
+                    raise ValueError(f"The requested method {curr_calc['method']} is not supported.")
+                new_entries[calc_key].extend(new_data)
+
+        else:
+            for data_i in range(len(data)):
+                data_x = data.iloc[data_i]
+                if 'entries' in curr_calc.keys():
+                    curr_data = data_x[curr_calc['col']][curr_calc['entries']]
+                else:
+                    curr_data = data_x[curr_calc['col']]
+                if curr_calc['method'] == 'max':
+                    calculated = np.max(curr_data)
+                elif curr_calc['method'] == 'min':
+                    calculated = np.min(curr_data)
+                elif curr_calc['method'] == 'avg':
+                    calculated = np.mean(curr_data)
+                else:
+                    raise ValueError(f"The requested method {curr_calc['method']} is not supported.")
+                new_entries[calc_key].append(calculated)
+
+        ## Adds the new data
+        new_data = pd.DataFrame.from_dict(new_entries)
+        data = pd.concat([data, new_data], axis=1)
+
+    ### Removes redundant columns before returning the data, if applicable
+    if drop_cols != []:
+        drop_cols = np.unique(drop_cols)
+        data.drop(columns=drop_cols, inplace=True)
+
+    return data
