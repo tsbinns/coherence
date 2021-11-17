@@ -27,7 +27,7 @@ from helpers import combine_data
 # Loads settings for analysis
 sub = '007'
 task = 'Rest'
-med = 'MedOn'
+med = 'MedOff'
 stim = 'StimOff'
 with open(os.path.join(project_path, 'settings.json')) as json_file:
     settings = json.load(json_file)
