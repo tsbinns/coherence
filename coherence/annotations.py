@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import os.path
 
 
-def annotate(raw, annot_path):
+def annotate(raw, annot_path, orig_time=[]):
     """ Plot raw data for annotation.
 
     PARAMETERS
@@ -10,8 +10,12 @@ def annotate(raw, annot_path):
     raw : MNE Raw object
     -   The data to be annotated.
 
-    ANNOT_PATH : str
+    annot_path : str
     -   Filepath to where the annotations should be saved.
+
+    orig_time : list (default), None, or datetime
+    -   What 'orig_time' to assign the annotations. If '[]' (default), the time of raw data acquisition is used. If
+        None, no time is assigned. If a datetime, that timestamp is used.
 
 
     RETURNS
@@ -31,6 +35,10 @@ def annotate(raw, annot_path):
     # Shows the data for annotation
     raw.plot(scalings='auto')
     plt.tight_layout()
+
+    # Sets the annotation 'orig_time'
+    if orig_time != []:
+        raw.annotations.orig_time = orig_time
 
     # Saves the annotations
     get_answer = False

@@ -1,3 +1,4 @@
+from logging import warning
 import numpy as np
 import pandas as pd
 import os
@@ -785,7 +786,7 @@ def save_fig(fig, filename, filetype, directory='figures', foldername=''):
 
     
 
-def check_identical(data, return_result=False):
+def check_identical(data, halt_script=True):
     """ Checks to see if multiple sets of data are identical.
 
     PARAMETERS
@@ -793,9 +794,10 @@ def check_identical(data, return_result=False):
     data : array
     -   A list containing the data to be compared.
 
-    return_result : bool, default False
-    -   Whether or not to raise an error if the data is not identical. If False (default), an error is raised and the
-        script stops. If True, the script is not stopped, but the non-identical nature of the data is returned.
+    halt_script : bool, default True
+    -   Whether or not to raise an error and stop the script if the data is not identical. If True (default), an error
+        is raised and the script stops. If False, the script is not stopped, but the non-identical nature of the data is
+        returned and a warning is raised.
     
 
     RETURNS
@@ -810,9 +812,15 @@ def check_identical(data, return_result=False):
         sample_1 = data[0] # the first set of values against which all others will be compared
         if stop == False:
             for sample_2 in data[1:]: # for the second set of values onwards...
-                if all(sample_1) != all(sample_2): #... check if the values are equal
-                    if return_result == True:
+                result = sample_1 == sample_2 #... check if the values are equal
+                if type(result) == bool:
+                    if result == False:
                         identical = False
+                else:
+                    if any(result) == False:
+                        identical = False
+                if identical == False:
+                    if halt_script == True:
                         stop = True
                         print('The values for the data do not match, and therefore should not be averaged over.')
                         break
@@ -941,12 +949,8 @@ def average_dataset(data, avg_over, separate, x_keys, y_keys):
         #... averaged over gets special names, specifying what was averaged over (e.g. run IDs, subject IDs, etc...)
             for unique_i in unique_idc:
                 new_entry = np.unique(data[key][unique_i]).tolist()
-                if len(new_entry) == 1:
-                    new_entry = ','.join(new_entry)
-                    new_cols[-1].append(new_entry)
-                else:
-                    new_entry = ','.join(new_entry)
-                    new_cols[-1].append(f'avg[{new_entry}]')
+                new_entry = ','.join(new_entry)
+                new_cols[-1].append(f'avg[{new_entry}]')
         elif key in y_keys: # the values that were averaged get used in place of the original values
             new_cols[-1].extend(avg[key])
         elif key in x_keys or key in separate: # values which are identical across the averaged group, so can just be...
@@ -962,6 +966,137 @@ def average_dataset(data, avg_over, separate, x_keys, y_keys):
     new_data = list(zip(*new_cols[:]))
     new_data = pd.DataFrame(data=new_data, columns=list(data.columns))
             
+
+    return new_data
+
+
+
+def alter_by_condition(data, cond, types, method, separate, x_keys, y_keys, avg_as_equal=False):
+    """ Alters the data of different types for a particular condition group that are otherwise identical
+
+    PARAMETERS
+    ----------
+    data : Pandas DataFrame
+    -   The data to alter.
+
+    cond : string
+    -   The key of the condition to use to alter the data based on different subtypes of this condition (e.g. med,
+        stim).
+
+    types : list of str
+    -   Subtypes of the condition to use to alter the data (e.g. for a key of 'med', ['On', 'Off']). The order of the
+        subtypes determines how the alteration occurs.
+
+    method : str
+    -   How to alter the data (e.g. 'subtract'). So far, only 'subtract' is supported.
+
+    x_keys : list of strs
+    -   The names of the columns in the DataFrame containing the keys whose values should be identical for the entries
+        that are being altered (i.e. the independent/control variables).
+
+    y_keys : list of strs
+    -   The names of the columns in the DataFrame whose values should be altered.
+
+    ignore_runs : bool, default False
+    -   Whether or not the runs from which the data has come should be accounted for when altering the data, if not
+        specified in the x_keys. If False (default), the runs are taken into account. If True, the runs are not taken
+        into account (as long as 'run' is not included in x_keys).
+
+
+    RETURNS
+    ----------
+    new_data : pandas DataFrame
+    -   The DataFrame of the altered data.
+
+
+    NOTES
+    ----------
+    -   E.g. The input key='med', types=['On', 'Off'], method='subtract' would mean medOff data is subtracted from
+        medOn data, whereas the input key='med', types=['Off', 'On'], method='subtract' would mean medOn data is
+        subtracted from medOff data. 
+    """
+
+    ### Setup
+    ## Error checking
+    # Checks the inputs are in the correct format
+    if type(cond) != str: # only one condition can be modified at a time
+        raise ValueError(f'Only one key should be provided, but {len(cond)} are.')
+    if method not in ['subtract']: # checks the correct method of alteration is provided
+        raise ValueError(f"Only the method 'subtract' is supported.")
+    if len(types) != 2: # makes sure the manipulation involves two groups
+        raise ValueError(f"Two, and only two, subtypes of data for the condition should be provided, but {len(types)} is/are.")
+    
+    # Checks the inputs match the data entries
+    if sorted(np.unique(data[cond])) != sorted(types):
+        raise ValueError(f"All subtypes of data should be specified in the inputs, but only {types} is/are.")
+
+    
+    ### Processing
+    # Changes the names of averaged entries, if requested
+    if avg_as_equal == True:
+        for col in data.columns:
+            for row_i in range(len(data)):
+                if data[col][row_i][:3] == 'avg':
+                    data[col][row_i] = 'avg'
+
+    # Finds data to alter
+    names = combine_names(data, separate)
+    unique_groups, unique_idc = unique_names(names)
+
+    # Makes sure the x_keys for each unique group are identical
+    for x_key in x_keys: # for each key whose values should be identical
+        for unique_i in unique_idc: # for each unique group
+            identical = check_identical(list(data[x_key][unique_i])) # the values to compare
+            if identical == False:
+                raise ValueError(f'The {x_key} values for the data do not match, and therefore the data cannot be averaged over.')
+
+    # Removes indices where only one type of the condition is present
+    discard = []
+    for idx, unique_i in enumerate(unique_idc):
+        if len(unique_i) != 2:
+            print(f"Warning: The group {unique_groups[idx]} does not contain entries for both condition types {cond} {types}.\nThis data will be discarded.")
+            discard.append(idx)
+    unique_idc = [unique_idc[i] for i in range(len(unique_idc)) if i not in discard]
+
+    # Removes the S.D. columns from the data for certain alteration methods
+    std_cols = []
+    for name in data.columns:
+        if 'std' in name:
+            std_cols.append(name)
+    if method in ['subtract']:
+        data.drop(columns=std_cols, inplace=True)
+
+    # Alters the data
+    altered = {}
+    for y_key in y_keys:
+        altered[y_key] = []
+        for unique_i in unique_idc:
+            if method == 'subtract':
+                if len(unique_i) != 2:
+                    raise ValueError(f"Two, and only two, subtypes of data for the condition should be provided, but {len(unique_i)} is/are.")
+                altered[y_key].append(data.loc[unique_i[0]][y_key] - data.loc[unique_i[1]][y_key])
+
+    # Collates data for new DataFrame
+    new_cols = []
+    for key in data.columns:
+        new_cols.append([])
+        if key == cond: # the condition which the alteration has been based on
+            if method == 'subtract':
+                for unique_i in unique_idc:
+                    new_cols[-1].append(f"{data[cond][unique_i[0]]}-{data[cond][unique_i[1]]}")
+        elif key in y_keys: # the values that were averaged get used in place of the original values
+            new_cols[-1].extend(altered[key])
+        elif key in x_keys or key in separate: # values which are identical across the averaged group, so can just be...
+        #... copied from the original data
+            for unique_i in unique_idc:
+                new_cols[-1].append(data[key][unique_i[0]])
+        else:
+            print(f"Warning: Unknown key '{key}' present when altering data, setting as NaN.")
+            new_cols[-1].extend([np.nan]*len(unique_idc))
+    
+    # Creates new DataFrame
+    new_data = list(zip(*new_cols[:]))
+    new_data = pd.DataFrame(data=new_data, columns=list(data.columns))
 
     return new_data
 
@@ -1248,5 +1383,173 @@ def data_by_band(data, measures, band_names=None):
         # Collects frequency- and band-wise data
         data = pd.concat([data, band_data], axis=1)
 
+
+    return data
+
+
+
+def extract_data(data, select_type={}, extract={}):
+    """ Extracts particular columns and rows from the a DataFrame to create a new DataFrame.
+
+    PARAMETERS
+    ----------
+    data : pandas DataFrame
+    -   The data from which particular entries will be taken.
+
+    select_type : dict of lists
+    -   A dictionary whose keys correspond to columns in the data and whose values (given as a list) correspond to the
+        particular entries of those columns which should be extracted. E.g. 'med': ['on'], 'subject': [001, 002]. If not
+        provided, all rows of data are taken.
+    
+    extract : dict
+    -   A dictionary whose keys respond to columns in the data which should be included in the new DataFrame, and whose
+        values correspond to the name(s) of this/these new column(s). If the value is None, the key is used as the
+        column name (i.e. the same name as in the original DataFrame). If the value is a str, the str is used as the new
+        columns name. If the value is a list (should be a list of strs), data in the original column will be extracted
+        into several new columns. In this case, the length of the list which specifies the names of the new columns
+        should match the length of the data in the original column. E.g. 'ch_coords' : ['x', 'y', 'z'] would put the
+        first entry of 'ch_coords' into a new column 'x', the second entry into 'y', and the third entry into 'z'.
+
+    RETURNS
+    ----------
+    data : pandas DataFrame
+    -   The extracted data.
+    
+    """
+
+    if select_type == {} and extract == {}:
+        ### Error checking
+        print(f"WARNING: No data is being extracted from the DataFrame, so the original data is being returned.")
+
+    if select_type != {}:
+        ### Discards the unwanted data
+        remove = []
+        for data_i in range(len(data)):
+            for key in select_type.keys():
+                if data.iloc[data_i][key] not in select_type[key]:
+                    remove.append(data_i)
+        remove = np.unique(remove)
+        data.drop(remove, inplace=True)
+        data.reset_index(drop=True, inplace=True)
+
+    if extract != {}:
+        ### Extracts the required data
+        ## Sets up the new data holder
+        extracted = {}
+        for key in extract.keys():
+            if extract[key] == None: # if the same name should be used for the column in the old and new dataset
+                extracted[key] = data[key]
+            elif type(extract[key]) == str: # if a different name should be used for the column in the old and new dataset
+                extracted[extract[key]] = data[key]
+            elif type(extract[key]) == list: # if data from a single columns in the old dataset is to be extracted into...
+            #... multiple columns in the new dataset
+                for subkey in extract[key]: # sets up the new columns
+                    extracted[subkey] = []
+                for data_i in range(len(data)):
+                    data_x = data.iloc[data_i]
+                    if len(data_x[key]) != len(extract[key]): # checks that the data is being extracted into the correct...
+                    #... number of columns
+                        raise ValueError(f"{len(data_x[key])} element(s) of data is/are attemtping to extract to {len(extract[key])} column(s).")
+                    else:
+                        for key_i, subkey in enumerate(extract[key]):
+                            extracted[subkey].append(data_x[key][key_i])
+    
+    if select_type != {} or extract != {}:
+        ## Creates the new DataFrame
+        data = pd.DataFrame.from_dict(extracted)
+    
+    return data
+
+
+
+def manipulate_data(data, calculate):
+    """ Performs manipulations on data in a DataFrame.
+
+    PARAMETERS
+    ----------
+    data : pandas DataFrame
+    -   The data to be manipulated.
+
+    calculate : dict of dicts
+    -   Instructions on how to manipulate the data. The keys in calculate are the new columns of data that will be added
+        to the DataFrame. Each entry of calculate is also a dictionary, with the following keys recognised:
+        'col' : str (REQUIRED)
+        -   The column in data that will be used for the manipulation.
+        'method' : str (REQUIRED)
+        -   The type of manipulation that will occur. 'avg', 'max', and 'min' are currently supported.
+        'entries' : list of indices (OPTIONAL)
+        -   The index of the values in the data that will be analysed. If not provided, all entries are analysed.
+        'group_by' : list of str (OPTIONAL)
+        -   Specifies the columns in data which should be used to identify the indices of data of the same type (e.g.
+            the same subject and medication condition for ['subject', 'med']) which will be analysed together. If not
+            provided, the manipulations are performed independently for each row of data. If the method requested is
+            'max' or 'min', the corresponding value (i.e. highest or lowest value, respectively) is marked with a 1,
+            whereas all other entries for this group are 0. If the method requested is 'avg', all rows for this group
+            have the same value (i.e. the average value across this group)
+        'drop_after' : bool (OPTIONAL)
+        -   This indicates whether the column specified in 'col' should be removed from the DataFrame after the
+            manipulation has occurred. If True, the column is removed. If False or if not provided, the columns is not
+            removed.
+
+    RETURNS
+    ----------
+    data : pandas DataFrame
+    -   The manipulated data.
+    
+    """
+
+    ### Performs manipulations on the data and adds new data to the DataFrame
+    drop_cols = []
+    for calc_key in calculate.keys():
+        curr_calc = calculate[calc_key]
+        new_entries = {}
+        new_entries[calc_key] = []
+        if 'drop_after' in curr_calc.keys():
+            if curr_calc['drop_after'] == True:
+                drop_cols.append(curr_calc['col'])
+            
+        if 'group_by' in curr_calc.keys():
+            # Gets indices of grouped data
+            names = combine_names(data, curr_calc['group_by'])
+            names_group, idcs_group = unique_names(names)
+            # Collects the data together and performs the calculation
+            for idc in idcs_group:
+                new_data = [0]*len(idc)
+                curr_data = data.iloc[idc][curr_calc['col']]
+                if curr_calc['method'] == 'max':
+                    new_data[np.argmax(curr_data)] = 1
+                elif curr_calc['method'] == 'min':
+                    new_data[np.argmin(curr_data)] = 1
+                elif curr_calc['method'] == 'avg':
+                    new_data = [np.mean(curr_data) for x in new_data]
+                else:
+                    raise ValueError(f"The requested method {curr_calc['method']} is not supported.")
+                new_entries[calc_key].extend(new_data)
+
+        else:
+            for data_i in range(len(data)):
+                data_x = data.iloc[data_i]
+                if 'entries' in curr_calc.keys():
+                    curr_data = data_x[curr_calc['col']][curr_calc['entries']]
+                else:
+                    curr_data = data_x[curr_calc['col']]
+                if curr_calc['method'] == 'max':
+                    calculated = np.max(curr_data)
+                elif curr_calc['method'] == 'min':
+                    calculated = np.min(curr_data)
+                elif curr_calc['method'] == 'avg':
+                    calculated = np.mean(curr_data)
+                else:
+                    raise ValueError(f"The requested method {curr_calc['method']} is not supported.")
+                new_entries[calc_key].append(calculated)
+
+        ## Adds the new data
+        new_data = pd.DataFrame.from_dict(new_entries)
+        data = pd.concat([data, new_data], axis=1)
+
+    ### Removes redundant columns before returning the data, if applicable
+    if drop_cols != []:
+        drop_cols = np.unique(drop_cols)
+        data.drop(columns=drop_cols, inplace=True)
 
     return data

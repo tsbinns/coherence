@@ -9,7 +9,7 @@ import helpers
 
 
 def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_std=True, n_plots_per_page=6,
-                 freq_limit=None, power_limit=None, same_y=True, avg_as_equal=True):
+                 freq_limit=None, power_limit=None, same_y=True, avg_as_equal=True, mark_y0=False):
     """ Plots frequency-wise PSDs of the data.
 
     PARAMETERS
@@ -53,6 +53,10 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
         been averaged across subjects 1 & 2, but other data across subjects 3 & 4, avg_as_equal = True would treat this
         data as if it was the same group of data.
 
+    mark_y0 : bool, default False
+    -   Whether or not to draw a dotted line where y = 0. If False (default), no line is drawn. If True, a line is
+        drawn.
+
 
     RETURNS
     ----------
@@ -60,6 +64,16 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     """
 
     ### Setup
+    # Checks to make sure that S.D. data is present if it is requested
+    if plot_std is True:
+        std_present = False
+        for col in psd.columns:
+            if 'std' in col:
+                std_present = True
+        if std_present == False:
+            print(f"Warning: Standard deviation data is not present, so it cannot be plotted.")
+            plot_std = False
+
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
         remove = []
@@ -131,7 +145,7 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                 group_ylim = helpers.same_axes(psd.psd[idc_group_master] + psd.psd_std[idc_group_master])
             else:
                 group_ylim = helpers.same_axes(psd.psd[idc_group_master])
-            group_ylim[0] = 0
+            #group_ylim[0] = 0
 
         # Gets indices of figure-grouped data
         names_fig = helpers.combine_names(psd.iloc[idc_group_master], group_fig, joining=',')
@@ -235,6 +249,13 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                         axs[row_i, col_i].fill_between(data.freqs[:freq_limit_i+1], std_plus, std_minus,
                                                                        color=colour, alpha=colour[-1]*.2)
 
+                                # Demarcates 0 on the y-axis, if requested
+                                if mark_y0 == True:
+                                    xlim = axs[row_i, col_i].get_xlim()
+                                    xlim_trim = (xlim[1] - xlim[0])*.05
+                                    axs[row_i, col_i].plot([xlim[0]+xlim_trim, xlim[1]-xlim_trim], [0,0], color='grey',
+                                        linestyle='dashed')
+
                                 # Sets all y-axes to be equal (if requested)
                                 if same_y == True:
                                     axs[row_i, col_i].set_ylim(*group_ylim)
@@ -313,6 +334,16 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     """
 
     ### Setup
+    # Checks to make sure that S.D. data is present if it is requested
+    if plot_std is True:
+        std_present = False
+        for col in psd.columns:
+            if 'std' in col:
+                std_present = True
+        if std_present == False:
+            print(f"Warning: Standard deviation data is not present, so it cannot be plotted.")
+            plot_std = False
+
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
         remove = []
@@ -524,18 +555,18 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                 if 'max' in keys_to_plot:
                                     ylim = axs[row_i, col_i].get_ylim()
                                     for fmax_i, fmax in enumerate(fmaxs):
-                                        text_ypos = data.fbands_max[fmax_i]+ylim[1]*.01 # where to put text
+                                        text_ypos = data.fbands_max[fmax_i]+ylim[1]*.02 # where to put text
                                         if plot_std == True:
                                             text_ypos += data.fbands_max_std[fmax_i]
                                         # adds the fmax values at an angle to the bars one at a time
                                         axs[row_i, col_i].text(group_locs[1][fmax_i], text_ypos, fmax+'Hz', ha='center',
-                                                               rotation=60)
+                                                               rotation=90)
                                     if plot_std == False:
-                                        added_height = .1
+                                        added_height = .15
                                     else:
                                         added_height = .2
-                                    axs[row_i, col_i].set_ylim([ylim[0], ylim[1]+ylim[1]*added_height]) # increases...
-                                    #... the subplot height to accomodate the text
+                                    axs[row_i, col_i].set_ylim([ylim[0], ylim[1]+ylim[1]*added_height]) # increases the subplot height...
+                                    #... to accomodate the text
 
                                 plotgroup_i+= 1 # moves on to the next data to plot
                                 if idc_group_plot[0] == idc_group_fig[-1]: # if there is no more data to plot for...
@@ -665,7 +696,7 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                                                    ha='center', rotation=90)
                                             data_i += 1
                                     if plot_std == False:
-                                        added_height = .1
+                                        added_height = .15
                                     else:
                                         added_height = .2
                                     axs[row_i, col_i].set_ylim([ylim[0], ylim[1]+ylim[1]*added_height]) # increases...
@@ -693,7 +724,7 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
 
 
 def psd_bandwise_gb(psd, areas, group_master, group_fig=[], group_plot=[], plot_shuffled=False, n_plots_per_page=6,
-                    keys_to_plot=['avg', 'max'], same_y_groupwise=False, same_y_bandwise=False, normalise=['False', []],
+                    keys_to_plot=['avg', 'max'], same_y_groupwise=False, same_y_bandwise=False, normalise=[False, []],
                     avg_as_equal=True):
     """ Plots frequency band-wise PSDs of the data on a glass brain.
 
@@ -1022,7 +1053,7 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], group_plot=[], plot_
 
 
 def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_std=True, n_plots_per_page=6,
-                 freq_limit=None, same_y=True, avg_as_equal=True):
+                 freq_limit=None, same_y=True, avg_as_equal=True, mark_y0=True):
     """ Plots single-frequency-wise coherence data.
 
     PARAMETERS
@@ -1067,6 +1098,10 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
         been averaged across subjects 1 & 2, but other data across subjects 3 & 4, avg_as_equal = True would treat this
         data as if it was the same group of data.
 
+    mark_y0 : bool, default False
+    -   Whether or not to draw a dotted line where y = 0. If False (default), no line is drawn. If True, a line is
+        drawn.
+
 
     RETURNS
     ----------
@@ -1074,6 +1109,16 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     """
 
     ### Setup
+    # Checks to make sure that S.D. data is present if it is requested
+    if plot_std is True:
+        std_present = False
+        for col in coh.columns:
+            if 'std' in col:
+                std_present = True
+        if std_present == False:
+            print(f"Warning: Standard deviation data is not present, so it cannot be plotted.")
+            plot_std = False
+
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
         remove = []
@@ -1254,6 +1299,13 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                     axs[row_i, col_i].fill_between(data.freqs[:freq_limit_i+1], std_plus, std_minus,
                                                                    color=colour, alpha=colour[-1]*.2)
                                 
+                                # Demarcates 0 on the y-axis, if requested
+                                if mark_y0 == True:
+                                    xlim = axs[row_i, col_i].get_xlim()
+                                    xlim_trim = (xlim[1] - xlim[0])*.05
+                                    axs[row_i, col_i].plot([xlim[0]+xlim_trim, xlim[1]-xlim_trim], [0,0], color='grey',
+                                        linestyle='dashed')
+
                                 # Sets all y-axes to be equal (if requested)
                                 if same_y == True:
                                     axs[row_i, col_i].set_ylim(*group_ylim)
@@ -1327,6 +1379,16 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     """
 
     ### Setup
+    # Checks to make sure that S.D. data is present if it is requested
+    if plot_std is True:
+        std_present = False
+        for col in coh.columns:
+            if 'std' in col:
+                std_present = True
+        if std_present == False:
+            print(f"Warning: Standard deviation data is not present, so it cannot be plotted.")
+            plot_std = False
+
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
         remove = []
