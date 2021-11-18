@@ -15,8 +15,8 @@ import matplotlib; matplotlib.use('TKAgg')
 cd_path = Path(__file__).absolute().parent.parent
 sys.path.append(os.path.join(cd_path, 'coherence'))
 
-main_path = 'C:\\Users\\tomth\\Data\\BIDS_Berlin_ECOG_LFP\\rawdata'
-project_path = 'C:\\Users\\tomth\\OneDrive\\My Documents\\Work\\Courses\\Berlin\\ECN\\ICN\\Data\\BIDS_Berlin_ECOG_LFP\\projects\\coherence'
+main_path = 'C:\\Users\\tomth\\Data\\BIDS_Beijing_ECOG_LFP\\rawdata'
+project_path = 'C:\\Users\\tomth\\OneDrive\\My Documents\\Work\\Courses\\Berlin\\ECN\\ICN\\Data\\BIDS_Beijing_ECOG_LFP\\projects\\coherence'
 
 import preprocessing
 import processing
@@ -25,10 +25,11 @@ from helpers import combine_data
 
 ## Setup =====
 # Loads settings for analysis
-sub = '007'
+sub = 'FOGC001'
 task = 'Rest'
 med = 'MedOff'
 stim = 'StimOff'
+orig_time = None
 with open(os.path.join(project_path, 'settings.json')) as json_file:
     settings = json.load(json_file)
     analysis = settings['analyses'][task]
@@ -50,6 +51,8 @@ for i in sub_data:
     
     try:
         annots = read_annotations(os.path.join(project_path, 'annotations', bids_path.basename+'.csv'))
+        if orig_time != []:
+            annots._orig_time = orig_time
     except:
         print('No annotations to read.')
     
