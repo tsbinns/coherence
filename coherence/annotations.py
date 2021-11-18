@@ -1,8 +1,9 @@
 import matplotlib.pyplot as plt
 import os.path
+from mne import events_from_annotations, annotations_from_events
 
 
-def annotate(raw, annot_path, orig_time=[]):
+def annotate(raw, annot_path):
     """ Plot raw data for annotation.
 
     PARAMETERS
@@ -13,14 +14,11 @@ def annotate(raw, annot_path, orig_time=[]):
     annot_path : str
     -   Filepath to where the annotations should be saved.
 
-    orig_time : list (default), None, or datetime
-    -   What 'orig_time' to assign the annotations. If '[]' (default), the time of raw data acquisition is used. If
-        None, no time is assigned. If a datetime, that timestamp is used.
-
 
     RETURNS
     ----------
-    N/A
+    raw : MNE Raw object
+    -   The data with the annotations.
     
     """
     
@@ -35,10 +33,6 @@ def annotate(raw, annot_path, orig_time=[]):
     # Shows the data for annotation
     raw.plot(scalings='auto')
     plt.tight_layout()
-
-    # Sets the annotation 'orig_time'
-    if orig_time != []:
-        raw.annotations.orig_time = orig_time
 
     # Saves the annotations
     get_answer = False
@@ -63,3 +57,54 @@ def annotate(raw, annot_path, orig_time=[]):
         else:
             print('This is not a valid input. Try again.')
 
+
+    return raw
+
+
+
+def set_orig_time(raw, annot_path, orig_time):
+    """ Sets the orig_time parameter for a set of annotations.
+
+    PARAMETERS
+    ----------
+    raw : MNE Raw object
+    -   The Raw object with annotations whose orig_time will be modified.
+
+    annot_path : str
+    -   Filepath to where the annotations should be saved.
+
+    orig_time : None, DateTime
+    -   The new orig_time.
+
+    RETURNS
+    ----------
+    raw : MNE Raw object
+    -   The Raw object with annotations with the new orig_time.
+    
+    """
+
+    ### Extracts events from the annotations
+    events = events_from_annotations(raw, event_id=None)
+
+    ### Creates new annotations from the events with the new orig_time
+    annots = annotations_from_events(events=events, sfreq=raw.sfreq, orig_time=orig_time)
+
+    ### Adds the modified annotations to the raw object and saves them
+    ## Adds annotations
+    raw.set_annotations(annots)
+    ## Saves them
+    get_answer = False
+    while not get_answer:
+        save = input(f"Do you want to set the annotation start times to {orig_time}? (y/n): ")
+        if save == 'y':
+            print('Saving annotations with the specified orig_time to: ', annot_path)
+            raw.annotations.save(annot_path, overwrite=True)
+            get_answer = True
+        elif save == 'n':
+            print('Discarding annotations.')
+            get_answer = True
+        else:
+            print('This is not a valid input. Try again.')
+
+
+    return raw
