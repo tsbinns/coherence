@@ -866,7 +866,7 @@ def average_data(data, axis=0):
 
 
 
-def average_dataset(data, avg_over, separate, x_keys, y_keys):
+def average_dataset(data, avg_over, separate, x_keys, y_keys, recalculate_maxs=True):
     """ Averages data over specific factors (e.g. runs, subjects).
 
     PARAMETERS
@@ -887,6 +887,12 @@ def average_dataset(data, avg_over, separate, x_keys, y_keys):
 
     y_keys : list of strs
     -   The names of the columns in the DataFrame whose values should be averaged.
+
+    recalculate_maxs : bool, default True
+    -   Whether or not to recalculate the maximum frequency-band values (i.e. fbands_max, fbands_fmax) based on the
+        averaged data. If True, these values are recalculated (and corresponding standard deviation values are
+        discarded, with new values not computed). If False, these values are not recalculated, and the average of the
+        pre-existing maximum values is used (with new corresponding standard values calculated).
 
 
     RETURNS
@@ -965,8 +971,26 @@ def average_dataset(data, avg_over, separate, x_keys, y_keys):
     # Creates new DataFrame
     new_data = list(zip(*new_cols[:]))
     new_data = pd.DataFrame(data=new_data, columns=list(data.columns))
-            
 
+    # Recalculates maximum values based on the averaged data, if requested
+    if recalculate_maxs == True:
+        # Checks for the correct format of the data
+        if 'psd' in new_data.keys() and 'coh' not in new_data.keys():
+            data_key = 'psd'
+        elif 'coh' in new_data.keys() and 'psd' not in new_data.keys():
+            data_key = 'coh'
+        else:
+            raise ValueError(f"One and only one of 'psd' or 'coh' must be included in the DataFrame.")
+        
+        # Recalculates maximum values
+        for data_i in new_data.index:
+            data = new_data.iloc[data_i]
+            recalc_max, recalc_fmax = recalculate_band_max(data[data_key], data.freqs, data.fbands)
+            data.fbands_max = recalc_max
+            data.fbands_fmax = recalc_fmax
+        new_data.drop(columns=['fbands_max_std', 'fbands_fmax_std'], inplace=True)
+
+            
     return new_data
 
 
@@ -1385,6 +1409,44 @@ def data_by_band(data, measures, band_names=None):
 
 
     return data
+
+
+
+def recalculate_band_max(data, freqs, fbands):
+    """ Calculates the maximum values and the frequencies of the maximum values in frequency bands.
+
+    PARAMETERS
+    ----------
+    data : list, array
+    -   The data to calculate the maximum values for, with size 1 x n_frequencies.
+
+    freqs : list, array
+    -   The frequencies corresponding to the values in data, with size 1 x n_frequencies.
+
+    fbands : list of str
+    -   The names of the frequency bands in which the maximum values should be calculated, with size 1 x
+        n_frequency-bands.
+    
+    RETURNS
+    ----------
+    fbands_max : numpy array
+    -   The maximum frequency values in each band, with size 1 x n_frequency-bands
+
+    fbands_fmax : numpy array
+    -   The frequency at which the maximum frequency values in each band occurs, with size 1 x n_frequency-bands.
+
+    """
+
+    fbands_max = []
+    fbands_fmax = []
+    fbands_info = freq_band_info(fbands) # the frequency bands to analyse
+    fbands_idc = freq_band_indices(freqs, fbands_info) # indices of the frequency bands
+
+    for fband in fbands:
+        fbands_max.append(data[fbands_idc[fband][0]:fbands_idc[fband][1]+1].max()) # maximum frequency in each band
+        fbands_fmax.append(freqs[np.where(data==fbands_max[-1])[0][0]]) # frequency of the maximum in each band
+
+    return np.array(fbands_max), np.array(fbands_fmax)
 
 
 
