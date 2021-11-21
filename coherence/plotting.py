@@ -335,15 +335,15 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
 
     ### Setup
     # Checks to make sure that S.D. data is present if it is requested
+    avg_std_present = False
+    max_std_present = False
     if plot_std is True:
-        avg_std_present = False
-        max_std_present = False
         for col in psd.columns:
             if 'avg_std' in col:
                 avg_std_present = True
             if 'max_std' in col:
                 max_std_present = True
-        if avg_std_present == False or max_std_present == False:
+        if avg_std_present == False and max_std_present == False:
             print(f"Warning: Standard deviation data is not present, so it cannot be plotted.")
             plot_std = False
 
@@ -1384,13 +1384,16 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     ### Setup
     # Checks to make sure that S.D. data is present if it is requested
     if plot_std is True:
-        std_present = False
         for col in coh.columns:
-            if 'std' in col:
-                std_present = True
-        if std_present == False:
+            if 'avg_std' in col:
+                avg_std_present = True
+            if 'max_std' in col:
+                max_std_present = True
+        if avg_std_present == False and max_std_present == False:
             print(f"Warning: Standard deviation data is not present, so it cannot be plotted.")
             plot_std = False
+    avg_std_present = False
+    max_std_present = False
 
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
@@ -1580,7 +1583,7 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
 
                                         if 'fbands_max' in key: # gets the std of the fmax data to add to the plots
                                             fmaxs.append(str(int(data.fbands_fmax[band_i])))
-                                            if plot_std == True:
+                                            if max_std_present == True:
                                                 fmax_std = u'\u00B1'+str(int(np.ceil(data.fbands_fmax_std[band_i])))
                                                 fmaxs[-1] += fmax_std
 
@@ -1606,7 +1609,7 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                     ylim = axs[row_i, col_i].get_ylim()
                                     for fmax_i, fmax in enumerate(fmaxs):
                                         text_ypos = data.fbands_max[fmax_i]+ylim[1]*.01 # where to put text
-                                        if plot_std == True:
+                                        if max_std_present == True:
                                             text_ypos += data.fbands_max_std[fmax_i]
                                         # adds the fmax values at an angle to the bars one at a time
                                         axs[row_i, col_i].text(group_locs[1][fmax_i], text_ypos, fmax+'Hz', ha='center',
@@ -1677,7 +1680,7 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                                 if 'fbands_max' in key: # gets the std of the fmax data to add to the...
                                                 #... plots
                                                     fmaxs[ch_i].append(str(int(data.loc[ch_idx].fbands_fmax[band_i])))
-                                                    if plot_std == True:
+                                                    if max_std_present == True:
                                                         fmax_std = u'\u00B1'+str(int(
                                                                    np.ceil(data.loc[ch_idx].fbands_fmax_std[band_i])))
                                                         fmaxs[ch_i][-1] += fmax_std
@@ -1725,10 +1728,10 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                         sorted_fmaxs.append(fmaxs[0][fmax_i])
                                         sorted_fmaxs.append(fmaxs[1][fmax_i])
                                         sorted_ypos.append(data.iloc[0].fbands_max[fmax_i]+ylim[1]*.02)
-                                        if plot_std == True:
+                                        if max_std_present == True:
                                             sorted_ypos[-1] += data.iloc[0].fbands_max_std[fmax_i]
                                         sorted_ypos.append(data.iloc[1].fbands_max[fmax_i]+ylim[1]*.02)
-                                        if plot_std == True:
+                                        if max_std_present == True:
                                             sorted_ypos[-1] += data.iloc[1].fbands_max_std[fmax_i]
 
                                     data_i = 0
