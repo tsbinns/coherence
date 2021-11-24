@@ -580,7 +580,7 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                             
                             elif len(data_keys) == 1: # if data of multiple conditions is being plotted
                                 
-                                if len(idc_group_plot) != 2:
+                                if len(idc_group_plot) > 2:
                                     raise ValueError(f"Subgroups of data from the condition {data_keys[0]} is being plotted on the same figure. A maximum of data from two subgroups (e.g. MedOff vs. MedOn) is supported, but data from {len(idc_group_plot)} subgroups is being plotted.")
 
                                 data = psd.iloc[idc_group_plot] # the data to plot
@@ -680,14 +680,11 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                     #... groups (e.g. MedOff vs. MedOn) for alternative plotting (e.g. MedOff value,...
                                     #... MedOn Value, etc...)
                                     for fmax_i in range(len(fmaxs[0])):
-                                        sorted_fmaxs.append(fmaxs[0][fmax_i])
-                                        sorted_fmaxs.append(fmaxs[1][fmax_i])
-                                        sorted_ypos.append(data.iloc[0].fbands_max[fmax_i]+ylim[1]*.02)
-                                        if max_std_present == True:
-                                            sorted_ypos[-1] += data.iloc[0].fbands_max_std[fmax_i]
-                                        sorted_ypos.append(data.iloc[1].fbands_max[fmax_i]+ylim[1]*.02)
-                                        if max_std_present == True:
-                                            sorted_ypos[-1] += data.iloc[1].fbands_max_std[fmax_i]
+                                        for ch_i in range(len(fmaxs)):
+                                            sorted_fmaxs.append(fmaxs[ch_i][fmax_i])
+                                            sorted_ypos.append(data.iloc[ch_i].fbands_max[fmax_i]+ylim[1]*.02)
+                                            if max_std_present == True:
+                                                sorted_ypos[-1] += data.iloc[ch_i].fbands_max_std[fmax_i]
 
                                     data_i = 0
                                     for subgroup_i in range(len(fmaxs)):
@@ -1625,7 +1622,7 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
 
                             elif len(data_keys) == 1:
 
-                                if len(idc_group_plot) != 2:
+                                if len(idc_group_plot) > 2:
                                     raise ValueError(f"Subgroups of data from the condition {data_keys[0]} is being plotted on the same figure. A maximum of data from two subgroups (e.g. MedOff vs. MedOn) is supported, but data from {len(idc_group_plot)} subgroups is being plotted.")
 
                                 data = coh.iloc[idc_group_plot] # the data to plot
@@ -1725,14 +1722,11 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                     #... groups (e.g. MedOff vs. MedOn) for alternative plotting (e.g. MedOff value,...
                                     #... MedOn Value, etc...)
                                     for fmax_i in range(len(fmaxs[0])):
-                                        sorted_fmaxs.append(fmaxs[0][fmax_i])
-                                        sorted_fmaxs.append(fmaxs[1][fmax_i])
-                                        sorted_ypos.append(data.iloc[0].fbands_max[fmax_i]+ylim[1]*.02)
-                                        if max_std_present == True:
-                                            sorted_ypos[-1] += data.iloc[0].fbands_max_std[fmax_i]
-                                        sorted_ypos.append(data.iloc[1].fbands_max[fmax_i]+ylim[1]*.02)
-                                        if max_std_present == True:
-                                            sorted_ypos[-1] += data.iloc[1].fbands_max_std[fmax_i]
+                                        for ch_i in range(len(fmaxs)):
+                                            sorted_fmaxs.append(fmaxs[ch_i][fmax_i])
+                                            sorted_ypos.append(data.iloc[ch_i].fbands_max[fmax_i]+ylim[1]*.02)
+                                            if max_std_present == True:
+                                                sorted_ypos[-1] += data.iloc[ch_i].fbands_max_std[fmax_i]
 
                                     data_i = 0
                                     for subgroup_i in range(len(fmaxs)):
