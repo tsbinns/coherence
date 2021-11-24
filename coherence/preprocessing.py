@@ -197,11 +197,15 @@ def reref_data(data, info, rereferencing, ch_coords):
     channs_i_sorted = [] # holder for the indices of the sorted data
     for ref_type in np.unique(reref_type): # for each type of reref. applied
         ref_channs_i = [i for i, x in enumerate(reref_type) if x == ref_type] # finds the indices of these channels
+        """ OLD IMPLEMENTATION THAT BREAKS WHEN COMPARING '1_' AND '10_'
         ref_channs = [new_channs[i] for i in ref_channs_i] # gets the name of these channels
         idx = range(len(ref_channs_i))
         sorted_i = sorted(idx, key=lambda x:ref_channs[x]) # sorts the channels alphabetically
         channs_i_sorted.extend([ref_channs_i[i] for i in sorted_i]) # gets the indices of the sorted channels in...
         #... the original data
+        """
+        channs_i_sorted = ref_channs_i # SIMPLER IMPLEMENTATION THAT LEAVES CHANNELS IN THE ORDER THEY ARE SPECIFIED...
+        #... IN SETTINGS.JSON
     new_channs_sorted = [new_channs[i] for i in channs_i_sorted] # sorts the names of the channels
     reref_data_sorted = [reref_data[i] for i in channs_i_sorted] # sorts the data itself
     channs_type_sorted = [channs_type[i] for i in channs_i_sorted] # sorts the type of the data
