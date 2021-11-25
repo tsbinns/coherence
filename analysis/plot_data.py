@@ -106,11 +106,11 @@ if singlesubj_allchann == True:
     plotting.psd_freqwise(psd, group_master=['reref_type', 'ch_type'],
                         group_plot=['ch_name'],
                         plot_shuffled=False, plot_std=False, freq_limit=50, power_limit=15, mark_y0=False,
-                        n_plots_per_page=10)
+                        plot_layout=[3,4])
     plotting.psd_bandwise(psd, group_master=['reref_type', 'ch_type'],
                         group_fig=['reref_type', 'ch_type', 'data_type'],
                         group_plot=['ch_name'],
-                        plot_shuffled=False, plot_std=False, same_y=True, n_plots_per_page=10)
+                        plot_shuffled=False, plot_std=False, same_y=True, plot_layout=[3,4])
     plotting.psd_bandwise_gb(psd, areas=['cortical'], group_master=['reref_type', 'ch_type'],
                             group_fig=['reref_type', 'ch_type', 'data_type'],
                             group_plot=['med'],
@@ -120,11 +120,11 @@ if singlesubj_allchann == True:
     plotting.coh_freqwise(coh, group_master=['reref_type_cortical', 'reref_type_deep', 'method'],
                         group_plot=['ch_name_cortical', 'ch_name_deep'],
                         plot_shuffled=False, plot_std=False, freq_limit=50, same_y=True, mark_y0=False,
-                        n_plots_per_page=10)
+                        plot_layout=[3,4])
     plotting.coh_bandwise(coh, group_master=['reref_type_cortical', 'reref_type_deep', 'method'],
                         group_fig=['reref_type_cortical', 'reref_type_deep', 'method', 'data_type'],
                         group_plot=['ch_name_cortical', 'ch_name_deep'],
-                        plot_shuffled=False, plot_std=False, same_y=True, n_plots_per_page=10)
+                        plot_shuffled=False, plot_std=False, same_y=True, plot_layout=[3,4])
     plotting.coh_bandwise_gb(coh, areas=['cortical'], group_master=['reref_type_cortical', 'reref_type_deep', 'method'],
                             group_fig=['reref_type_cortical', 'reref_type_deep', 'method', 'data_type'],
                             group_plot=['med'],
