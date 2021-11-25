@@ -6,9 +6,7 @@ from mne_bids import read_raw_bids, BIDSPath
 from mne import read_annotations
 import numpy as np
 import json
-import pandas as pd
 from copy import deepcopy
-import matplotlib; matplotlib.use('TKAgg')
 
 
 # Gets path info
@@ -25,7 +23,7 @@ from helpers import combine_data
 
 ## Setup =====
 # Loads settings for analysis
-sub = 'FOGC001'
+sub = 'FOG011'
 task = 'Rest'
 med = 'MedOff'
 stim = 'StimOff'
