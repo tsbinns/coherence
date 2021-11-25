@@ -7,6 +7,7 @@ from mne import read_annotations
 import numpy as np
 import json
 from copy import deepcopy
+import matplotlib; matplotlib.use('TKAgg')
 
 
 # Gets path info
