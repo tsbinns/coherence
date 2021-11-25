@@ -1,4 +1,3 @@
-from mne.io.brainvision.brainvision import _parse_impedance_ranges
 import mne.time_frequency as tf
 import mne.connectivity as con
 import numpy as np
