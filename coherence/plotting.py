@@ -8,7 +8,7 @@ import datetime
 import helpers
 
 
-def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_std=True, n_plots_per_page=6,
+def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_std=True, plot_layout=[2,3],
                  freq_limit=None, power_limit=None, same_y=True, avg_as_equal=True, mark_y0=False):
     """ Plots frequency-wise PSDs of the data.
 
@@ -34,8 +34,9 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     plot_shuffled : bool, default False
     -   Whether or not to plot PSDs for the shuffled LFP data.
 
-    n_plots_per_page : int
-    -   The number of subplots to include on each page. 6 by default.
+    plot_layout : list of ints of size [1 x 2]
+    -   A list specifying how plots should be layed out on the page. plot_layout[0] is the number of rows, and
+        plot_layout[1] is the number of columns. [2, 3] by default, i.e. 2 rows and 3 columns.
 
     freq_limit : int | float
     -   The frequency (in Hz) at which to stop plotting data. If None (default), up to the maximum frequency in the data
@@ -167,9 +168,10 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                 idcs_group_plot[plotgroup_i] = [idc_group_fig[i] for i in idc_group_plot]
 
             n_plots = len(idcs_group_plot) # number of plots to make for this type
+            n_plots_per_page = int(plot_layout[0]*plot_layout[1]) # number of plots on each page
             n_pages = int(np.ceil(n_plots/n_plots_per_page)) # number of pages these plots will need
-            n_rows = int(np.sqrt(n_plots_per_page)) # number of rows these pages will need
-            n_cols = int(np.ceil(n_plots_per_page/n_rows)) # number of columns these pages will need
+            n_rows = plot_layout[0] # number of rows these pages will need
+            n_cols = plot_layout[1] # number of columns these pages will need
 
             stop = False
             plotgroup_i = 0
@@ -283,7 +285,7 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
 
 
 
-def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_std=True, n_plots_per_page=6,
+def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_std=True, plot_layout=[2,3],
                  keys_to_plot=['avg', 'max'], same_y=True, avg_as_equal=True):
     """ Plots frequency band-wise PSDs of the data.
 
@@ -312,8 +314,9 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     plot_std : bool, default True
     -   Whether or not to plot standard deviation values (if they are present) alongside the data.
 
-    n_plots_per_page : int
-    -   The number of subplots to include on each page. 6 by default.
+    plot_layout : list of ints of size [1 x 2]
+    -   A list specifying how plots should be layed out on the page. plot_layout[0] is the number of rows, and
+        plot_layout[1] is the number of columns. [2, 3] by default, i.e. 2 rows and 3 columns.
         
     keys_to_plot : list of strs
     -   The keys of the band-wise values to plot.
@@ -456,9 +459,10 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                 idcs_group_plot[plotgroup_i] = [idc_group_fig[i] for i in idc_group_plot]
 
             n_plots = len(idcs_group_plot) # number of plots to make for this type
+            n_plots_per_page = int(plot_layout[0]*plot_layout[1]) # number of plots on each page
             n_pages = int(np.ceil(n_plots/n_plots_per_page)) # number of pages these plots will need
-            n_rows = int(np.sqrt(n_plots_per_page)) # number of rows these pages will need
-            n_cols = int(np.ceil(n_plots_per_page/n_rows)) # number of columns these pages will need
+            n_rows = plot_layout[0] # number of rows these pages will need
+            n_cols = plot_layout[1] # number of columns these pages will need
 
             stop = False
             plotgroup_i = 0
@@ -723,7 +727,7 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
 
 
 
-def psd_bandwise_gb(psd, areas, group_master, group_fig=[], group_plot=[], plot_shuffled=False, n_plots_per_page=6,
+def psd_bandwise_gb(psd, areas, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_layout=[2,3],
                     keys_to_plot=['avg', 'max'], same_y_groupwise=False, same_y_bandwise=False, normalise=[False, []],
                     avg_as_equal=True):
     """ Plots frequency band-wise PSDs of the data on a glass brain.
@@ -755,8 +759,9 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], group_plot=[], plot_
     plot_shuffled : bool, default False
     -   Whether or not to plot coherence values for the shuffled LFP data.
 
-    n_plots_per_page : int
-    -   The number of subplots to include on each page. 6 by default.
+    plot_layout : list of ints of size [1 x 2]
+    -   A list specifying how plots should be layed out on the page. plot_layout[0] is the number of rows, and
+        plot_layout[1] is the number of columns. [2, 3] by default, i.e. 2 rows and 3 columns.
         
     keys_to_plot : list of strs
     -   The keys of the band-wise values to plot.
@@ -957,10 +962,11 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], group_plot=[], plot_
                     wind_title, included = helpers.window_title(fig_info, base_title=f'PSD-{plot_key}:',
                                                                 full_info=False)
 
-                    n_plots = len(fbands) # number of plots to make for this type
+                    n_plots = len(idcs_group_plot) # number of plots to make for this type
+                    n_plots_per_page = int(plot_layout[0]*plot_layout[1]) # number of plots on each page
                     n_pages = int(np.ceil(n_plots/n_plots_per_page)) # number of pages these plots will need
-                    n_rows = int(np.sqrt(n_plots_per_page)) # number of rows these pages will need
-                    n_cols = int(np.ceil(n_plots_per_page/n_rows)) # number of columns these pages will need
+                    n_rows = plot_layout[0] # number of rows these pages will need
+                    n_cols = plot_layout[1] # number of columns these pages will need
 
                     stop = False
                     fband_i = 0
@@ -1052,7 +1058,7 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], group_plot=[], plot_
 
 
 
-def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_std=True, n_plots_per_page=6,
+def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_std=True, plot_layout=[2,3],
                  freq_limit=None, same_y=True, avg_as_equal=True, mark_y0=True):
     """ Plots single-frequency-wise coherence data.
 
@@ -1082,8 +1088,9 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     plot_std : bool, default True
     -   Whether or not to plot standard deviation values (if they are present) alongside the data.
 
-    n_plots_per_page : int
-    -   The number of subplots to include on each page. 6 by default.
+    plot_layout : list of ints of size [1 x 2]
+    -   A list specifying how plots should be layed out on the page. plot_layout[0] is the number of rows, and
+        plot_layout[1] is the number of columns. [2, 3] by default, i.e. 2 rows and 3 columns.
 
     freq_limit : int | float
     -   The frequency (in Hz) at which to stop plotting data. If None (default), up to the maximum frequency in the data
@@ -1218,9 +1225,10 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                 idcs_group_plot[plotgroup_i] = [idc_group_fig[i] for i in idc_group_plot]
 
             n_plots = len(idcs_group_plot) # number of plots to make for this type
+            n_plots_per_page = int(plot_layout[0]*plot_layout[1]) # number of plots on each page
             n_pages = int(np.ceil(n_plots/n_plots_per_page)) # number of pages these plots will need
-            n_rows = int(np.sqrt(n_plots_per_page)) # number of rows these pages will need
-            n_cols = int(np.ceil(n_plots_per_page/n_rows)) # number of columns these pages will need
+            n_rows = plot_layout[0] # number of rows these pages will need
+            n_cols = plot_layout[1] # number of columns these pages will need
 
             stop = False
             plotgroup_i = 0
@@ -1327,7 +1335,7 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
 
 
 
-def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_std=True, n_plots_per_page=6,
+def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_std=True, plot_layout=[2,3],
                  keys_to_plot=['avg', 'max'], same_y=True, avg_as_equal=True):
     """ Plots frequency band-wise coherence data.
 
@@ -1357,8 +1365,9 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     plot_std : bool, default True
     -   Whether or not to plot standard deviation values (if they are present) alongside the data.
 
-    n_plots_per_page : int
-    -   The number of subplots to include on each page. 6 by default.
+    plot_layout : list of ints of size [1 x 2]
+    -   A list specifying how plots should be layed out on the page. plot_layout[0] is the number of rows, and
+        plot_layout[1] is the number of columns. [2, 3] by default, i.e. 2 rows and 3 columns.
         
     keys_to_plot : list of strs
     -   The keys of the band-wise values to plot.
@@ -1503,9 +1512,10 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                 idcs_group_plot[plotgroup_i] = [idc_group_fig[i] for i in idc_group_plot]
 
             n_plots = len(idcs_group_plot) # number of plots to make for this type
+            n_plots_per_page = int(plot_layout[0]*plot_layout[1]) # number of plots on each page
             n_pages = int(np.ceil(n_plots/n_plots_per_page)) # number of pages these plots will need
-            n_rows = int(np.sqrt(n_plots_per_page)) # number of rows these pages will need
-            n_cols = int(np.ceil(n_plots_per_page/n_rows)) # number of columns these pages will need
+            n_rows = plot_layout[0] # number of rows these pages will need
+            n_cols = plot_layout[1] # number of columns these pages will need
 
             stop = False
             plotgroup_i = 0
@@ -1766,7 +1776,7 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
 
 
 
-def coh_bandwise_gb(coh, areas, group_master, group_fig=[], group_plot=[], plot_shuffled=False, n_plots_per_page=6,
+def coh_bandwise_gb(coh, areas, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_layout=[2,3],
                     keys_to_plot=['avg', 'max'], same_y_groupwise=False, same_y_bandwise=True, normalise=[False,[]],
                     avg_as_equal=True):
     """ Plots frequency band-wise coherence of the data on a glass brain.
@@ -1799,8 +1809,9 @@ def coh_bandwise_gb(coh, areas, group_master, group_fig=[], group_plot=[], plot_
     plot_shuffled : bool, default False
     -   Whether or not to plot coherence values for the shuffled LFP data.
 
-    n_plots_per_page : int
-    -   The number of subplots to include on each page. 6 by default.
+    plot_layout : list of ints of size [1 x 2]
+    -   A list specifying how plots should be layed out on the page. plot_layout[0] is the number of rows, and
+        plot_layout[1] is the number of columns. [2, 3] by default, i.e. 2 rows and 3 columns.
         
     keys_to_plot : list of strs
     -   The keys of the band-wise values to plot.
@@ -1988,10 +1999,11 @@ def coh_bandwise_gb(coh, areas, group_master, group_fig=[], group_plot=[], plot_
                     wind_title, _ = helpers.window_title(fig_info, base_title=f'Coh-{plot_key}:',
                                                                 full_info=False)
 
-                    n_plots = len(fbands) # number of plots to make for this type
+                    n_plots = len(idcs_group_plot) # number of plots to make for this type
+                    n_plots_per_page = int(plot_layout[0]*plot_layout[1]) # number of plots on each page
                     n_pages = int(np.ceil(n_plots/n_plots_per_page)) # number of pages these plots will need
-                    n_rows = int(np.sqrt(n_plots_per_page)) # number of rows these pages will need
-                    n_cols = int(np.ceil(n_plots_per_page/n_rows)) # number of columns these pages will need
+                    n_rows = plot_layout[0] # number of rows these pages will need
+                    n_cols = plot_layout[1] # number of columns these pages will need
 
                     stop = False
                     fband_i = 0
