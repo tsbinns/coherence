@@ -1389,6 +1389,8 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
 
     ### Setup
     # Checks to make sure that S.D. data is present if it is requested
+    avg_std_present = False
+    max_std_present = False
     if plot_std is True:
         for col in coh.columns:
             if 'avg_std' in col:
@@ -1398,8 +1400,6 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
         if avg_std_present == False and max_std_present == False:
             print(f"Warning: Standard deviation data is not present, so it cannot be plotted.")
             plot_std = False
-    avg_std_present = False
-    max_std_present = False
 
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
