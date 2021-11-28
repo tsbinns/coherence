@@ -1646,6 +1646,6 @@ def manipulate_data(data, calculate):
     ### Removes redundant columns before returning the data, if applicable
     if drop_cols != []:
         drop_cols = np.unique(drop_cols)
-        data.drop(columns=drop_cols, inplace=True)
+        data = data.drop(columns=drop_cols)
 
     return data
