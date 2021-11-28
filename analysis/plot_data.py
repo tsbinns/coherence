@@ -38,11 +38,11 @@ from helpers import average_dataset, alter_by_condition
 
 singlesubj_allchann = False # plots data for a single subject, averaged across runs
 singlesubj_avgchann = False # plots data for a single subject, averaged across runs and channels
-multiplesubj_allchann = True # plots data for multiple subjects, averaged across runs
+multiplesubj_allchann = False # plots data for multiple subjects, averaged across runs
 multiplesubj_avgchann = True # plots data for multiple subjects, averaged across runs, channels, and subjects
 
 subtract_med = True # subtracts the MedOn coherence from the MedOff coherence
-subtract_baseline = True # subtracts the baseline coherence data from the real coherence data
+subtract_baseline = False # subtracts the baseline coherence data from the real coherence data
 
 
 #### PLOTS DATA FOR A SINGLE SUBJECT, AVERAGED ACROSS RUNS
@@ -92,13 +92,13 @@ if singlesubj_allchann == True:
                                 separate=['ch_name', 'data_type', 'reref_type'],
                                 x_keys=['subject', 'stim', 'task', 'ch_type', 'freqs', 'fbands', 'ch_coords'],
                                 y_keys=['psd', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
-                                ignore_runs=True)
+                                ignore_runs=True, recalculate_maxs=False)
         coh = alter_by_condition(data=coh, cond='med', types=['Off', 'On'], method='subtract',
                                 separate=['ch_name_cortical', 'ch_name_deep', 'data_type', 'method'],
                                 x_keys=['subject', 'stim', 'task', 'freqs', 'fbands', 'ch_coords_cortical',
                                         'ch_coords_deep', 'reref_type_cortical', 'reref_type_deep'],
                                 y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
-                                ignore_runs=True)
+                                ignore_runs=True, recalculate_maxs=False)
 
 
     ### Plotting
@@ -191,13 +191,13 @@ if singlesubj_avgchann == True:
                                 separate=['subject', 'ch_name', 'data_type', 'reref_type'],
                                 x_keys=['stim', 'task', 'ch_type', 'freqs', 'fbands', 'ch_coords'],
                                 y_keys=['psd', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
-                                ignore_runs=True)
+                                ignore_runs=True, recalculate_maxs=False)
         coh = alter_by_condition(data=coh, cond='med', types=['Off', 'On'], method='subtract',
                                 separate=['subject', 'ch_name_cortical', 'ch_name_deep', 'data_type', 'method'],
                                 x_keys=['stim', 'task', 'freqs', 'fbands', 'ch_coords_cortical',
                                         'ch_coords_deep', 'reref_type_cortical', 'reref_type_deep'],
                                 y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
-                                ignore_runs=True)
+                                ignore_runs=True, recalculate_maxs=False)
 
 
     ### Plotting
@@ -268,13 +268,13 @@ if multiplesubj_allchann == True:
                                 separate=['subject', 'ch_name', 'data_type', 'reref_type'],
                                 x_keys=['run', 'stim', 'task', 'ch_type', 'freqs', 'fbands', 'ch_coords'],
                                 y_keys=['psd', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
-                                avg_as_equal=True)
+                                avg_as_equal=True, recalculate_maxs=False)
         coh = alter_by_condition(data=coh, cond='med', types=['Off', 'On'], method='subtract',
                                 separate=['subject', 'ch_name_cortical', 'ch_name_deep', 'data_type', 'method'],
                                 x_keys=['run', 'stim', 'task', 'freqs', 'fbands', 'ch_coords_cortical',
                                         'ch_coords_deep', 'reref_type_cortical', 'reref_type_deep'],
                                 y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
-                                avg_as_equal=True)
+                                avg_as_equal=True, recalculate_maxs=False)
 
 
     ### Plotting
@@ -361,12 +361,12 @@ if multiplesubj_avgchann == True:
                                 separate=['subject', 'ch_name', 'data_type', 'reref_type', 'ch_type'],
                                 x_keys=['run', 'stim', 'task', 'freqs', 'fbands'],
                                 y_keys=['psd', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
-                                avg_as_equal=True)
+                                avg_as_equal=True, recalculate_maxs=False)
         coh = alter_by_condition(data=coh, cond='med', types=['Off', 'On'], method='subtract',
                                 separate=['subject', 'ch_name_cortical', 'ch_name_deep', 'data_type', 'method', 'data_type', 'reref_type_cortical', 'reref_type_deep'],
                                 x_keys=['run', 'stim', 'task', 'freqs', 'fbands'],
                                 y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
-                                avg_as_equal=True)
+                                avg_as_equal=True, recalculate_maxs=False)
 
 
     ### Plotting

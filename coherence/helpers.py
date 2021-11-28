@@ -95,7 +95,7 @@ def combine_data(data, info):
         data_id = pd.DataFrame(data_id, columns=[key]) # converts tags to DataFrame
         data[i] = pd.concat([data_id, data[i]], axis=1) # affixes tags to data
         if 'index' in data[i].columns: # if the affixation creates a surplus index, delete it
-            data[i].drop(columns=['index'], inplace=True)
+            data[i] = data[i].drop(columns=['index'])
 
     # Merges data of different types (e.g. data from different runs)
     all_data = pd.concat(data[:], ignore_index=True)
@@ -985,17 +985,17 @@ def average_dataset(data, avg_over, separate, x_keys, y_keys, recalculate_maxs=T
         # Recalculates maximum values
         for data_i in new_data.index:
             data = new_data.iloc[data_i]
-            recalc_max, recalc_fmax = recalculate_band_max(data[data_key], data.freqs, data.fbands)
-            data.fbands_max = recalc_max
-            data.fbands_fmax = recalc_fmax
-        new_data.drop(columns=['fbands_max_std', 'fbands_fmax_std'], inplace=True)
+            recalc_max, recalc_fmax = recalculate_band_max(data[data_key], data['freqs'], data['fbands'])
+            data['fbands_max'] = recalc_max
+            data['fbands_fmax'] = recalc_fmax
+        new_data = new_data.drop(columns=['fbands_max_std', 'fbands_fmax_std'])
 
             
     return new_data
 
 
 
-def alter_by_condition(data, cond, types, method, separate, x_keys, y_keys, avg_as_equal=False):
+def alter_by_condition(data, cond, types, method, separate, x_keys, y_keys, avg_as_equal=False, recalculate_maxs=True):
     """ Alters the data of different types for a particular condition group that are otherwise identical
 
     PARAMETERS
@@ -1021,10 +1021,21 @@ def alter_by_condition(data, cond, types, method, separate, x_keys, y_keys, avg_
     y_keys : list of strs
     -   The names of the columns in the DataFrame whose values should be altered.
 
-    ignore_runs : bool, default False
-    -   Whether or not the runs from which the data has come should be accounted for when altering the data, if not
-        specified in the x_keys. If False (default), the runs are taken into account. If True, the runs are not taken
-        into account (as long as 'run' is not included in x_keys).
+    avg_as_equal : bool, default False
+    -   Whether or not data that has been averaged should be treated as the same type, regardless of what has been
+        averaged. If False (default), the data is not necessarily treated as the same type (and thus is assigned a
+        colour), whereas if True, the data is treated as the same type (and thus not assigned a colour).
+    -   E.g. if some data has been averaged across subjects 1 and 2, whilst other data has been averaged across subjects
+        3 and 4, avg_as_equal=True means that this data will be considered equivalent (and thus not assigned a colour)
+        based on the fact that it has been averaged, regardless of the fact that it was averaged across different
+        subjects (which can be useful if you want to generate contrast between data based on their different
+        characteristics, rather than diluting the colours with their similarities).
+
+    recalculate_maxs : bool, default True
+    -   Whether or not to recalculate the maximum frequency-band values (i.e. fbands_max, fbands_fmax) based on the
+        altered data. If True, these values are recalculated (and corresponding standard deviation values are
+        discarded, with new values not computed). If False, these values are not recalculated based on the altered data,
+        and the altered pre-existing maximum values are used.
 
 
     RETURNS
@@ -1088,7 +1099,7 @@ def alter_by_condition(data, cond, types, method, separate, x_keys, y_keys, avg_
         if 'std' in name:
             std_cols.append(name)
     if method in ['subtract']:
-        data.drop(columns=std_cols, inplace=True)
+        data = data.drop(columns=std_cols)
 
     # Alters the data
     altered = {}
@@ -1121,6 +1132,29 @@ def alter_by_condition(data, cond, types, method, separate, x_keys, y_keys, avg_
     # Creates new DataFrame
     new_data = list(zip(*new_cols[:]))
     new_data = pd.DataFrame(data=new_data, columns=list(data.columns))
+
+    # Recalculates maximum values based on the altered data, if requested
+    if recalculate_maxs == True:
+        # Checks for the correct format of the data
+        if 'psd' in new_data.keys() and 'coh' not in new_data.keys():
+            data_key = 'psd'
+        elif 'coh' in new_data.keys() and 'psd' not in new_data.keys():
+            data_key = 'coh'
+        else:
+            raise ValueError(f"One and only one of 'psd' or 'coh' must be included in the DataFrame.")
+        
+        # Recalculates maximum values
+        for data_i in new_data.index:
+            data = new_data.iloc[data_i]
+            recalc_max, recalc_fmax = recalculate_band_max(data[data_key], data.freqs, data.fbands)
+            new_data['fbands_max'].iloc[data_i] = recalc_max
+            new_data['fbands_fmax'].iloc[data_i] = recalc_fmax
+        if 'fbands_max_std' in new_data.columns:
+            new_data = new_data.drop(columns=['fbands_max_std'])
+        if 'fbands_fmax_std' in new_data.columns:
+            new_data = new_data.drop(columns=['fbands_fmax_std'])
+            
+
 
     return new_data
 
@@ -1332,7 +1366,7 @@ def average_shuffled(data, keys_to_avg, group_keys):
     for i, data_type in enumerate(data.data_type):
         if data_type != 'shuffled':
             remove.append(i)
-    data.drop(remove, inplace=True)
+    data = data.drop(remove)
 
     # Finds the indices of the shuffled channel groups
     names = combine_names(data, group_keys)
@@ -1347,8 +1381,8 @@ def average_shuffled(data, keys_to_avg, group_keys):
             discard.extend(idc_shuffled[1:])
             for key in keys_to_avg:
                 og_data[key][idc_shuffled[0]] = np.mean(data[key][idc_shuffled].to_list(), axis=0)
-    og_data.drop(discard, inplace=True) # deletes the redundant entries
-    og_data.reset_index(drop=True, inplace=True)
+    og_data = og_data.drop(discard) # deletes the redundant entries
+    og_data = og_data.reset_index(drop=True)
 
 
     return og_data
@@ -1491,8 +1525,8 @@ def extract_data(data, select_type={}, extract={}):
                 if data.iloc[data_i][key] not in select_type[key]:
                     remove.append(data_i)
         remove = np.unique(remove)
-        data.drop(remove, inplace=True)
-        data.reset_index(drop=True, inplace=True)
+        data = data.drop(remove)
+        data = data.reset_index(drop=True)
 
     if extract != {}:
         ### Extracts the required data
