@@ -68,8 +68,7 @@ if singlesubj_allchann == True:
                                             separate=['run', 'ch_name_cortical', 'ch_name_deep', 'method'],
                                             x_keys=['subject', 'med', 'stim', 'task', 'freqs', 'fbands', 'ch_coords_cortical',
                                                     'ch_coords_deep', 'reref_type_cortical', 'reref_type_deep'],
-                                            y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
-                                            ignore_runs=False)
+                                            y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'])
 
             # Averages data over runs
             psds[-1] = average_dataset(data=psds[-1], avg_over='run',
@@ -92,13 +91,13 @@ if singlesubj_allchann == True:
                                 separate=['ch_name', 'data_type', 'reref_type'],
                                 x_keys=['subject', 'stim', 'task', 'ch_type', 'freqs', 'fbands', 'ch_coords'],
                                 y_keys=['psd', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
-                                ignore_runs=True, recalculate_maxs=False)
+                                recalculate_maxs=False)
         coh = alter_by_condition(data=coh, cond='med', types=['Off', 'On'], method='subtract',
                                 separate=['ch_name_cortical', 'ch_name_deep', 'data_type', 'method'],
                                 x_keys=['subject', 'stim', 'task', 'freqs', 'fbands', 'ch_coords_cortical',
                                         'ch_coords_deep', 'reref_type_cortical', 'reref_type_deep'],
                                 y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
-                                ignore_runs=True, recalculate_maxs=False)
+                                recalculate_maxs=False)
 
 
     ### Plotting
@@ -154,8 +153,7 @@ if singlesubj_avgchann == True:
                                             separate=['run', 'ch_name_cortical', 'ch_name_deep', 'method'],
                                             x_keys=['subject', 'med', 'stim', 'task', 'freqs', 'fbands', 'ch_coords_cortical',
                                                     'ch_coords_deep', 'reref_type_cortical', 'reref_type_deep'],
-                                            y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
-                                            ignore_runs=False)
+                                            y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'])
 
             # Averages data over runs
             psds[-1] = average_dataset(data=psds[-1], avg_over='run',
@@ -191,13 +189,13 @@ if singlesubj_avgchann == True:
                                 separate=['subject', 'ch_name', 'data_type', 'reref_type'],
                                 x_keys=['stim', 'task', 'ch_type', 'freqs', 'fbands', 'ch_coords'],
                                 y_keys=['psd', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
-                                ignore_runs=True, recalculate_maxs=False)
+                                recalculate_maxs=False)
         coh = alter_by_condition(data=coh, cond='med', types=['Off', 'On'], method='subtract',
                                 separate=['subject', 'ch_name_cortical', 'ch_name_deep', 'data_type', 'method'],
                                 x_keys=['stim', 'task', 'freqs', 'fbands', 'ch_coords_cortical',
                                         'ch_coords_deep', 'reref_type_cortical', 'reref_type_deep'],
                                 y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
-                                ignore_runs=True, recalculate_maxs=False)
+                                recalculate_maxs=False)
 
 
     ### Plotting
