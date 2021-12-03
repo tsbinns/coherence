@@ -1016,7 +1016,8 @@ def alter_by_condition(data, cond, types, method, separate, x_keys, y_keys, avg_
 
     x_keys : list of strs
     -   The names of the columns in the DataFrame containing the keys whose values should be identical for the entries
-        that are being altered (i.e. the independent/control variables).
+        that are being altered (i.e. the independent/control variables). If they are not identical, a warning is raised
+        and the value is set to NaN.
 
     y_keys : list of strs
     -   The names of the columns in the DataFrame whose values should be altered.
@@ -1082,8 +1083,10 @@ def alter_by_condition(data, cond, types, method, separate, x_keys, y_keys, avg_
     for x_key in x_keys: # for each key whose values should be identical
         for unique_i in unique_idc: # for each unique group
             identical = check_identical(list(data[x_key][unique_i])) # the values to compare
-            if identical == False:
-                raise ValueError(f'The {x_key} values for the data do not match, and therefore the data cannot be averaged over.')
+            if identical == False: # Set the non-matching values to NaN and raise a warning
+                for i in unique_i:
+                    data[x_key][i] = np.nan
+                print(f'The {x_key} values for the data do not match, setting the values for this {x_key} to NaN.')
 
     # Removes indices where only one type of the condition is present
     discard = []
