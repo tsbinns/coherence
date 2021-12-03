@@ -9,7 +9,7 @@ import helpers
 
 
 def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_std=True, plot_layout=[2,3],
-                 freq_limit=None, power_limit=None, same_y=True, avg_as_equal=True, mark_y0=False):
+                 freq_limit=None, power_limit=None, same_y=True, avg_as_equal=True, mark_y0=False, add_avg=[]):
     """ Plots frequency-wise PSDs of the data.
 
     PARAMETERS
@@ -58,6 +58,15 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     -   Whether or not to draw a dotted line where y = 0. If False (default), no line is drawn. If True, a line is
         drawn.
 
+    add_avg : list, default empty
+    -   Whether or not to include the average of the plotted values. If an empty list (default), the average is not
+        plotted. If not an empty list, the average value is plotted. In this case, the first entry should be the factor
+        in the data to average over (e.g. 'subject', 'run'), and the second entry should specify whether the
+        non-averaged data should be coloured separately ('coloured'; useful for identifying which conditions each
+        plotted line belongs to) or whether they should share the same colour ('grey'; useful for showing the general
+        pattern of the individual conditions when you are not interested in which particular conditions the data belongs
+        to). If the average data is added, the alpha value of the non-averaged data is reduced.
+
 
     RETURNS
     ----------
@@ -73,7 +82,15 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                 std_present = True
         if std_present == False:
             print(f"Warning: Standard deviation data is not present, so it cannot be plotted.")
-            plot_std = False
+
+    # Checks that add_avg is in the correct format
+    if add_avg != []:
+        if len(add_avg) != 2:
+            raise ValueError(f"add_avg should have a length of 2 (the first entry the key to average over, and the second entry how to colour the data), but {len(add_avg)} inputs are given.")
+        if add_avg[0] not in psd.keys():
+            raise ValueError(f"The first entry of add_avg ({add_avg[0]}) should be the key of a column in the DataFrame.")
+        if add_avg[1] not in ['coloured', 'grey']:
+            raise ValueError(f"The second entry of add_avg should be either 'coloured' or 'grey', but is {add_avg[1]}.")
 
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
@@ -132,6 +149,13 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                                 and key not in group_master and key not in group_fig
                                                 and key not in group_plot])
     colours = helpers.data_colour(colour_info, not_for_unique=True, avg_as_equal=avg_as_equal)
+
+    # Reduces the alpha value of the individual plotted lines, if the average data is being added
+    if add_avg != []:
+        for i in range(len(colours[add_avg[0]])):
+            colours[add_avg[0]][i][3] *= .5
+            if add_avg[1] == 'grey':
+                colours[add_avg[0]][i][:3] = [0, 0, 0]
 
     # Name of the folder in which to save figures (based on the current time)
     foldername = 'psd_freqwise-'+''.join([str(x) for x in datetime.datetime.now().timetuple()[:-3]])
@@ -243,13 +267,24 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                 if data_title != None: # if data has been labelled, plot the legend
                                     axs[row_i, col_i].legend(labelspacing=0)
                                 
-                                # Plots std (if applicable)
-                                if plot_std == True:
+                                # Plots std (if applicable and if average data is not being added)
+                                if std_present == True and add_avg == []:
                                     if 'psd_std' in data.keys():
                                         std_plus = data.psd[:freq_limit_i+1] + data.psd_std[:freq_limit_i+1]
                                         std_minus = data.psd[:freq_limit_i+1] - data.psd_std[:freq_limit_i+1]
                                         axs[row_i, col_i].fill_between(data.freqs[:freq_limit_i+1], std_plus, std_minus,
                                                                        color=colour, alpha=colour[-1]*.2)
+
+                                # Adds the averaged data, if requested
+                                if ch_idx == idc_group_plot[-1] and add_avg != []:
+                                    avg_data = np.mean(psd['psd'][idc_group_plot], axis=0)
+                                    axs[row_i, col_i].plot(data.freqs[:freq_limit_i+1], avg_data[:freq_limit_i+1],
+                                                           label=f"avg[{add_avg[0]}]", linewidth=4, color=[0,0,0,1])
+                                    if plot_std == True:
+                                        std_plus = avg_data + np.std(psd['psd'][idc_group_plot].values, axis=0)
+                                        std_minus = avg_data - np.std(psd['psd'][idc_group_plot].values, axis=0)
+                                        axs[row_i, col_i].fill_between(data.freqs[:freq_limit_i+1], std_plus[:freq_limit_i+1], std_minus[:freq_limit_i+1],
+                                                                       color=[0,0,0], alpha=.2)
 
                                 # Demarcates 0 on the y-axis, if requested
                                 if mark_y0 == True:
@@ -265,8 +300,14 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                 # Cuts off power (if requested)
                                 if power_limit != None:
                                     ylim = axs[row_i, col_i].get_ylim()
+                                    upper_ylim = ylim[1]
+                                    lower_ylim = ylim[0]
                                     if ylim[1] > power_limit:
-                                        axs[row_i, col_i].set_ylim(ylim[0], power_limit)
+                                        upper_ylim = power_limit
+                                    if ylim[0] < power_limit*-1:
+                                        lower_ylim = power_limit*-1
+                                    axs[row_i, col_i].set_ylim(lower_ylim, upper_ylim)
+
 
                             plotgroup_i += 1
                             if ch_idx == idc_group_fig[-1]: # if there is no more data to plot for this type...
