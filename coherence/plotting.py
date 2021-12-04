@@ -9,7 +9,7 @@ import helpers
 
 
 def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_std=True, plot_layout=[2,3],
-                 freq_limit=None, power_limit=None, same_y=True, avg_as_equal=True, mark_y0=False, add_avg=[]):
+                 freq_limit=None, ylim_max=None, same_y=True, avg_as_equal=True, mark_y0=False, add_avg=[]):
     """ Plots frequency-wise PSDs of the data.
 
     PARAMETERS
@@ -42,8 +42,10 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     -   The frequency (in Hz) at which to stop plotting data. If None (default), up to the maximum frequency in the data
         is plotted.
 
-    power_limit : int | float
-    -   The y-axis limit for PSDs. None by default (i.e. no limit).
+    ylim_max : int | float | None (default)
+    -   The y-axis limits for plots. None by default (i.e. no limit). This limit is only applied if the limits of the
+        plots exceed these values (e.g. is ylim_max = [0,5] and the y-axis limit of the plot is [0,3], the limits
+        imposed by ylim_max will not be applied, as they have not been exceeded).
 
     same_y : bool, default True
     -   Whether or not to use the same y-axis boundaries for data of the same type. If True (default), the same axes are
@@ -75,8 +77,8 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
 
     ### Setup
     # Checks to make sure that S.D. data is present if it is requested
+    std_present=False
     if plot_std is True:
-        std_present = False
         for col in psd.columns:
             if 'std' in col:
                 std_present = True
@@ -91,6 +93,11 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
             raise ValueError(f"The first entry of add_avg ({add_avg[0]}) should be the key of a column in the DataFrame.")
         if add_avg[1] not in ['coloured', 'grey']:
             raise ValueError(f"The second entry of add_avg should be either 'coloured' or 'grey', but is {add_avg[1]}.")
+
+    # Checks that ylim_max is in the correct format
+    if ylim_max != None:
+        if len(ylim_max) != 2:
+            raise ValueError(f"Two values for 'ylim_max' should be given, representing the maximum lower and upper y-axis boundaries, but {len(ylim_max)} values are given.")
 
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
@@ -166,11 +173,10 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
         
         # Gets a global y-axis for all data of the same mastergroup (if requested)
         if same_y == True:
-            if plot_std == True and 'psd_std' in psd.keys():
+            if plot_std == True and 'psd_std' in psd.keys() and add_avg == []:
                 group_ylim = helpers.same_axes(psd.psd[idc_group_master] + psd.psd_std[idc_group_master])
             else:
                 group_ylim = helpers.same_axes(psd.psd[idc_group_master])
-            #group_ylim[0] = 0
 
         # Gets indices of figure-grouped data
         names_fig = helpers.combine_names(psd.iloc[idc_group_master], group_fig, joining=',')
@@ -297,15 +303,15 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                 if same_y == True:
                                     axs[row_i, col_i].set_ylim(*group_ylim)
 
-                                # Cuts off power (if requested)
-                                if power_limit != None:
+                                # Sets the y-axis limits if they have been exceeded (if requested)
+                                if ylim_max != None:
                                     ylim = axs[row_i, col_i].get_ylim()
                                     upper_ylim = ylim[1]
                                     lower_ylim = ylim[0]
-                                    if ylim[1] > power_limit:
-                                        upper_ylim = power_limit
-                                    if ylim[0] < power_limit*-1:
-                                        lower_ylim = power_limit*-1
+                                    if ylim[0] < ylim_max[0]:
+                                        lower_ylim = ylim_max[0]
+                                    if ylim[1] > ylim_max[0]:
+                                        upper_ylim = ylim_max[1]
                                     axs[row_i, col_i].set_ylim(lower_ylim, upper_ylim)
 
 
@@ -445,7 +451,7 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
         if len(data_keys) > 1:
             raise ValueError(f"Data from too many conditions {data_keys} are being plotted on the same plot. Only one is allowed.")
         if len(np.unique(psd[data_keys[0]])) > 2:
-            raise ValueError(f"Data of different types ({np.unique(psd[data_keys][0])}) from the {data_keys[0]} condition are being plotted on the same plot, but this is only allowed for binary condition data.")
+            raise ValueError(f"Data of different types ({list(np.unique(psd[data_keys]))}) from the {data_keys[0]} condition are being plotted on the same plot, but this is only allowed for binary condition data.")
 
     # Gets indices of master-grouped data
     names_master = helpers.combine_names(psd, group_master, joining=',')
@@ -1100,7 +1106,7 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], group_plot=[], plot_
 
 
 def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_std=True, plot_layout=[2,3],
-                 freq_limit=None, same_y=True, avg_as_equal=True, mark_y0=True):
+                 freq_limit=None, ylim_max=None, same_y=True, avg_as_equal=True, mark_y0=True, add_avg=[]):
     """ Plots single-frequency-wise coherence data.
 
     PARAMETERS
@@ -1111,7 +1117,7 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
 
     group_master : list of strs
     -   Keys of coh containing the data characteristics which should be used to separate data into groups that share the
-        same y-axis limits (if applicable)
+        same y-axis limits (if applicable).
 
     group_fig : list of strs
     -   Keys of coh containing the data characteristics which should be used to separate the grouped data into
@@ -1137,6 +1143,11 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     -   The frequency (in Hz) at which to stop plotting data. If None (default), up to the maximum frequency in the data
         is plotted.
     
+    ylim_max : int | float | None (default)
+    -   The y-axis limits for plots. None by default (i.e. no limit). This limit is only applied if the limits of the
+        plots exceed these values (e.g. is ylim_max = [0,5] and the y-axis limit of the plot is [0,3], the limits
+        imposed by ylim_max will not be applied, as they have not been exceeded).
+
     same_y : bool, default True
     -   Whether or not to use the same y-axis boundaries for data of the same type. If True (default), the same axes are
         used; if False, the same axes are not used.
@@ -1149,6 +1160,15 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     mark_y0 : bool, default False
     -   Whether or not to draw a dotted line where y = 0. If False (default), no line is drawn. If True, a line is
         drawn.
+
+    add_avg : list, default empty
+    -   Whether or not to include the average of the plotted values. If an empty list (default), the average is not
+        plotted. If not an empty list, the average value is plotted. In this case, the first entry should be the factor
+        in the data to average over (e.g. 'subject', 'run'), and the second entry should specify whether the
+        non-averaged data should be coloured separately ('coloured'; useful for identifying which conditions each
+        plotted line belongs to) or whether they should share the same colour ('grey'; useful for showing the general
+        pattern of the individual conditions when you are not interested in which particular conditions the data belongs
+        to). If the average data is added, the alpha value of the non-averaged data is reduced.
 
 
     RETURNS
@@ -1166,6 +1186,20 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
         if std_present == False:
             print(f"Warning: Standard deviation data is not present, so it cannot be plotted.")
             plot_std = False
+
+    # Checks that add_avg is in the correct format
+    if add_avg != []:
+        if len(add_avg) != 2:
+            raise ValueError(f"add_avg should have a length of 2 (the first entry the key to average over, and the second entry how to colour the data), but {len(add_avg)} inputs are given.")
+        if add_avg[0] not in coh.keys():
+            raise ValueError(f"The first entry of add_avg ({add_avg[0]}) should be the key of a column in the DataFrame.")
+        if add_avg[1] not in ['coloured', 'grey']:
+            raise ValueError(f"The second entry of add_avg should be either 'coloured' or 'grey', but is {add_avg[1]}.")
+
+    # Checks that ylim_max is in the correct format
+    if ylim_max != None:
+        if len(ylim_max) != 2:
+            raise ValueError(f"Two values for 'ylim_max' should be given, representing the maximum lower and upper y-axis boundaries, but {len(ylim_max)} values are given.")
 
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
@@ -1235,7 +1269,7 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
 
         # Gets a global y-axis for all data of the same type (if requested)
         if same_y == True:
-            if plot_std == True:
+            if plot_std == True and add_avg == []:
                 if 'coh_std' in coh.keys():
                     ylim = []
                     ylim.extend(helpers.same_axes(coh.coh[idc_group_master] + coh.coh_std[idc_group_master]))
@@ -1342,12 +1376,24 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                     axs[row_i, col_i].legend(labelspacing=0)
                                 
                                 # Plots std (if applicable)
-                                if plot_std == True:
-                                    std_plus = data.coh[:freq_limit_i+1] + data.coh_std[:freq_limit_i+1]
-                                    std_minus = data.coh[:freq_limit_i+1] - data.coh_std[:freq_limit_i+1]
-                                    axs[row_i, col_i].fill_between(data.freqs[:freq_limit_i+1], std_plus, std_minus,
-                                                                   color=colour, alpha=colour[-1]*.2)
+                                if plot_std == True and add_avg==[]:
+                                    if 'coh_std' in data.keys():
+                                        std_plus = data.coh[:freq_limit_i+1] + data.coh_std[:freq_limit_i+1]
+                                        std_minus = data.coh[:freq_limit_i+1] - data.coh_std[:freq_limit_i+1]
+                                        axs[row_i, col_i].fill_between(data.freqs[:freq_limit_i+1], std_plus, std_minus,
+                                                                    color=colour, alpha=colour[-1]*.2)
                                 
+                                # Adds the averaged data, if requested
+                                if ch_idx == idc_group_plot[-1] and add_avg != []:
+                                    avg_data = np.mean(coh['coh'][idc_group_plot], axis=0)
+                                    axs[row_i, col_i].plot(data.freqs[:freq_limit_i+1], avg_data[:freq_limit_i+1],
+                                                           label=f"avg[{add_avg[0]}]", linewidth=4, color=[0,0,0,1])
+                                    if plot_std == True:
+                                        std_plus = avg_data + np.std(coh['coh'][idc_group_plot].values, axis=0)
+                                        std_minus = avg_data - np.std(coh['coh'][idc_group_plot].values, axis=0)
+                                        axs[row_i, col_i].fill_between(data.freqs[:freq_limit_i+1], std_plus[:freq_limit_i+1], std_minus[:freq_limit_i+1],
+                                                                       color=[0,0,0], alpha=.2)
+
                                 # Demarcates 0 on the y-axis, if requested
                                 if mark_y0 == True:
                                     xlim = axs[row_i, col_i].get_xlim()
@@ -1358,6 +1404,18 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                 # Sets all y-axes to be equal (if requested)
                                 if same_y == True:
                                     axs[row_i, col_i].set_ylim(*group_ylim)
+
+                                # Sets the y-axis limits if they have been exceeded (if requested)
+                                if ylim_max != None:
+                                    ylim = axs[row_i, col_i].get_ylim()
+                                    upper_ylim = ylim[1]
+                                    lower_ylim = ylim[0]
+                                    if ylim[0] < ylim_max[0]:
+                                        lower_ylim = ylim_max[0]
+                                    if ylim[1] > ylim_max[0]:
+                                        upper_ylim = ylim_max[1]
+                                    axs[row_i, col_i].set_ylim(lower_ylim, upper_ylim)
+
 
                             plotgroup_i += 1 # moves on to the next data to plot
                             if ch_idx == idc_group_fig[-1]: # if there is no more data to plot for this type...
@@ -1497,7 +1555,7 @@ def coh_bandwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
         if len(data_keys) > 1:
             raise ValueError(f"Data from too many conditions {data_keys} are being plotted on the same plot. Only one is allowed.")
         if len(np.unique(coh[data_keys[0]])) > 2:
-            raise ValueError(f"Data of different types ({np.unique(coh[data_keys][0])}) from the {data_keys[0]} condition are being plotted on the same plot, but this is only allowed for binary condition data.")
+            raise ValueError(f"Data of different types ({list(np.unique(coh[data_keys]))}) from the {data_keys[0]} condition are being plotted on the same plot, but this is only allowed for binary condition data.")
 
 
     # Gets indices of master-grouped data
