@@ -224,23 +224,23 @@ if singlesubj_avgchann == True:
 
     ### Plotting
     # PSD
-    #plotting.psd_freqwise(psd, group_master=['ch_type'],
-    #                      group_plot=['reref_type', 'ch_name'],
-    #                      plot_shuffled=False, plot_std=False, freq_limit=50, ylim_max=[-1,1],
-    #                      same_y=True, mark_y0=mark_y0, add_avg=['subject', 'coloured'])
-    #plotting.psd_bandwise(psd, group_master=['ch_type'],
-    #                      group_fig=['reref_type', 'ch_type', 'data_type'],
-    #                      group_plot=['ch_name'],
-    #                      plot_shuffled=False, plot_std=False, same_y=True)
+    plotting.psd_freqwise(psd, group_master=['ch_type'],
+                          group_plot=['reref_type', 'ch_name'],
+                          plot_shuffled=False, plot_std=False, freq_limit=50, ylim_max=[-1,1],
+                          same_y=True, mark_y0=mark_y0, add_avg=['subject', 'coloured'])
+    plotting.psd_bandwise(psd, group_master=['ch_type'],
+                          group_fig=['reref_type', 'ch_type', 'data_type'],
+                          group_plot=['ch_name'],
+                          plot_shuffled=False, plot_std=False, same_y=True)
 
     # Coherence
     plotting.coh_freqwise(coh, group_master=['method'],
                           group_plot=['reref_type_cortical', 'reref_type_deep'],
                           plot_shuffled=False, plot_std=False, freq_limit=50, same_y=True,
                           mark_y0=mark_y0, add_avg=['subject', 'coloured'])
-    #plotting.coh_bandwise(coh, group_master=['method'],
-    #                      group_plot=['reref_type_cortical', 'reref_type_deep', 'ch_name_cortical', 'ch_name_deep', 'data_type'],
-    #                      plot_shuffled=False, plot_std=False, same_y=True)
+    plotting.coh_bandwise(coh, group_master=['method'],
+                          group_plot=['reref_type_cortical', 'reref_type_deep', 'ch_name_cortical', 'ch_name_deep', 'data_type'],
+                          plot_shuffled=False, plot_std=False, same_y=True)
 
 
 ##### PLOTS DATA FOR MULTIPLE SUBJECTS, AVERAGED ACROSS RUNS (BUT NOT CHANNELS OR SUBJECTS) ON SURFACE PLOTS
