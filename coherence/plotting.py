@@ -1405,16 +1405,16 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                 if same_y == True:
                                     axs[row_i, col_i].set_ylim(*group_ylim)
 
-                                # Sets the y-axis limits if they have been exceeded (if requested)
-                                if ylim_max != None:
-                                    ylim = axs[row_i, col_i].get_ylim()
-                                    upper_ylim = ylim[1]
-                                    lower_ylim = ylim[0]
-                                    if ylim[0] < ylim_max[0]:
-                                        lower_ylim = ylim_max[0]
-                                    if ylim[1] > ylim_max[0]:
-                                        upper_ylim = ylim_max[1]
-                                    axs[row_i, col_i].set_ylim(lower_ylim, upper_ylim)
+                            # Sets the y-axis limits if they have been exceeded (if requested)
+                            if ylim_max != None:
+                                ylim = axs[row_i, col_i].get_ylim()
+                                upper_ylim = ylim[1]
+                                lower_ylim = ylim[0]
+                                if ylim[0] < ylim_max[0]:
+                                    lower_ylim = ylim_max[0]
+                                if ylim[1] > ylim_max[0]:
+                                    upper_ylim = ylim_max[1]
+                                axs[row_i, col_i].set_ylim(lower_ylim, upper_ylim)
 
 
                             plotgroup_i += 1 # moves on to the next data to plot
