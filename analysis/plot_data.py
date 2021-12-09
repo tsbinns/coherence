@@ -428,20 +428,20 @@ if multiplesubj_avgchann == True:
     plotting.psd_freqwise(psd, group_master=['ch_type', 'subject'],
                           group_plot=['reref_type', 'ch_name'],
                           plot_shuffled=False, plot_std=True, freq_limit=50, ylim_max=[-1,1],
-                          same_y=False, mark_y0=mark_y0)
+                          same_y=True, mark_y0=mark_y0)
     plotting.psd_bandwise(psd, group_master=['ch_type', 'subject'],
                           group_fig=['ch_type', 'subject', 'data_type', 'reref_type'],
                           group_plot=['ch_name', 'loc_group'],
-                          plot_shuffled=False, plot_std=True, same_y=False)
+                          plot_shuffled=False, plot_std=True, same_y=True)
 
     # Coherence
     plotting.coh_freqwise(coh, group_master=['method', 'subject'],
                           group_plot=['reref_type_cortical', 'reref_type_deep', 'ch_name_cortical', 'ch_name_deep'],
-                          plot_shuffled=False, plot_std=True, freq_limit=50, same_y=False,
-                          mark_y0=mark_y0)
+                          plot_shuffled=False, plot_std=True, freq_limit=50, same_y=True,
+                          mark_y0=mark_y0, ylim_max=[-.04,.04])
     plotting.coh_bandwise(coh, group_master=['method', 'subject'],
                           group_fig=['subject', 'data_type', 'reref_type_cortical', 'reref_type_deep'],
                           group_plot=['ch_name_cortical', 'ch_name_deep', 'loc_group'],
-                          plot_shuffled=False, plot_std=True, same_y=False)
+                          plot_shuffled=False, plot_std=True, same_y=True)
 
 
