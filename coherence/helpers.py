@@ -1,9 +1,9 @@
-from logging import warning
 import numpy as np
 import pandas as pd
 import os
 from copy import deepcopy
 from matplotlib import pyplot as plt
+from fooof import FOOOF
 
 
 
@@ -37,7 +37,7 @@ def filter_for_annotation(data, highpass=3, lowpass=125, line_noise=50):
 
     # Notch filters data
     notch = np.arange(line_noise, lowpass, line_noise)
-    data.notch_filter(notch)
+    data.notch_filter(notch, n_jobs='cuda')
 
     # Bandpass filters data
     data.filter(highpass, lowpass)
@@ -1484,6 +1484,285 @@ def recalculate_band_max(data, freqs, fbands):
         fbands_fmax.append(freqs[np.where(data==fbands_max[-1])[0][0]]) # frequency of the maximum in each band
 
     return np.array(fbands_max), np.array(fbands_fmax)
+
+
+
+def choose_aperiodic_mode(power, freqs, report=True, title=''):
+    """ Log-log plots power data so that you can visually examine whether the aperiodic component of the FOOOF power
+        model should be fitted in a fixed manner, or with a knee, additionally returning the result of this check, if
+        requested.
+    
+    PARAMETERS
+    ----------
+    power : 1 x n list or array
+    -   The power values, where n is the number of frequencies, corresponding to the values in 'freqs'.
+
+    freqs : 1 x n list or array
+    -   The n frequencies, corresponding to the values in 'power'.
+
+    report : bool, default True
+    -   Whether or not to prompt the user to input the fit mode that should be used. If 'True' (default), the user is
+        asked to input the fit. If 'False', the user does not input the fit (i.e. this function is used only for
+        visualising the log-log plotted PSD, and not for any further processing).
+
+    title : str, default empty
+    -   The title for the plotted power.
+
+    RETURNS
+    ----------
+    fit : str
+    -   The fit to use for the fitting the aperiodic component of the FOOOF model. Must be either 'fixed' or 'knee'.
+        This is only returned if 'report' == True.
+
+    """
+    
+    ### Error checking
+    if type(report) != bool:
+        raise ValueError(f"The variable 'report' must be a boolean, but it is a(n) {type(report)}.")
+
+
+    ### Processing
+    ## Plots the power
+    plt.loglog(freqs, power)
+    plt.title(title)
+
+    ## Asks the user to choose what fit should be used, if requested
+    if report == True:
+        answered = False
+        while not answered:
+            fit = input("Which mode should be used for fitting the aperiodic component, 'fixed' or 'knee'?: ")
+            if fit != 'fixed' and fit != 'knee':
+                print('This is not a valid input. Try again.')
+            else:
+                answered = True
+        
+        return fit
+
+
+
+def check_fm_fit(fm, report=True):
+    """
+    PARAMETERS
+    ----------
+    fm : FOOOF model object
+    -   The FOOOF model whose fit should be examined.
+
+    report : bool, default True
+    -   Whether or not to prompt the user to judge whether the fit of the model is accetpable. If 'True' (default), the
+        user is asked to choose whether the fit is acceptable. If 'False', the user is not asked to judge the data (i.e.
+        this function is used only for visualising the fitted model and associated spectra).
+
+    RETURNS
+    ----------
+    acceptable : bool
+    -   Whether or not the FOOOF model fit is acceptable. This is only returned if report == 'True'.
+
+    """
+
+    ### Error checking
+    if type(report) != bool:
+        raise ValueError(f"The variable 'report' must be a boolean, but it is a(n) {type(report)}.")
+
+    
+    ### Processing
+    ## Plots the model and associated spectra
+    fig, axs = plt.subplots(2,1)
+    # Periodic spectrum and model fit
+    axs[0].set_title('Periodic')
+    axs[0].plot(fm._spectrum_flat, linewidth=2, label='Periodic spectrum')
+    axs[0].plot(fm._peak_fit, linestyle='--', linewidth=1.5, label='Periodic component model fit')
+    axs[0].legend()
+    # Aperiodic spectrum and model fit
+    axs[1].set_title('Aperiodic')
+    axs[1].plot(fm._spectrum_peak_rm, linewidth=2, label='Aperiodic spectrum')
+    axs[1].plot(fm._ap_fit, linestyle='--', linewidth=1.5, label='Aperiodic component model fit')
+    axs[1].legend()
+
+    ## Asks the user to choose whether the fit is acceptable, if requested
+    if report == True:
+        answered = False
+        while not answered:
+            answer = input("Is the fit of the model acceptable, yes ('y') or no ('n')?: ")
+            if answer == 'y':
+                acceptable = True
+                answered = True
+            elif answer == 'n':
+                acceptable = False
+                answered = True
+            else:
+                print('This is not a valid input. Try again.')
+        
+        return acceptable
+
+
+
+def check_fm_fits(power, freqs, params=None, title='', report=True):
+    """ Fits the FOOOF models for the power spectra using both 'fixed' and 'knee' modes for fitting the aperiodic
+        component, and plots PSDs and associated model fits so that you can decide which aperiodic mode should be used,
+        with the option of inputing the desired mode which is then returned from the function.
+
+    PARAMETERS
+    ----------
+    power : 1 x n list or array
+    -   The power values, where n is the number of frequencies, corresponding to the values in 'freqs'.
+
+    freqs : 1 x n list or array
+    -   The n frequencies, corresponding to the values in 'power'.
+
+    params : dict or None (default)
+    -   Parameters to fit the model with. If None (default), the standard values are used, otherwise, the values in
+        'params' are used.
+
+    title : str, default empty
+    -   The title for the plots, e.g. the channel name.
+
+    report : bool, default True
+    -   Whether or not to prompt the user to input the fit mode that should be used. If 'True' (default), the user is
+        asked to input the fit and the associated model is returned. If 'False', the user does not input the fit (i.e.
+        this function is used only for visualising the PSDs and model fits, and not for any further processing).
+
+    RETURNS
+    ----------
+    aperiodic_mode : str
+    -   The mode to use for the fitting the aperiodic component of the FOOOF model. Must be either 'fixed' or 'knee'.
+        This is only returned if 'report' == True.
+    
+    model : FOOOF model object
+    -   The model chosen by the user. This is only returned if 'report' == True.
+
+    """
+
+    ### Error checking
+    if type(report) != bool:
+        raise ValueError(f"The variable 'report' must be a boolean, but it is a(n) {type(report)}.")
+
+    ### Sets parameters, if necessary
+    standard_params = {'peak_width_limits': [0.5, 12],
+                       'max_n_peaks': float('inf'),
+                       'min_peak_height': 0,
+                       'peak_threshold': 2}
+    if params == None:
+        params = standard_params
+    else:
+        for param in standard_params.keys():
+            if param not in params.keys():
+                params[param] = standard_params[param]
+
+    
+    ### Processing
+    ## Generates the model fits
+    # 'fixed' mode model
+    fm_fixed = FOOOF(peak_width_limits=params['peak_width_limits'], max_n_peaks=params['max_n_peaks'],
+                     min_peak_height=params['min_peak_height'], peak_threshold=params['peak_threshold'],
+                     aperiodic_mode='fixed')
+    fm_fixed.fit(freqs, power)
+    # 'knee' mode model
+    fm_knee = FOOOF(peak_width_limits=params['peak_width_limits'], max_n_peaks=params['max_n_peaks'],
+                    min_peak_height=params['min_peak_height'], peak_threshold=params['peak_threshold'],
+                    aperiodic_mode='knee')
+    fm_knee.fit(freqs, power)
+
+    ## Plots the PSDs and model fits
+    fig, axs = plt.subplots(2,2)
+    fig.suptitle(title)
+    # 'fixed' mode model
+    fm_fixed.plot(plt_log=False, ax=axs[0,0])
+    fm_fixed.plot(plt_log=True, ax=axs[1,0])
+    # 'knee' mode model
+    fm_knee.plot(plt_log=False, ax=axs[0,1])
+    fm_knee.plot(plt_log=True, ax=axs[1,1])
+
+    ## Adds goodness of fit metrics to the plots
+    gof_metrics = ['r_squared', 'error']
+
+    # 'fixed' mode model
+    fm_fixed_results = fm_fixed.get_results()
+    fm_fixed_idc = [] # indices of the goodness of fit metrics in the results
+    for metric in gof_metrics:
+        fm_fixed_idc.append(fm_fixed_results._fields.index(metric))
+    fm_fixed_gof = '' # string to print for the goodness of fit metrics
+    for i, idx in enumerate(fm_fixed_idc):
+        fm_fixed_gof += f"{gof_metrics[i]}={round(fm_fixed_results[idx], 3)}; "
+    fm_fixed_gof = fm_fixed_gof[:-2] # removes the last semicolon ans space
+    axs[0,0].set_title(f"'fixed' aperiodic mode | {fm_fixed_gof}") # adds the info to the plot title
+
+    # 'fixed' mode model
+    fm_knee_results = fm_knee.get_results()
+    fm_knee_idc = [] # indices of the goodness of fit metrics in the results
+    for metric in gof_metrics:
+        fm_knee_idc.append(fm_knee_results._fields.index(metric))
+    fm_knee_gof = '' # string to print for the goodness of fit metrics
+    for i, idx in enumerate(fm_knee_idc):
+        fm_knee_gof += f"{gof_metrics[i]}={round(fm_knee_results[idx], 3)}; "
+    fm_knee_gof = fm_knee_gof[:-2] # removes the last semicolon and space
+    axs[0,1].set_title(f"'knee' aperiodic mode | {fm_knee_gof}") # adds the info to the plot title
+
+    ## Prompts the user to decide on a fit and returns the choice, if requested
+    if report == True:
+        answered = False
+        while not answered:
+            aperiodic_mode = input("Which mode should be used for fitting the aperiodic component, 'fixed' or 'knee'?: ")
+            if aperiodic_mode == 'fixed':
+                model = fm_fixed
+                answered = True
+            elif aperiodic_mode == 'knee':
+                model = fm_knee
+                answered = True
+            else:
+                print('This is not a valid input. Try again.')
+        
+        return model, aperiodic_mode
+
+
+
+def collect_fm_info(fm):
+    """ Collects information about the FOOOF model into a single dict.
+
+    PARAMETERS
+    ----------
+    fm : FOOOF model object
+    -   The model whose information should be collected
+
+    RETURNS
+    ----------
+    info : dict
+    -   A dictionary containing information about the FOOOF model.
+    
+    """
+
+    ### Processing
+    info_fields = {'meta_data': ['freq_range', 'freq_res'],
+                   'results': ['aperiodic_params', 'peak_params', 'r_squared', 'error', 'gaussian_params'],
+                   'settings': ['peak_width_limits', 'max_n_peaks', 'min_peak_height', 'peak_threshold',
+                                'aperiodic_mode']}
+
+    info = {}
+    ## Meta data
+    meta_data = fm.get_meta_data()
+    field_idc = []
+    for field in info_fields['meta_data']:
+        field_idc.append(meta_data._fields.index(field))
+    for i, idx in enumerate(field_idc):
+        info[info_fields['meta_data'][i]] = meta_data[idx]
+    
+    ## Results
+    results = fm.get_results()
+    field_idc = []
+    for field in info_fields['results']:
+        field_idc.append(results._fields.index(field))
+    for i, idx in enumerate(field_idc):
+        info[info_fields['results'][i]] = results[idx]
+
+    ## Settings
+    settings = fm.get_settings()
+    field_idc = []
+    for field in info_fields['settings']:
+        field_idc.append(settings._fields.index(field))
+    for i, idx in enumerate(field_idc):
+        info[info_fields['settings'][i]] = settings[idx]
+            
+
+    return info
 
 
 

@@ -3,6 +3,7 @@ import mne.connectivity as con
 import numpy as np
 import pandas as pd
 import helpers
+from fooof import FOOOF
 
 
 
@@ -51,7 +52,9 @@ def normalise(psds, line_noise=50, window=5):
         keep_idc = [x for x in freq_idc if x not in exclude_idc]
 
         # Normalises data to % total power
-        psds['psd'][psd_i] = (psds['psd'][psd_i] / np.sum(psds['psd'][psd_i][keep_idc]))*100
+        psd_keys = ['psd', 'psd_periodic', 'psd_aperiodic']
+        for psd_key in psd_keys.key():
+            psds[psd_key][psd_i] = (psds[psd_key][psd_i] / np.sum(psds[psd_key][psd_i][keep_idc]))*100
         
 
     return psds
@@ -115,25 +118,42 @@ def get_psd(epoched, extra_info, l_freq=0, h_freq=100, norm=True, line_noise=50)
     psds = psds.data.mean(-1) # averages over time points in each epoch
     psds = np.transpose(psds, (1,2,0)) # changes dimensions to channels x freqs x epochs
     psds = psds.mean(-1) # averages over epochs
+
+    ## FOOOFs PSDs
+    psds_periodic = []
+    psds_aperiodic = []
+    fms_info = []
+    model_params = {'peak_width_limits': [1,8]}
+    for i, psd in enumerate(psds):
+        # Plots PSDs and model fits so that you can check whether a 'fixed' or 'knee' fit should be used for...
+        #... modelling the aperiodic component, returning the chosen model
+        fm, aperiodic_mode = helpers.check_fm_fits(psd, freqs, params=model_params, title=ch_names[i], report=True)
+        # Extracts the periodic and aperiodic components of the model, as well as the model information
+        psds_periodic.append(fm._spectrum_flat)
+        psds_aperiodic.append(fm._spectrum_peak_rm)
+        fm_info = helpers.collect_fm_info(fm)
+        fms_info.append(fm_info)
+
     freqs = np.tile(freqs, [len(used_channels), 1])
 
     # Renames shuffled channels to be identical for ease of further processing
     ch_names = helpers.rename_shuffled(ch_names, data_types)
 
     # Collects data
-    psd_data = list(zip(ch_names, ch_coords, data_types, reref_types, ch_types, freqs, psds))
+    psd_data = list(zip(ch_names, ch_coords, data_types, reref_types, ch_types, freqs, psds, psds_periodic,
+                        psds_aperiodic, fms_info))
     psd_data = pd.DataFrame(data=psd_data, columns=['ch_name', 'ch_coords', 'data_type', 'reref_type', 'ch_type',
-                                                    'freqs', 'psd'])
+                                                    'freqs', 'power', 'power_periodic', 'power_aperiodic', 'fm_info'])
 
     # Normalise PSDs
     if norm is True:
         psd_data = normalise(psd_data, line_noise)
 
     # Gets band-wise power
-    psd_data = helpers.data_by_band(psd_data, ['psd'], band_names=['theta','alpha','low beta','high beta','gamma'])
+    psd_data = helpers.data_by_band(psd_data, ['power'], band_names=['theta','alpha','low beta','high beta','gamma'])
 
     # Average shuffled LFP values
-    psd_data = helpers.average_shuffled(psd_data, ['psd', 'freqs'], ['ch_name'])
+    psd_data = helpers.average_shuffled(psd_data, ['power', 'power_periodic', 'power_aperiodic', 'freqs'], ['ch_name'])
 
 
     return psd_data
