@@ -60,24 +60,38 @@ import plotting
 from helpers import average_dataset, alter_by_condition, channel_reref_types, add_loc_groups
 
 
-singlesubj_allchann = False # plots data for a single subject, averaged across runs
+singlesubj_allchann = True # plots data for a single subject, averaged across runs
 singlesubj_avgchann = False # plots data for a single subject, averaged across runs and channels
 multiplesubj_allchann = False # plots data for multiple subjects, averaged across runs
-multiplesubj_avgchann = True # plots data for multiple subjects, averaged across runs, channels, and subjects
+multiplesubj_avgchann = False # plots data for multiple subjects, averaged across runs, channels, and subjects
 
 subtract_med = True # subtracts the MedOn coherence from the MedOff coherence
 subtract_baseline = False # subtracts the baseline coherence data from the real coherence data
-group_by_region = True # groups channels that are being averaged based on the regions in which they are located
+group_by_region = False # groups channels that are being averaged based on the regions in which they are located
+
+power_keys = ['power', 'power_periodic', 'power_aperiodic']
+coh_keys = ['coh']
 
 if subtract_med == True:
     mark_y0 = True
+else:
+    mark_y0 = False
+
+power_y_keys = power_keys.copy()
+coh_y_keys = coh_keys.copy()
+y_key_appends = ['_fbands_avg', '_fbands_max', '_fbands_fmax']
+for y_key_append in y_key_appends:
+    for power_key in power_keys:
+        power_y_keys.append(power_key+y_key_append)
+    for coh_key in coh_keys:
+        coh_y_keys.append(coh_key+y_key_append)
 
 
 #### PLOTS DATA FOR A SINGLE SUBJECT, AVERAGED ACROSS RUNS
 if singlesubj_allchann == True:
     ### Setup & Processing
     # Loads data
-    datasets = []
+    datasets = {'Berlin': [0,1]}
 
     psds = []
     cohs = []
@@ -95,19 +109,22 @@ if singlesubj_allchann == True:
                                               separate=['run', 'ch_name_cortical', 'ch_name_deep', 'method'],
                                               x_keys=['subject', 'med', 'stim', 'task', 'freqs', 'fbands', 'ch_coords_cortical',
                                                       'ch_coords_deep', 'reref_type_cortical', 'reref_type_deep'],
-                                              y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'])
+                                              y_keys=coh_y_keys)
 
             # Averages data over runs
             psds[-1] = average_dataset(data=psds[-1], avg_over='run',
                                        separate=['ch_name', 'data_type', 'reref_type'],
                                        x_keys=['med', 'stim', 'task', 'subject', 'ch_type', 'freqs', 'fbands', 'ch_coords'],
-                                       y_keys=['psd', 'fbands_avg', 'fbands_max', 'fbands_fmax'])
+                                       y_keys=power_y_keys,
+                                       data_keys=power_keys,
+                                       cat=['fm_info'])
 
             cohs[-1] = average_dataset(data=cohs[-1], avg_over='run',
                                        separate=['ch_name_cortical', 'ch_name_deep', 'data_type', 'method'],
                                        x_keys=['med', 'stim', 'task', 'subject', 'freqs', 'fbands', 'ch_coords_cortical',
                                                'ch_coords_deep', 'reref_type_cortical', 'reref_type_deep'],
-                                       y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'])
+                                       y_keys=coh_y_keys,
+                                       data_keys=['coh'])
 
     psd = pd.concat(psds[:], ignore_index=True)
     coh = pd.concat(cohs[:], ignore_index=True)
@@ -117,13 +134,13 @@ if singlesubj_allchann == True:
         psd = alter_by_condition(data=psd, cond='med', types=['Off', 'On'], method='subtract',
                                  separate=['subject', 'ch_name', 'data_type', 'reref_type', 'ch_type'],
                                  x_keys=['run', 'stim', 'task', 'freqs', 'fbands', 'ch_coords'],
-                                 y_keys=['psd', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
+                                 y_keys=power_y_keys,
                                  recalculate_maxs=False, avg_as_equal=True)
 
         coh = alter_by_condition(data=coh, cond='med', types=['Off', 'On'], method='subtract',
                                  separate=['subject', 'ch_name_cortical', 'ch_name_deep', 'data_type', 'method', 'reref_type_cortical', 'reref_type_deep'],
                                  x_keys=['run', 'stim', 'task', 'freqs', 'fbands', 'ch_coords_cortical', 'ch_coords_deep'],
-                                 y_keys=['coh', 'fbands_avg', 'fbands_max', 'fbands_fmax'],
+                                 y_keys=coh_y_keys,
                                  recalculate_maxs=False)
 
 
@@ -132,7 +149,7 @@ if singlesubj_allchann == True:
     plotting.psd_freqwise(psd, group_master=['ch_type'],
                           group_fig=['reref_type', 'ch_type'],
                           group_plot=['ch_name'],
-                          plot_shuffled=False, plot_std=False, freq_limit=50, power_limit=15, mark_y0=mark_y0,
+                          plot_shuffled=False, plot_std=False, freq_limit=50, ylim_max=[-1,1], mark_y0=mark_y0,
                           same_y=True)
     plotting.psd_bandwise(psd, group_master=['ch_type'],
                           group_fig=['reref_type', 'ch_type', 'data_type'],

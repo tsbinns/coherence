@@ -866,7 +866,7 @@ def average_data(data, axis=0):
 
 
 
-def average_dataset(data, avg_over, separate, x_keys, y_keys, recalculate_maxs=True):
+def average_dataset(data, avg_over, separate, x_keys, y_keys, cat=[], data_keys=[], recalculate_maxs=True):
     """ Averages data over specific factors (e.g. runs, subjects).
 
     PARAMETERS
@@ -887,6 +887,13 @@ def average_dataset(data, avg_over, separate, x_keys, y_keys, recalculate_maxs=T
 
     y_keys : list of strs
     -   The names of the columns in the DataFrame whose values should be averaged.
+
+    cat : list of strs
+    -   The names of the columns in the DataFrame whose values should be concatenated into a single list.
+
+    data_keys : list of strs
+    -   The names of the columns in the DataFrame whose maximum values should be recalculated. Only used if
+        'recalculate_maxs' == True.
 
     recalculate_maxs : bool, default True
     -   Whether or not to recalculate the maximum frequency-band values (i.e. fbands_max, fbands_fmax) based on the
@@ -954,9 +961,15 @@ def average_dataset(data, avg_over, separate, x_keys, y_keys, recalculate_maxs=T
         if key == avg_over or key in comb_keys: # the averaged-over factor and factors that are inadvertently...
         #... averaged over gets special names, specifying what was averaged over (e.g. run IDs, subject IDs, etc...)
             for unique_i in unique_idc:
-                new_entry = np.unique(data[key][unique_i]).tolist()
-                new_entry = ','.join(new_entry)
-                new_cols[-1].append(f'avg[{new_entry}]')
+                if key in cat:
+                    new_entry = []
+                    for entry in data[key][unique_i]:
+                        new_entry.append(entry)
+                    new_cols[-1].append(new_entry)
+                else:
+                    new_entry = np.unique(data[key][unique_i]).tolist()
+                    new_entry = ','.join(new_entry)
+                    new_cols[-1].append(f'avg[{new_entry}]')
         elif key in y_keys: # the values that were averaged get used in place of the original values
             new_cols[-1].extend(avg[key])
         elif key in x_keys or key in separate: # values which are identical across the averaged group, so can just be...
@@ -974,21 +987,13 @@ def average_dataset(data, avg_over, separate, x_keys, y_keys, recalculate_maxs=T
 
     # Recalculates maximum values based on the averaged data, if requested
     if recalculate_maxs == True:
-        # Checks for the correct format of the data
-        if 'psd' in new_data.keys() and 'coh' not in new_data.keys():
-            data_key = 'psd'
-        elif 'coh' in new_data.keys() and 'psd' not in new_data.keys():
-            data_key = 'coh'
-        else:
-            raise ValueError(f"One and only one of 'psd' or 'coh' must be included in the DataFrame.")
-        
-        # Recalculates maximum values
-        for data_i in new_data.index:
-            data = new_data.iloc[data_i]
-            recalc_max, recalc_fmax = recalculate_band_max(data[data_key], data['freqs'], data['fbands'])
-            data['fbands_max'] = recalc_max
-            data['fbands_fmax'] = recalc_fmax
-        new_data = new_data.drop(columns=['fbands_max_std', 'fbands_fmax_std'])
+        for data_key in data_keys:
+            for data_i in new_data.index:
+                data = new_data.iloc[data_i]
+                recalc_max, recalc_fmax = recalculate_band_max(data[data_key], data['freqs'], data['fbands'])
+                data['fbands_max'] = recalc_max
+                data['fbands_fmax'] = recalc_fmax
+            new_data = new_data.drop(columns=[data_key+'_fbands_max_std', data_key+'_fbands_fmax_std'])
 
             
     return new_data

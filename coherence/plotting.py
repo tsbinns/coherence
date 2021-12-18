@@ -8,8 +8,10 @@ import datetime
 import helpers
 
 
-def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_std=True, plot_layout=[2,3],
-                 freq_limit=None, ylim_max=None, same_y=True, avg_as_equal=True, mark_y0=False, add_avg=[]):
+def psd_freqwise(psd, group_master, group_fig=[], group_plot=[],
+                 power_keys=['power','power_periodic','power_aperiodic'], plot_shuffled=False, plot_std=True,
+                 plot_layout=[2,3], freq_limit=None, ylim_max=None, same_y=True, avg_as_equal=True, mark_y0=False,
+                 add_avg=[]):
     """ Plots frequency-wise PSDs of the data.
 
     PARAMETERS
@@ -30,6 +32,9 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     -   Keys of psd containing the data characteristics which should be used to separate the subgrouped data (specified
         by group_figure) into further subgroups used for plotting data on the same plot. If empty, the same groups as
         group_fig are used.
+
+    power_keys : list of strs
+    -   Keys of 'psd' containing the power data (e.g. regular power, periodic and aperiodic components of power).
 
     plot_shuffled : bool, default False
     -   Whether or not to plot PSDs for the shuffled LFP data.
@@ -99,6 +104,10 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
         if len(ylim_max) != 2:
             raise ValueError(f"Two values for 'ylim_max' should be given, representing the maximum lower and upper y-axis boundaries, but {len(ylim_max)} values are given.")
 
+    # Moves model info to a separate structure
+    fm_info = psd.fm_info.copy()
+    psd = psd.drop(columns='fm_info')
+
     # Discards shuffled data from being plotted, if requested
     if plot_shuffled is False:
         remove = []
@@ -123,8 +132,13 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
         group_plot = group_fig
 
     # Keys used to label figures, plots, and data
-    psd_data_keys = ['ch_coords', 'ch_coords_std', 'freqs', 'psd', 'psd_std', 'fbands', 'fbands_avg', 'fbands_avg_std',
-                     'fbands_max', 'fbands_max_std', 'fbands_fmax', 'fbands_fmax_std']
+    power_data_keys = power_keys.copy()
+    data_key_appends = ['_std', '_fbands_avg', '_fbands_avg_std', '_fbands_max', '_fbands_max_std', '_fbands_fmax',
+                        '_fbands_fmax_std']
+    for power_key in power_keys:
+        for data_key_append in data_key_appends:
+            power_data_keys.append(power_key+data_key_append)
+    psd_data_keys = ['ch_coords', 'ch_coords_std', 'freqs', 'fbands', *power_data_keys]
     data_keys = [key for key in psd.keys() if key not in group_fig+group_plot+psd_data_keys]
     plot_keys = [key for key in psd.keys() if key not in group_fig+psd_data_keys+data_keys]
     fig_keys = [key for key in psd.keys() if key not in psd_data_keys+data_keys+plot_keys]
@@ -164,176 +178,182 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
             if add_avg[1] == 'grey':
                 colours[add_avg[0]][i][:3] = [0, 0, 0]
 
-    # Name of the folder in which to save figures (based on the current time)
-    foldername = 'psd_freqwise-'+''.join([str(x) for x in datetime.datetime.now().timetuple()[:-3]])
-
 
     ### Plotting
-    for mastergroup_i, idc_group_master in enumerate(idcs_group_master):
-        
-        # Gets a global y-axis for all data of the same mastergroup (if requested)
-        if same_y == True:
-            if plot_std == True and 'psd_std' in psd.keys() and add_avg == []:
-                group_ylim = helpers.same_axes(psd.psd[idc_group_master] + psd.psd_std[idc_group_master])
-            else:
-                group_ylim = helpers.same_axes(psd.psd[idc_group_master])
+    for power_key in power_keys:
 
-        # Gets indices of figure-grouped data
-        names_fig = helpers.combine_names(psd.iloc[idc_group_master], group_fig, joining=',')
-        names_group_fig, idcs_group_fig = helpers.unique_names(names_fig)
-        for figgroup_i, idc_group_fig in enumerate(idcs_group_fig):
-                idcs_group_fig[figgroup_i] = [idc_group_master[i] for i in idc_group_fig]
+        # Name of the folder in which to save figures (based on the current time)
+        foldername = 'psd_freqwise-'+''.join([str(x) for x in datetime.datetime.now().timetuple()[:-3]])
 
-        for figgroup_i, idc_group_fig in enumerate(idcs_group_fig):
+        for mastergroup_i, idc_group_master in enumerate(idcs_group_master):
             
-            # Gets the characteristics for all data of this type so that a title for the window can be generated
-            fig_info = {}
-            for key in fig_keys:
-                fig_info[key] = list(np.unique(psd[key][idc_group_fig]))
-            wind_title, included = helpers.window_title(fig_info, base_title='PSD:', full_info=False)
+            # Gets a global y-axis for all data of the same mastergroup (if requested)
+            if same_y == True:
+                if plot_std == True and power_key+'_std' in psd.keys() and add_avg == []:
+                    group_ylim = helpers.same_axes(psd[power_key][idc_group_master] + psd[power_key+'_std'][idc_group_master])
+                else:
+                    group_ylim = helpers.same_axes(psd[power_key][idc_group_master])
 
-            names_plot = helpers.combine_names(psd, group_plot, joining=',')
-            names_group_plot, idcs_group_plot = helpers.unique_names([names_plot[i] for i in idc_group_fig])
-            for plotgroup_i, idc_group_plot in enumerate(idcs_group_plot):
-                idcs_group_plot[plotgroup_i] = [idc_group_fig[i] for i in idc_group_plot]
+            # Gets indices of figure-grouped data
+            names_fig = helpers.combine_names(psd.iloc[idc_group_master], group_fig, joining=',')
+            names_group_fig, idcs_group_fig = helpers.unique_names(names_fig)
+            for figgroup_i, idc_group_fig in enumerate(idcs_group_fig):
+                    idcs_group_fig[figgroup_i] = [idc_group_master[i] for i in idc_group_fig]
 
-            n_plots = len(idcs_group_plot) # number of plots to make for this type
-            n_plots_per_page = int(plot_layout[0]*plot_layout[1]) # number of plots on each page
-            n_pages = int(np.ceil(n_plots/n_plots_per_page)) # number of pages these plots will need
-            n_rows = plot_layout[0] # number of rows these pages will need
-            n_cols = plot_layout[1] # number of columns these pages will need
+            for figgroup_i, idc_group_fig in enumerate(idcs_group_fig):
+                
+                # Gets the characteristics for all data of this type so that a title for the window can be generated
+                fig_info = {}
+                for key in fig_keys:
+                    fig_info[key] = list(np.unique(psd[key][idc_group_fig]))
+                wind_title, included = helpers.window_title(fig_info, base_title=f"{power_key}:", full_info=False)
 
-            stop = False
-            plotgroup_i = 0
-            for page_i in range(n_pages): # for each page of this type
+                names_plot = helpers.combine_names(psd, group_plot, joining=',')
+                names_group_plot, idcs_group_plot = helpers.unique_names([names_plot[i] for i in idc_group_fig])
+                for plotgroup_i, idc_group_plot in enumerate(idcs_group_plot):
+                    idcs_group_plot[plotgroup_i] = [idc_group_fig[i] for i in idc_group_plot]
 
-                # Sets up figure
-                fig, axs = plt.subplots(n_rows, n_cols)
-                if n_rows == 1 and n_cols == 1:
-                    axs = np.asarray([[axs]]) # puts the lone axs into an array for later indexing
-                elif n_rows == 1 and n_cols > 1:
-                    axs = np.vstack((axs, [0,0])) # adds an extra row for later indexing
-                elif n_cols == 1 and n_rows > 1:
-                    axs = np.hstack((axs), [0,0]) # adds and extra column for later indexing
-                plt.tight_layout(rect = [0, 0, 1, .95])
-                fig.suptitle(wind_title)
+                n_plots = len(idcs_group_plot) # number of plots to make for this type
+                n_plots_per_page = int(plot_layout[0]*plot_layout[1]) # number of plots on each page
+                n_pages = int(np.ceil(n_plots/n_plots_per_page)) # number of pages these plots will need
+                n_rows = plot_layout[0] # number of rows these pages will need
+                n_cols = plot_layout[1] # number of columns these pages will need
 
-                for row_i in range(n_rows): # fill up each row from top to down...
-                    for col_i in range(n_cols): # ... and from left to right
-                        if stop is False: # if there is still data to plot for this subgroup
+                stop = False
+                plotgroup_i = 0
+                for page_i in range(n_pages): # for each page of this type
 
-                            idc_group_plot = idcs_group_plot[plotgroup_i]
+                    # Sets up figure
+                    fig, axs = plt.subplots(n_rows, n_cols)
+                    if n_rows == 1 and n_cols == 1:
+                        axs = np.asarray([[axs]]) # puts the lone axs into an array for later indexing
+                    elif n_rows == 1 and n_cols > 1:
+                        axs = np.vstack((axs, [0,0])) # adds an extra row for later indexing
+                    elif n_cols == 1 and n_rows > 1:
+                        axs = np.hstack((axs), [0,0]) # adds and extra column for later indexing
+                    plt.tight_layout(rect = [0, 0, 1, .95])
+                    fig.suptitle(wind_title)
 
-                            # Gets the characteristics for all data of this plot so that a title can be generated
-                            plot_info = {}
-                            for key in plot_keys:
-                                plot_info[key] = list(np.unique(psd[key][idc_group_plot]))
-                            plot_title, plot_included = helpers.plot_title(plot_info, already_included=included,
-                                                                            full_info=False)
-                            now_included = included + plot_included # keeps track of what is already included in the...
-                            #... titles
+                    for row_i in range(n_rows): # fill up each row from top to down...
+                        for col_i in range(n_cols): # ... and from left to right
+                            if stop is False: # if there is still data to plot for this subgroup
 
-                            # Sets up subplot
-                            axs[row_i, col_i].set_title(plot_title)
-                            axs[row_i, col_i].set_xlabel('Frequency (Hz)')
-                            axs[row_i, col_i].set_ylabel('Normalised Power (% total)')
+                                idc_group_plot = idcs_group_plot[plotgroup_i]
 
-                            for ch_idx in idc_group_plot: # for each data entry
-                            
-                                data = psd.iloc[ch_idx] # the data to plot
+                                # Gets the characteristics for all data of this plot so that a title can be generated
+                                plot_info = {}
+                                for key in plot_keys:
+                                    plot_info[key] = list(np.unique(psd[key][idc_group_plot]))
+                                plot_title, plot_included = helpers.plot_title(plot_info, already_included=included,
+                                                                                full_info=False)
+                                now_included = included + plot_included # keeps track of what is already included in the...
+                                #... titles
 
-                                if freq_limit != None: # finds limit of frequencies to plot (if applicable)...
-                                    freq_limit_i = int(np.where(data.freqs == data.freqs[data.freqs >=
-                                                                freq_limit].min())[0])
-                                else: #... or plots all data
-                                    freq_limit_i = len(data.freqs)
+                                # Sets up subplot
+                                axs[row_i, col_i].set_title(plot_title)
+                                axs[row_i, col_i].set_xlabel('Frequency (Hz)')
+                                axs[row_i, col_i].set_ylabel('Normalised Power (% total)')
 
-                                # Gets the characteristics for the data so that a label can be generated
-                                data_info = {}
-                                for key in data_keys:
-                                    data_info[key] = data[key]
-                                data_title = helpers.data_title(data_info, already_included=now_included,
-                                                                full_info=False)
-                                if data_title == '': # don't label the data if there is no info to add
-                                    data_title = None
-
-                                # Gets the colour of data based on it's characteristics
-                                colour = []
-                                for key in colours.keys():
-                                    colour.append(colours[key][colour_info[key][1].index(data[key])])
-                                if colour:
-                                    colour = np.nanmean(colour, axis=0) # takes the average colour based on the...
-                                    #... data's characteristics
-                                else: # if there is no colour info, set the colour to black
-                                    colour = [0, 0, 0, 1]
+                                for ch_idx in idc_group_plot: # for each data entry
                                 
-                                # Plots data
-                                axs[row_i, col_i].plot(data.freqs[:freq_limit_i+1], data.psd[:freq_limit_i+1],
-                                                    label=data_title, linewidth=2, color=colour)
-                                if data_title != None: # if data has been labelled, plot the legend
-                                    axs[row_i, col_i].legend(labelspacing=0)
-                                
-                                # Plots std (if applicable and if average data is not being added)
-                                if std_present == True and add_avg == []:
-                                    if 'psd_std' in data.keys():
-                                        std_plus = data.psd[:freq_limit_i+1] + data.psd_std[:freq_limit_i+1]
-                                        std_minus = data.psd[:freq_limit_i+1] - data.psd_std[:freq_limit_i+1]
-                                        axs[row_i, col_i].fill_between(data.freqs[:freq_limit_i+1], std_plus, std_minus,
-                                                                       color=colour, alpha=colour[-1]*.2)
+                                    data = psd.iloc[ch_idx] # the data to plot
 
-                                # Adds the averaged data, if requested
-                                if ch_idx == idc_group_plot[-1] and add_avg != []:
-                                    avg_data = np.mean(psd['psd'][idc_group_plot], axis=0)
-                                    axs[row_i, col_i].plot(data.freqs[:freq_limit_i+1], avg_data[:freq_limit_i+1],
-                                                           label=f"avg[{add_avg[0]}]", linewidth=4, color=[0,0,0,1])
-                                    if plot_std == True:
-                                        std_plus = avg_data + np.std(psd['psd'][idc_group_plot].values, axis=0)
-                                        std_minus = avg_data - np.std(psd['psd'][idc_group_plot].values, axis=0)
-                                        axs[row_i, col_i].fill_between(data.freqs[:freq_limit_i+1], std_plus[:freq_limit_i+1], std_minus[:freq_limit_i+1],
-                                                                       color=[0,0,0], alpha=.2)
+                                    if freq_limit != None: # finds limit of frequencies to plot (if applicable)...
+                                        freq_limit_i = int(np.where(data.freqs == data.freqs[data.freqs >=
+                                                                    freq_limit].min())[0])
+                                    else: #... or plots all data
+                                        freq_limit_i = len(data.freqs)
 
-                                # Demarcates 0 on the y-axis, if requested
-                                if mark_y0 == True:
-                                    xlim = axs[row_i, col_i].get_xlim()
-                                    xlim_trim = (xlim[1] - xlim[0])*.05
-                                    axs[row_i, col_i].plot([xlim[0]+xlim_trim, xlim[1]-xlim_trim], [0,0], color='grey',
-                                        linestyle='dashed')
+                                    # Gets the characteristics for the data so that a label can be generated
+                                    data_info = {}
+                                    for key in data_keys:
+                                        data_info[key] = data[key]
+                                    data_title = helpers.data_title(data_info, already_included=now_included,
+                                                                    full_info=False)
+                                    if data_title == '': # don't label the data if there is no info to add
+                                        data_title = None
 
-                                # Sets all y-axes to be equal (if requested)
-                                if same_y == True:
-                                    axs[row_i, col_i].set_ylim(*group_ylim)
+                                    # Gets the colour of data based on it's characteristics
+                                    colour = []
+                                    for key in colours.keys():
+                                        colour.append(colours[key][colour_info[key][1].index(data[key])])
+                                    if colour:
+                                        colour = np.nanmean(colour, axis=0) # takes the average colour based on the...
+                                        #... data's characteristics
+                                    else: # if there is no colour info, set the colour to black
+                                        colour = [0, 0, 0, 1]
+                                    
+                                    # Plots data
+                                    axs[row_i, col_i].plot(data.freqs[:freq_limit_i+1],
+                                                           data[power_key][:freq_limit_i+1],
+                                                           label=data_title, linewidth=2, color=colour)
+                                    if data_title != None: # if data has been labelled, plot the legend
+                                        axs[row_i, col_i].legend(labelspacing=0)
+                                    
+                                    # Plots std (if applicable and if average data is not being added)
+                                    if std_present == True and add_avg == []:
+                                        if 'psd_std' in data.keys():
+                                            std_plus = data[power_key][:freq_limit_i+1] + data[power_key+'_std'][:freq_limit_i+1]
+                                            std_minus = data[power_key][:freq_limit_i+1] - data[power_key+'_std'][:freq_limit_i+1]
+                                            axs[row_i, col_i].fill_between(data.freqs[:freq_limit_i+1], std_plus,
+                                                                           std_minus, color=colour, alpha=colour[-1]*.2)
 
-                            # Sets the y-axis limits if they have been exceeded (if requested)
-                            if ylim_max != None:
-                                ylim = axs[row_i, col_i].get_ylim()
-                                upper_ylim = ylim[1]
-                                lower_ylim = ylim[0]
-                                if ylim[0] < ylim_max[0]:
-                                    lower_ylim = ylim_max[0]
-                                if ylim[1] > ylim_max[0]:
-                                    upper_ylim = ylim_max[1]
-                                axs[row_i, col_i].set_ylim(lower_ylim, upper_ylim)
+                                    # Adds the averaged data, if requested
+                                    if ch_idx == idc_group_plot[-1] and add_avg != []:
+                                        avg_data = np.mean(psd[power_key][idc_group_plot], axis=0)
+                                        axs[row_i, col_i].plot(data.freqs[:freq_limit_i+1], avg_data[:freq_limit_i+1],
+                                                            label=f"avg[{add_avg[0]}]", linewidth=4, color=[0,0,0,1])
+                                        if plot_std == True:
+                                            std_plus = avg_data + np.std(psd[power_key][idc_group_plot].values, axis=0)
+                                            std_minus = avg_data - np.std(psd[power_key][idc_group_plot].values, axis=0)
+                                            axs[row_i, col_i].fill_between(data.freqs[:freq_limit_i+1],
+                                                                           std_plus[:freq_limit_i+1],
+                                                                           std_minus[:freq_limit_i+1],
+                                                                           color=[0,0,0], alpha=.2)
+
+                                    # Demarcates 0 on the y-axis, if requested
+                                    if mark_y0 == True:
+                                        xlim = axs[row_i, col_i].get_xlim()
+                                        xlim_trim = (xlim[1] - xlim[0])*.05
+                                        axs[row_i, col_i].plot([xlim[0]+xlim_trim, xlim[1]-xlim_trim], [0,0],
+                                                               color='grey', linestyle='dashed')
+
+                                    # Sets all y-axes to be equal (if requested)
+                                    if same_y == True:
+                                        axs[row_i, col_i].set_ylim(*group_ylim)
+
+                                # Sets the y-axis limits if they have been exceeded (if requested)
+                                if ylim_max != None:
+                                    ylim = axs[row_i, col_i].get_ylim()
+                                    upper_ylim = ylim[1]
+                                    lower_ylim = ylim[0]
+                                    if ylim[0] < ylim_max[0]:
+                                        lower_ylim = ylim_max[0]
+                                    if ylim[1] > ylim_max[0]:
+                                        upper_ylim = ylim_max[1]
+                                    axs[row_i, col_i].set_ylim(lower_ylim, upper_ylim)
 
 
-                            plotgroup_i += 1
-                            if ch_idx == idc_group_fig[-1]: # if there is no more data to plot for this type...
-                                stop = True #... don't plot anything else
-                                extra = n_plots_per_page*n_pages - n_plots # checks if there are extra subplots that...
-                                #... can be removed
+                                plotgroup_i += 1
+                                if ch_idx == idc_group_fig[-1]: # if there is no more data to plot for this type...
+                                    stop = True #... don't plot anything else
+                                    extra = n_plots_per_page*n_pages - n_plots # checks if there are extra subplots that...
+                                    #... can be removed
 
-                        elif stop is True and extra > 0: # if there is no more data to plot for this type...
-                            fig.delaxes(axs[row_i, col_i]) # ... delete the extra subplots
+                            elif stop is True and extra > 0: # if there is no more data to plot for this type...
+                                fig.delaxes(axs[row_i, col_i]) # ... delete the extra subplots
 
-                # Shows the figure
-                plt.show()
+                    # Shows the figure
+                    plt.show()
 
-                # Saves the figure
-                helpers.save_fig(fig, wind_title, filetype='png', foldername=foldername)
+                    # Saves the figure
+                    helpers.save_fig(fig, wind_title, filetype='png', foldername=foldername)
 
 
 
-def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_std=True, plot_layout=[2,3],
-                 keys_to_plot=['avg', 'max'], same_y=True, avg_as_equal=True):
+def psd_bandwise(psd, group_master, group_fig=[], group_plot=[],
+                 power_keys=['power','power_periodic','power_aperiodic'], plot_shuffled=False, plot_std=True,
+                 plot_layout=[2,3], keys_to_plot=['avg', 'max'], same_y=True, avg_as_equal=True):
     """ Plots frequency band-wise PSDs of the data.
 
     PARAMETERS
@@ -354,6 +374,9 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     -   Keys of psd containing the data characteristics which should be used to separate the subgrouped data (specified
         by group_figure) into further subgroups used for plotting data on the same plot. If empty, the same groups as
         group_fig are used.
+
+    power_keys : list of strs
+    -   Keys of 'psd' containing the power data (e.g. regular power, periodic and aperiodic components of power).
 
     plot_shuffled : bool, default False
     -   Whether or not to plot coherence values for the shuffled LFP data.
@@ -774,7 +797,8 @@ def psd_bandwise(psd, group_master, group_fig=[], group_plot=[], plot_shuffled=F
 
 
 
-def psd_bandwise_gb(psd, areas, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_layout=[2,3],
+def psd_bandwise_gb(psd, areas, group_master, group_fig=[], group_plot=[],
+                    power_keys=['power','power_periodic','power_aperiodic'],plot_shuffled=False, plot_layout=[2,3],
                     keys_to_plot=['avg', 'max'], same_y_groupwise=False, same_y_bandwise=False, normalise=[False, []],
                     avg_as_equal=True):
     """ Plots frequency band-wise PSDs of the data on a glass brain.
@@ -802,6 +826,9 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], group_plot=[], plot_
         by group_figure) into further subgroups used for plotting data on the same plot. Should only have one entry and 
         be for a binary data characteristic (e.g. 'med': Off & On), otherwise an error is raised. If the data is binary,
         the subtypes are plotted on different hemispheres (e.g. MedOff on left hemisphere, MedOn on right hemisphere).
+
+    power_keys : list of strs
+    -   Keys of 'psd' containing the power data (e.g. regular power, periodic and aperiodic components of power).
 
     plot_shuffled : bool, default False
     -   Whether or not to plot coherence values for the shuffled LFP data.

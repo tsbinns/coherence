@@ -269,7 +269,7 @@ def get_coherence(epoched, extra_info, cwt_freqs, methods=['coh', 'imcoh']):
     coh_data = helpers.data_by_band(coh_data, ['coh'], band_names=['theta','alpha','low beta','high beta','gamma'])
 
     # Average shuffled LFP values
-    fbands_keys = ['fbands_avg', 'fbands_max', 'fbands_fmax']
+    fbands_keys = ['coh_fbands_avg', 'coh_fbands_max', 'coh_fbands_fmax']
     coh_data = helpers.average_shuffled(coh_data, fbands_keys, ['ch_name_cortical', 'ch_name_deep', 'method'])
 
 
