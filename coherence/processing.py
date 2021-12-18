@@ -33,7 +33,7 @@ def normalise(psds, line_noise=50, window=5):
     -   The normalised PSD data.
     """
 
-    for psd_i in range(len(psds['psd'])): # for each channel of data
+    for psd_i in range(psds.shape[0]): # for each channel of data
 
         exclude_freqs = np.arange(0, psds['freqs'][psd_i][-1]+1, line_noise) # low and line noise frequencies to exclude
         exclude_window = {} # windows around these line noise frequencies
@@ -52,8 +52,8 @@ def normalise(psds, line_noise=50, window=5):
         keep_idc = [x for x in freq_idc if x not in exclude_idc]
 
         # Normalises data to % total power
-        psd_keys = ['psd', 'psd_periodic', 'psd_aperiodic']
-        for psd_key in psd_keys.key():
+        psd_keys = ['power', 'power_periodic', 'power_aperiodic']
+        for psd_key in psd_keys:
             psds[psd_key][psd_i] = (psds[psd_key][psd_i] / np.sum(psds[psd_key][psd_i][keep_idc]))*100
         
 
@@ -123,7 +123,7 @@ def get_psd(epoched, extra_info, l_freq=0, h_freq=100, norm=True, line_noise=50)
     psds_periodic = []
     psds_aperiodic = []
     fms_info = []
-    model_params = {'peak_width_limits': [1,8]}
+    model_params = {'peak_width_limits': [2,8]}
     for i, psd in enumerate(psds):
         # Plots PSDs and model fits so that you can check whether a 'fixed' or 'knee' fit should be used for...
         #... modelling the aperiodic component, returning the chosen model
@@ -150,7 +150,8 @@ def get_psd(epoched, extra_info, l_freq=0, h_freq=100, norm=True, line_noise=50)
         psd_data = normalise(psd_data, line_noise)
 
     # Gets band-wise power
-    psd_data = helpers.data_by_band(psd_data, ['power'], band_names=['theta','alpha','low beta','high beta','gamma'])
+    psd_data = helpers.data_by_band(psd_data, ['power', 'power_periodic', 'power_aperiodic'],
+                                    band_names=['theta','alpha','low beta','high beta','gamma'])
 
     # Average shuffled LFP values
     psd_data = helpers.average_shuffled(psd_data, ['power', 'power_periodic', 'power_aperiodic', 'freqs'], ['ch_name'])

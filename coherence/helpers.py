@@ -1418,7 +1418,7 @@ def data_by_band(data, measures, band_names=None):
     # Gets the band-wise data
     bands = freq_band_info(band_names) # the frequency bands to analyse
 
-    for measure in measures:
+    for measure_i, measure in enumerate(measures):
         band_data = {}
         band_data['bands'] = []
         band_data['avg'] = [] # average in each frequency band
@@ -1437,9 +1437,14 @@ def data_by_band(data, measures, band_names=None):
                                                                                 band_data['max'][data_i][-1])[0]])
         
         # Collects band-wise data
-        band_data = list(zip(band_data['bands'], band_data['avg'], band_data['max'], band_data['fmax']))
-        fbands_keys = ['fbands_avg', 'fbands_max', 'fbands_fmax']
-        band_data = pd.DataFrame(data=band_data, columns=['fbands', *fbands_keys])
+        fbands_keys = [measure+'_fbands_avg', measure+'_fbands_max', measure+'_fbands_fmax']
+        if measure_i == 0: # if this is the first data being added, include the frequency band names
+            band_data = list(zip(band_data['bands'], band_data['avg'], band_data['max'], band_data['fmax']))
+            columns = ['fbands', *fbands_keys]
+        else: # if data has already been added, don't include the frequency band names again
+            band_data = list(zip(band_data['avg'], band_data['max'], band_data['fmax']))
+            columns = fbands_keys
+        band_data = pd.DataFrame(data=band_data, columns=columns)
 
         # Collects frequency- and band-wise data
         data = pd.concat([data, band_data], axis=1)
@@ -1710,6 +1715,8 @@ def check_fm_fits(power, freqs, params=None, title='', report=True):
                 answered = True
             else:
                 print('This is not a valid input. Try again.')
+        
+        plt.close()
         
         return model, aperiodic_mode
 
