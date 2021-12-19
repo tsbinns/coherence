@@ -45,7 +45,7 @@ ber_all = {'Berlin': np.arange(len(dataset_info['Berlin']['data']))} # All Berli
 ber_OFF = {'Berlin': [0,2,3,5,7,9,11,13]} # Berlin medOff data
 ber_ON = {'Berlin': [1,4,6,8,10,12,14]} # Berlin medOn data
 ber_OFFandON = {'Berlin': [0,1,3,4,5,6,7,8,9,10,11,12,13,14]} # Berlin subjects with medOff & medOn data
-ber_OFFandON_coords = {'Berlin': [0,1,3,4,5,6,7,8,9,10,11,12]} # Berlin subjects with medOff & medOn data with coords
+ber_OFFandON_coords = {'Berlin': [0,1,3,4,5,6,7,8,9,10,11,12,13,14]} # Berlin subjects with medOff & medOn data with coords
 
 # Beijing
 bei_all = {'Beijing': np.arange(len(dataset_info['Beijing']['data']))} # All Beijing data
@@ -146,15 +146,15 @@ if singlesubj_allchann == True:
 
     ### Plotting
     # PSD
-    plotting.psd_freqwise(psd, group_master=['ch_type'],
-                          group_fig=['reref_type', 'ch_type'],
-                          group_plot=['ch_name'],
-                          plot_shuffled=False, plot_std=False, freq_limit=50, ylim_max=[-1,1], mark_y0=mark_y0,
-                          same_y=True)
-    plotting.psd_bandwise(psd, group_master=['ch_type'],
-                          group_fig=['reref_type', 'ch_type', 'data_type'],
-                          group_plot=['ch_name'],
-                          plot_shuffled=False, plot_std=False, same_y=True, plot_layout=[3,4])
+    #plotting.psd_freqwise(psd, group_master=['ch_type'],
+    #                      group_fig=['reref_type', 'ch_type'],
+    #                      group_plot=['ch_name'],
+    #                      plot_shuffled=False, plot_std=False, freq_limit=50, ylim_max=[-1,1], mark_y0=mark_y0,
+    #                      same_y=True)
+    #plotting.psd_bandwise(psd, group_master=['ch_type'],
+    #                      group_fig=['reref_type', 'ch_type', 'data_type'],
+    #                      group_plot=['ch_name'],
+    #                      plot_shuffled=False, plot_std=False, same_y=True, plot_layout=[2,3])
     plotting.psd_bandwise_gb(psd, areas=['cortical'], group_master=['ch_type'],
                              group_fig=['reref_type', 'data_type'],
                              group_plot=['med'],
@@ -168,7 +168,7 @@ if singlesubj_allchann == True:
     plotting.coh_bandwise(coh, group_master=['method'],
                           group_fig=['reref_type_cortical', 'reref_type_deep', 'method', 'data_type'],
                           group_plot=['ch_name_cortical', 'ch_name_deep'],
-                          plot_shuffled=False, plot_std=False, same_y=True, plot_layout=[3,4])
+                          plot_shuffled=False, plot_std=False, same_y=True, plot_layout=[2,3])
     plotting.coh_bandwise_gb(coh, areas=['cortical'], group_master=['method'],
                              group_fig=['reref_type_cortical', 'reref_type_deep', 'method', 'data_type'],
                              group_plot=['med'],

@@ -8,14 +8,16 @@ import numpy as np
 import json
 from copy import deepcopy
 import matplotlib; matplotlib.use('TKAgg')
+import mne
 
+mne.cuda.init_cuda(verbose=True)
 
 # Gets path info
 cd_path = Path(__file__).absolute().parent.parent
 sys.path.append(os.path.join(cd_path, 'coherence'))
 
-main_path = 'C:\\Users\\tomth\\Data\\BIDS_Beijing_ECOG_LFP\\rawdata'
-project_path = 'C:\\Users\\tomth\\OneDrive\\My Documents\\Work\\Courses\\Berlin\\ECN\\ICN\\Data\\BIDS_Beijing_ECOG_LFP\\projects\\coherence'
+main_path = 'C:\\Users\\tomth\\Data\\BIDS_Berlin_ECOG_LFP\\rawdata'
+project_path = 'C:\\Users\\tomth\\OneDrive\\My Documents\\Work\\Courses\\Berlin\\ECN\\ICN\\Data\\BIDS_Berlin_ECOG_LFP\\projects\\coherence'
 
 import preprocessing
 import processing
@@ -24,9 +26,9 @@ from helpers import combine_data
 
 ## Setup =====
 # Loads settings for analysis
-sub = 'FOG011'
+sub = '008'
 task = 'Rest'
-med = 'MedOff'
+med = 'MedOn'
 stim = 'StimOff'
 orig_time = None
 with open(os.path.join(project_path, 'settings.json')) as json_file:
