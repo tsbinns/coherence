@@ -1985,20 +1985,24 @@ def add_loc_groups(data, ch_groups, ch_name_key="ch_name", ch_coords_key="ch_coo
     for i in range(len(data)):
         entry = data.iloc[i]
         ## Finds the corresponding 'ch_groups' entry
-        if entry[ch_name_key] in ch_groups['ch_name'].values:
-            ch_groups_i = np.where(ch_groups['ch_name'] == entry[ch_name_key])[0][0]
-            ch_groups_coords = [ch_groups['x'][ch_groups_i], ch_groups['y'][ch_groups_i], ch_groups['z'][ch_groups_i]]
-            ## Makes sure the coordinates match (with some lee-way for manual calculations rounding)
-            np.testing.assert_allclose(ch_groups_coords, entry[ch_coords_key], atol=10**-3,
-                                       err_msg=f"The coordinates of channel {entry[ch_name_key]} in the data ({entry[ch_coords_key]}) do not match those in the localisation groups ({ch_groups_coords}).")
-            ## Assigns the localisation group
-            loc_groups.append(ch_groups['group'][ch_groups_i])
-        else:
-            if handle_missing == "error":
-                raise ValueError(f"The localisation group for channel {entry[ch_name_key]} is missing from the file.")
-            elif handle_missing == "warning":
-                print(f"The localisation group for channel {entry[ch_name_key]} is missing from the file, using 'unassigned' instead.")
-                loc_groups.append('unassigned')
+        if type(ch_groups) != pd.DataFrame:
+            if ch_groups == 'all':
+                loc_groups.append('all')
+        else: 
+            if entry[ch_name_key] in ch_groups['ch_name'].values:
+                ch_groups_i = np.where(ch_groups['ch_name'] == entry[ch_name_key])[0][0]
+                ch_groups_coords = [ch_groups['x'][ch_groups_i], ch_groups['y'][ch_groups_i], ch_groups['z'][ch_groups_i]]
+                ## Makes sure the coordinates match (with some lee-way for manual calculations rounding)
+                np.testing.assert_allclose(ch_groups_coords, entry[ch_coords_key], atol=0.1,
+                                        err_msg=f"The coordinates of channel {entry[ch_name_key]} in the data ({entry[ch_coords_key]}) do not match those in the localisation groups ({ch_groups_coords}).")
+                ## Assigns the localisation group
+                loc_groups.append(ch_groups['group'][ch_groups_i])
+            else:
+                if handle_missing == "error":
+                    raise ValueError(f"The localisation group for channel {entry[ch_name_key]} is missing from the file.")
+                elif handle_missing == "warning":
+                    print(f"The localisation group for channel {entry[ch_name_key]} is missing from the file, using 'unassigned' instead.")
+                    loc_groups.append('unassigned')
 
     ### Adds the localisation groups
     data['loc_group'] = loc_groups

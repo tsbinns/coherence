@@ -1275,8 +1275,8 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
 
     # Keys used to label figures, plots, and data
     coh_data_keys = ['ch_coords_cortical', 'ch_coords_deep', 'ch_coords_cortical_std', 'ch_coords_deep_std', 'freqs',
-                     'coh', 'coh_std', 'fbands', 'fbands_avg', 'fbands_avg_std', 'fbands_max', 'fbands_max_std',
-                     'fbands_fmax', 'fbands_fmax_std']
+                     'coh', 'coh_std', 'fbands', 'coh_fbands_avg', 'coh_fbands_avg_std', 'coh_fbands_max',
+                     'coh_fbands_max_std', 'coh_fbands_fmax', 'coh_fbands_fmax_std']
     data_keys = [key for key in coh.keys() if key not in group_fig+group_plot+coh_data_keys]
     plot_keys = [key for key in coh.keys() if key not in group_fig+coh_data_keys+data_keys]
     fig_keys = [key for key in coh.keys() if key not in coh_data_keys+data_keys+plot_keys]
