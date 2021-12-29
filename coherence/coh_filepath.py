@@ -41,12 +41,12 @@ class DerivativeFilepath(Filepath):
 
     def subfolders(self) -> str:
 
-        return f"sub-{self.subject}\\ses-{self.session}"
+        return f"sub-{self.subject}\\ses-{self.session}\\{self.derivative_type}"
 
 
     def filename(self) -> str:
 
-        return f"sub-{self.subject}_ses-{self.session}_task-{self.task}_acq-{self.acquisition}_run-{self.run}_data-{self.datatype}.{self.filetype}"
+        return f"sub-{self.subject}_ses-{self.session}_task-{self.task}_acq-{self.acquisition}_run-{self.run}_{self.derivative_type}.{self.filetype}"
 
 
     def path(self,
