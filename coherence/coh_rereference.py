@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 import numpy as np
 import mne
 
+from coh_check_entries import CheckLengthsDict, CheckLengthsList
+
 
 
 
@@ -95,6 +97,10 @@ class RerefBipolar(Reref):
         settings: dict
         ):
 
+        equal_lengths, self._n_channels = CheckLengthsDict.check_identical(settings, ignore_values=[[]])
+        if not equal_lengths:
+            raise Exception(f"Error when reading rereferencing settings.\nThe length of entries within the settings dictionary are not identical:\n{self._n_channels}")
+
         self.raw = raw
         self._settings = settings
 
@@ -128,11 +134,16 @@ class RerefBipolar(Reref):
 
     def _store_rereference_types(self):
 
-        self.reref_types = super()._store_rereference_types(self.settings)
+        self.reref_types = super()._store_rereference_types(self._settings)
 
 
     def _set_data(self):
         
+        if CheckLengthsList.check_equals_n(self._settings['ch_names_old'], 2):
+            raise Exception(f"Error when bipolar rereferencing data.\nThis must involve two, and only two channels of data, but the rereferencing settings specify otherwise.")
+        
+        for ch_i in len(self._n_channels):
+
 
 
     def rereference(self
