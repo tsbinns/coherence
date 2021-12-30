@@ -69,7 +69,7 @@ class Reref(ABC):
 
 
     @abstractmethod
-    def _rereference():
+    def rereference():
         pass
 
 

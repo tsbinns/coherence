@@ -15,6 +15,7 @@ class Signal:
         self._verbose = verbose
         self.processing_steps = []
         self.extra_info = {}
+        self.extra_info['rereferencing_types'] = {}
 
 
     def get_coordinates(self
@@ -185,6 +186,7 @@ class Signal:
             self.extra_info['rereferencing_types'] = {}
         self.extra_info['rereferencing_types'].update(reref_types)
 
+
     def _rereference(self,
         RerefMethod: Reref,
         ch_names_old: list,
@@ -260,3 +262,5 @@ class Signal:
         )
 
 
+    def epoch_raw(self
+        ) -> None:
