@@ -1,7 +1,7 @@
 import mne_bids
 import numpy as np
 import mne
-from coh_rereference import RerefBipolar, RerefCAR, RerefNone
+from coh_rereference import Reref, RerefBipolar, RerefCAR, RerefPseudo
 
 
 
@@ -131,54 +131,132 @@ class Signal:
 
 
     def _apply_rereference(self,
-        reref_settings: dict
+        RerefMethod: Reref,
+        ch_names_old: list,
+        ch_names_new: list,
+        ch_types_new: list,
+        reref_types: list,
+        ch_coords_new: list
         ) -> list:
 
-        rerefed_raws = []
-        rerefed_types = []
-        for key in reref_settings:
-            if key == 'bipolar':
-                rerefed_data = RerefBipolar(self.raw, reref_settings)
-                rerefed_raws.append(rerefed_data[0])
-                rerefed_types.extend(rerefed_data[1])
-            elif key == 'CAR':
-                rerefed_data = RerefCAR(self.raw, reref_settings)
-                rerefed_raws.append(rerefed_data[0])
-                rerefed_types.extend(rerefed_data[1])
-            elif key == 'none':
-                rerefed_data = RerefNone(self.raw, reref_settings)
-                rerefed_raws.append(rerefed_data[0])
-                rerefed_types.extend(rerefed_data[1])
-            else:
-                raise Exception(f"Error when rereferencing data.\nThe rereferencing method {key} is not supported.")
+        RerefObject = RerefMethod(
+            self.raw,
+            ch_names_old,
+            ch_names_new,
+            ch_types_new,
+            reref_types,
+            ch_coords_new
+            )
 
-        return rerefed_raws
+        return RerefObject.rereference()
 
 
-    def _assign_rereferenced_data(self,
-        rerefed_data: list
+    def _check_conflicting_channels(self,
+        ch_names_1: list,
+        ch_names_2: list
+        ) -> list:
+
+        return [name for name in ch_names_1 if name in ch_names_2]
+
+
+    def _remove_conflicting_channels(self,
+        raw_to_alter: mne.io.Raw,
+        ch_to_remove: list
         ) -> None:
 
-        rerefed_raw = rerefed_data[0]
-        if len(rerefed_data) > 1:
-            rerefed_raw.add_channels([rerefed_data[1::]])
-        self.raw = rerefed_raw
-
-
-    def rereference(self,
-        reref_settings: dict
-        ) -> None:
+        raw_to_alter.drop_channels(ch_to_remove)
         
-        rerefed_data, rerefed_types = self._apply_rereference(reref_settings)
 
-        if rerefed_data != []:
-            self._assign_rereferenced_data(rerefed_data)
-            self.processing_steps.append(['rereferencing', reref_settings])
-            self._rereferenced = True
-        else:
-            print("Warning when rereferencing data.\nYou are trying to rereference the data, but there are no recognised rereferencing methods in the settings you provide.\nHence, no rereferencing has taken place.")
+    def _append_rereferenced_raw(self,
+        rerefed_raw: mne.io.Raw
+        ) -> None:
+
+        conflicting_channels = self._check_conflicting_channels(self.raw.info['ch_names'], rerefed_raw.info['ch_names'])
+        self._remove_conflicting_channels(self.raw, conflicting_channels)
+
+        self.raw.add_channels([rerefed_raw])
 
 
+    def _add_rereferencing_info(self,
+        reref_types: dict
+        ) -> None:
 
+        if not self._rereferenced:
+            self.extra_info['rereferencing_types'] = {}
+        self.extra_info['rereferencing_types'].update(reref_types)
+
+    def _rereference(self,
+        RerefMethod: Reref,
+        ch_names_old: list,
+        ch_names_new: list,
+        ch_types_new: list,
+        ch_coords_new: list,
+        reref_types: list
+        ) -> None:
+
+        rerefed_raw, reref_types_dict = self._apply_rereference(
+            RerefMethod,
+            ch_names_old,
+            ch_names_new,
+            ch_types_new,
+            ch_coords_new,
+            reref_types
+            )
+        self._append_rereferenced_raw(rerefed_raw)
+        self._add_rereferencing_info(reref_types_dict)
+
+
+    def rereference_bipolar(self,
+        ch_names_old: list,
+        ch_names_new: list,
+        ch_types_new: list,
+        ch_coords_new: list,
+        reref_types: list
+        ) -> None:
+
+        self._rereference(
+            RerefBipolar,
+            ch_names_old,
+            ch_names_new,
+            ch_types_new,
+            ch_coords_new,
+            reref_types
+        )
+        
+
+    def rereference_CAR(self,
+        ch_names_old: list,
+        ch_names_new: list,
+        ch_types_new: list,
+        ch_coords_new: list,
+        reref_types: list
+        ) -> None:
+
+        self._rereference(
+            RerefCAR,
+            ch_names_old,
+            ch_names_new,
+            ch_types_new,
+            ch_coords_new,
+            reref_types
+        )
+    
+
+    def rereference_pseudo(self,
+        ch_names_old: list,
+        ch_names_new: list,
+        ch_types_new: list,
+        ch_coords_new: list,
+        reref_types: list
+        ) -> None:
+
+        self._rereference(
+            RerefPseudo,
+            ch_names_old,
+            ch_names_new,
+            ch_types_new,
+            ch_coords_new,
+            reref_types
+        )
 
 

@@ -11,17 +11,20 @@ class Reref(ABC):
 
     @abstractmethod
     def _data_from_raw(self,
-        raw
-        ) -> tuple[np.array, mne.Info, list]:
+        raw: mne.io.Raw
+        ) -> tuple[np.array, mne.Info, list, list]:
         
-        return raw.get_data(reject_by_annotation='omit').copy(), raw.info.copy(), raw.info['ch_names'].copy(), raw._get_channel_positions().copy().tolist()
+        return (raw.get_data(reject_by_annotation='omit').copy(),
+                raw.info.copy(),
+                raw.info['ch_names'].copy(),
+                raw._get_channel_positions().copy().tolist())
 
 
     @abstractmethod
     def _raw_from_data(self,
-        data,
-        data_info,
-        ch_coords
+        data: np.array,
+        data_info: mne.Info,
+        ch_coords: list
         ) -> mne.io.Raw:
         
         raw = mne.io.RawArray(data, data_info)
@@ -31,43 +34,11 @@ class Reref(ABC):
 
 
     @abstractmethod
-    def _is_empty(self,
-        check_entry,
-        empty = []
-        ) -> bool:
-
-        if check_entry == empty:
-            is_empty = True
-        else:
-            is_empty = False
-
-        return is_empty
-
-
-    @abstractmethod
-    def _handle_empty(self,
-        new_values,
-        old_values,
-        empty = []
-        ):
-
-        if self._is_empty(new_values, empty):
-            new_values = old_values
-
-        return new_values
-
-
-    @abstractmethod
     def _store_rereference_types(self,
-        settings: dict
+        ch_names: list,
+        reref_types: list,
+        n_channels: int
         ) -> dict:
-
-        ch_names = self._handle_empty(settings['ch_names_old'], settings['ch_names_new'], [])
-        reref_types = settings['reref_types']
-
-        equal_lengths, n_channels = CheckLengthsList.check_identical([ch_names, reref_types])
-        if not equal_lengths:
-            raise Exception(f"Error when trying to assign channel rereferencing types.\nThere are {len(ch_names)} channels, but {len(reref_types)} rereferencing types.")
 
         return {ch_names[i]: reref_types[i] for i in range(n_channels)}
         
@@ -88,8 +59,13 @@ class Reref(ABC):
 
 
     @abstractmethod
-    def _set_data_info():
-        pass
+    def _set_data_info(self,
+        ch_names: list,
+        sfreq: int,
+        ch_types: list
+        ) -> mne.Info:
+
+        return mne.create_info(ch_names, sfreq, ch_types)
 
 
     @abstractmethod
@@ -102,98 +78,278 @@ class RerefBipolar(Reref):
 
     def __init__(self,
         raw: mne.io.Raw,
-        settings: dict
-        ):
+        ch_names_old: list,
+        ch_names_new: list,
+        ch_types_new: list,
+        reref_types: list,
+        ch_coords_new: list = [],
+        ) -> None:
 
-        equal_lengths, self._n_channels = CheckLengthsDict.check_identical(settings, ignore_values=[[]])
+        lengths_to_check = [ch_names_old, ch_names_new, ch_types_new, reref_types]
+        if ch_coords_new != []:
+            lengths_to_check.append(ch_coords_new)
+        equal_lengths, self._n_channels = CheckLengthsList.check_identical(lengths_to_check)
         if not equal_lengths:
             raise Exception(f"Error when reading rereferencing settings.\nThe length of entries within the settings dictionary are not identical:\n{self._n_channels}")
 
         self.raw = raw
-        self._settings = settings
+        self._ch_names_old = ch_names_old
+        self._ch_names_new = ch_names_new
+        self._ch_types_new = ch_types_new
+        self._ch_coords_new = ch_coords_new
+        self._reref_types = reref_types
 
-        return self._rereference()
 
+    def _data_from_raw(self
+        ) -> None:
 
-    def _data_from_raw(self):
-
-        self._data, self._data_info, self._ch_names, self._ch_coordinates = super()._data_from_raw(self.raw)
+        self._data, self._data_info, self._ch_names, self._ch_coords = super()._data_from_raw(self.raw)
 
     
-    def _raw_from_data(self):
+    def _raw_from_data(self
+        ) -> None:
 
-        self.raw = super()._raw_from_data(self._data, self._data_info, self._ch_coordinates)
-
-
-    def _is_empty(self,
-        check_entry,
-        empty = []
-        ) -> bool:
-
-        return super()._is_empty(check_entry, empty)
+        self.raw = super()._raw_from_data(self._data, self._data_info, self._ch_coords)
 
 
-    def _handle_empty(self,
-        new_values,
-        old_values,
-        empty = []
-        ):
+    def _store_rereference_types(self
+        ) -> None:
 
-        return super()._handle_empty(new_values, old_values, empty)
+        self.reref_types = super()._store_rereference_types(self._ch_names_new, self._reref_types, self._n_channels)
 
 
-    def _store_rereference_types(self):
-
-        self.reref_types = super()._store_rereference_types(self._settings)
-
-
-    def _index_old_channels(self):
+    def _index_old_channels(self
+        ) -> None:
         
-        self._ch_index = self._settings['ch_names_old'].copy()
-        for sublist_i, sublist in enumerate(self._settings['ch_names_old']):
+        self._ch_index = self._ch_names_old.copy()
+        for sublist_i, sublist in enumerate(self._ch_names_old):
             for name_i, name in enumerate(sublist):
                 self._ch_index[sublist_i][name_i] = self._ch_names.index(name)
 
 
-    def _set_data(self):
+    def _set_data(self
+        ) -> None:
         
-        if CheckLengthsList.check_equals_n(self._settings['ch_names_old'], 2):
+        if not CheckLengthsList.check_equals_n(self._ch_names_old, 2):
             raise Exception(f"Error when bipolar rereferencing data.\nThis must involve two, and only two channels of data, but the rereferencing settings specify otherwise.")
         
-        self._new_data = []
-        for ch_i in range(self._n_channels):
-            self._new_data.append(self._data[self._ch_index[ch_i][0]] - self._data[self._ch_index[ch_i][1]])
+        self._new_data = [self._data[self._ch_index[ch_i][0]] - self._data[self._ch_index[ch_i][1]] for ch_i in
+            range(self._n_channels)]
 
 
-    def _set_coordinates(self):
+    def _set_coordinates(self
+        ) -> None:
         
-        self._new_ch_coordinates = []
+        self._new_ch_coords = []
         for ch_i in range(self._n_channels):
             coords_set = False
-            if self._settings['ch_coords'] != []:
-                if self._settings['ch_coords'][ch_i] != []:
-                    if CheckLengthsList.check_equals_n(self._settings['ch_coords'], 3):
+            if self._ch_coords_new != []:
+                if self._ch_coords_new[ch_i] != []:
+                    if CheckLengthsList.check_equals_n(self._ch_coords_new, 3):
                         raise Exception(f"Error when setting coordinates for the rereferenced data.\nThree, and only three coordinates (x, y, and z) must be present, but the rereferencing settings specify otherwise.")
-                    self._new_ch_coordinates.append(self._settings['ch_coords'][ch_i])
+                    self._new_ch_coords.append(self._ch_coords_new[ch_i])
                     coords_set = True
             if coords_set == False:
-                self._new_ch_coordinates.append(
-                    np.around(np.mean([self._ch_coordinates[self._ch_index[ch_i][0]],
-                        self._ch_coordinates[self._ch_index[ch_i][1]]], axis=0), 2)
+                self._new_ch_coords.append(
+                    np.around(np.mean([self._ch_coords[self._ch_index[ch_i][0]],
+                        self._ch_coords[self._ch_index[ch_i][1]]], axis=0), 2)
                     )
 
 
-    def _set_data_info(self):
+    def _set_data_info(self
+        ) -> None:
 
-        self._new_data_info = mne.create_info(
-            self._settings['ch_names_new'], self._data_info['sfreq'], self._settings['ch_types']
-            )
+        self._new_data_info = super()._set_data_info(self._ch_names_new, self._data_info['sfreq'], self._ch_types)
         
 
-    def _rereference(self
+    def rereference(self
         ) -> tuple[mne.io.Raw, dict]:
 
         self._data_from_raw()
+        self._index_old_channels()
+        self._set_data()
+        self._set_coordinates()
+        self._set_data_info()
+
+        return self._raw_from_data(), self._store_rereference_types()
+
+
+
+class RerefCAR(Reref):
+
+    def __init__(self,
+        raw: mne.io.Raw,
+        ch_names_old: list,
+        ch_names_new: list,
+        ch_types_new: list,
+        reref_types: list,
+        ch_coords_new: list = [],
+        ) -> None:
+
+        lengths_to_check = [ch_names_old, ch_names_new, ch_types_new, reref_types]
+        if ch_coords_new != []:
+            lengths_to_check.append(ch_coords_new)
+        equal_lengths, self._n_channels = CheckLengthsList.check_identical(lengths_to_check)
+        if not equal_lengths:
+            raise Exception(f"Error when reading rereferencing settings.\nThe length of entries within the settings dictionary are not identical:\n{self._n_channels}")
+
+        self.raw = raw
+        self._ch_names_old = ch_names_old
+        self._ch_names_new = ch_names_new
+        self._ch_types_new = ch_types_new
+        self._ch_coords_new = ch_coords_new
+        self._reref_types = reref_types
+
+
+    def _data_from_raw(self
+        ) -> None:
+
+        self._data, self._data_info, self._ch_names, self._ch_coords = super()._data_from_raw(self.raw)
+
+    
+    def _raw_from_data(self
+        ) -> None:
+
+        self.raw = super()._raw_from_data(self._data, self._data_info, self._ch_coords)
+
+
+    def _store_rereference_types(self
+        ) -> None:
+
+        self.reref_types = super()._store_rereference_types(self._ch_names_new, self._reref_types, self._n_channels)
+
+
+    def _index_old_channels(self
+        ) -> None:
+        
+        self._ch_index = [self._ch_names.index(name) for name in self._ch_names_old]
+
+
+    def _set_data(self
+        ) -> None:
+        
+        avg_data = self._data[[ch_i for ch_i in self._ch_index]].mean(axis=0)
+        self._new_data = [self._data[self._ch_index[ch_i]] - avg_data for ch_i in range(self._n_channels)]
+
+
+    def _set_coordinates(self
+        ) -> None:
+        
+        self._new_ch_coords = []
+        for ch_i in range(self._n_channels):
+            coords_set = False
+            if self._ch_coords_new != []:
+                if self._ch_coords_new[ch_i] != []:
+                    if CheckLengthsList.check_equals_n(self._ch_coords_new, 3):
+                        raise Exception(f"Error when setting coordinates for the rereferenced data.\nThree, and only three coordinates (x, y, and z) must be present, but the rereferencing settings specify otherwise.")
+                    self._new_ch_coords.append(self._ch_coords_new[ch_i])
+                    coords_set = True
+            if coords_set == False:
+                self._new_ch_coords.append(self._ch_coords[self._ch_index[ch_i]])
+
+
+    def _set_data_info(self
+        ) -> None:
+
+        self._new_data_info = super()._set_data_info(self._ch_names_new, self._data_info['sfreq'], self._ch_types)
+        
+
+    def rereference(self
+        ) -> tuple[mne.io.Raw, dict]:
+
+        self._data_from_raw()
+        self._index_old_channels()
+        self._set_data()
+        self._set_coordinates()
+        self._set_data_info()
+
+        return self._raw_from_data(), self._store_rereference_types()
+
+
+
+class RerefPseudo(Reref):
+
+    def __init__(self,
+        raw: mne.io.Raw,
+        ch_names_old: list,
+        ch_names_new: list,
+        ch_types_new: list,
+        reref_types: list,
+        ch_coords_new: list = [],
+        ) -> None:
+
+        lengths_to_check = [ch_names_old, ch_names_new, ch_types_new, reref_types]
+        if ch_coords_new != []:
+            lengths_to_check.append(ch_coords_new)
+        equal_lengths, self._n_channels = CheckLengthsList.check_identical(lengths_to_check)
+        if not equal_lengths:
+            raise Exception(f"Error when reading rereferencing settings.\nThe length of entries within the settings dictionary are not identical:\n{self._n_channels}")
+
+        self.raw = raw
+        self._ch_names_old = ch_names_old
+        self._ch_names_new = ch_names_new
+        self._ch_types_new = ch_types_new
+        self._ch_coords_new = ch_coords_new
+        self._reref_types = reref_types
+
+
+    def _data_from_raw(self
+        ) -> None:
+
+        self._data, self._data_info, self._ch_names, self._ch_coords = super()._data_from_raw(self.raw)
+
+    
+    def _raw_from_data(self
+        ) -> None:
+
+        self.raw = super()._raw_from_data(self._data, self._data_info, self._ch_coords)
+
+
+    def _store_rereference_types(self
+        ) -> None:
+
+        self.reref_types = super()._store_rereference_types(self._ch_names_new, self._reref_types, self._n_channels)
+
+
+    def _index_old_channels(self
+        ) -> None:
+        
+        self._ch_index = [self._ch_names.index(name) for name in self._ch_names_old]
+
+
+    def _set_data(self
+        ) -> None:
+        
+        self._new_data = [self._data[self._ch_index[ch_i]] for ch_i in range(self._n_channels)]
+
+
+    def _set_coordinates(self
+        ) -> None:
+        
+        self._new_ch_coords = []
+        for ch_i in range(self._n_channels):
+            coords_set = False
+            if self._ch_coords_new != []:
+                if self._ch_coords_new[ch_i] != []:
+                    if CheckLengthsList.check_equals_n(self._ch_coords_new, 3):
+                        raise Exception(f"Error when setting coordinates for the rereferenced data.\nThree, and only three coordinates (x, y, and z) must be present, but the rereferencing settings specify otherwise.")
+                    self._new_ch_coords.append(self._ch_coords_new[ch_i])
+                    coords_set = True
+            if coords_set == False:
+                self._new_ch_coords.append(self._ch_coords[self._ch_index[ch_i]])
+
+
+    def _set_data_info(self
+        ) -> None:
+
+        self._new_data_info = super()._set_data_info(self._ch_names_new, self._data_info['sfreq'], self._ch_types)
+        
+
+    def rereference(self
+        ) -> tuple[mne.io.Raw, dict]:
+
+        self._data_from_raw()
+        self._index_old_channels()
         self._set_data()
         self._set_coordinates()
         self._set_data_info()
