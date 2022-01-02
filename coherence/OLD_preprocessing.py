@@ -359,7 +359,7 @@ def process(raw, epoch_len, annotations=None, channels=None, coords=[], rerefere
     channels = raw.info.ch_names.copy()
     raw.load_data()
     raw_data = raw.get_data(reject_by_annotation='omit').copy() # the data itself
-
+    
     # Gets channel coordinates from the Raw object
     ch_coords = raw._get_channel_positions().copy().tolist() # coordinates of the channels
     if coords == []: # if no coordinates are specified, use those from raw
@@ -391,19 +391,19 @@ def process(raw, epoch_len, annotations=None, channels=None, coords=[], rerefere
     if notch.all() != None:
         if verbose:
             print("Notch filtering the data")
-        raw.notch_filter(notch)
+        raw.notch_filter(notch, n_jobs='cuda')
     
     # Bandpass filters data
     if highpass != None or lowpass != None:
         if verbose:
             print("Bandpass filtering the data")
-        raw.filter(highpass, lowpass)
+        raw.filter(highpass, lowpass, n_jobs='cuda')
 
     # Resamples data
     if resample != None:
         if verbose:
             print("Resampling the data")
-        raw.resample(resample)
+        raw.resample(resample, n_jobs='cuda')
 
 
     # Epochs data (and adds shuffled LFP data if requested)
