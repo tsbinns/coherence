@@ -63,6 +63,7 @@ class CheckLengthsDict(CheckLengths):
 
 class CheckLengthsList(CheckLengths):
 
+    @abstractmethod
     def _check(self,
         to_check: list,
         ignore_values: list
@@ -75,31 +76,64 @@ class CheckLengthsList(CheckLengths):
 
         return entry_lengths
 
-    
-    def check_identical(self,
+
+
+class CheckLengthsListIdentical(CheckLengthsList):
+
+    def __init__(self,
         to_check: list,
-        ignore_values: list = [],
+        ignore_values: list = []
+        ) -> None:
+
+        self.to_check = to_check
+        self.ignore_values = ignore_values
+
+
+    def _check(self
+        ) -> list:
+
+        return super()._check(self.to_check, self.ignore_values)
+
+    
+    def check(self
         ) -> tuple[bool, int or list]:
 
-        entry_lengths = self._check(to_check, ignore_values)
+        entry_lengths = self._check()
         
-        if all(entry_lengths) == entry_lengths[0]:
+        if entry_lengths.count(entry_lengths[0]) == len(entry_lengths):
             to_return = [True, entry_lengths[0]]
         else:
             to_return = [False, entry_lengths]
 
         return to_return
 
-    
-    def check_equals_n(self,
+
+
+class CheckLengthsListEqualsN(CheckLengthsList):
+
+    def __init__(self,
         to_check: list,
         n: int,
         ignore_values: list = []
+        ) -> None:
+
+        self.to_check = to_check
+        self.n = n
+        self.ignore_values = ignore_values
+
+
+    def _check(self
+        ) -> list:
+
+        return super()._check(self.to_check, self.ignore_values)
+
+    
+    def check(self
         ) -> bool:
 
-        entry_lengths = self._check(to_check, ignore_values)
+        entry_lengths = self._check()
 
-        if all(entry_lengths) == n:
+        if all(entry_lengths) == self.n:
             all_n = True
         else:
             all_n = False
