@@ -8,6 +8,70 @@ from coh_rereference import Reref, RerefBipolar, RerefCAR, RerefPseudo
 
 
 class Signal:
+    """Class for loading, preprocessing, and epoching an mne.io.Raw object.
+
+    PARAMETERS
+    ----------
+    verbose : bool
+    -   Whether or not to print information about the information processing.
+
+    METHODS
+    -------
+    order_channels
+    -   Orders channels in the data based on a given order.
+
+    get_coordinates
+    -   Extracts coordinates of the channels from the mne.io.Raw or mne.Epochs
+        object.
+
+    set_coordinates
+    -   Assigns coordinates to the channels in the mne.io.Raw or mne.Epochs
+        object.
+
+    get_data
+    -   Extracts the data array from the mne.io.Raw or mne.Epochs object,
+        excluding data based on the annotations.
+
+    load_raw
+    -   Loads an mne.io.Raw object, loads it into memory, and sets it as the
+        data.
+
+    load_annotations
+    -   Loads annotations corresponding to the mne.io.Raw object.
+
+    pick_channels
+    -   Retains only certain channels in the mne.io.Raw or mne.Epochs object,
+        also discarding entries for these channels from the 'extra_info'.
+
+    bandpass_filter
+    -   Bandpass filters the mne.io.Raw or mne.Epochs object.
+
+    notch_filter
+    -   Notch filters the mne.io.Raw or mne.Epochs object.
+
+    resample
+    -   Resamples the mne.io.Raw or mne.Epochs object.
+
+    drop_unrereferenced_channels
+    -   Drops channels that have not been rereferenced from the mne.io.Raw or
+        mne.Epochs object, also discarding entries for these channels from the
+        'extra_info'.
+
+    rereference_bipolar
+    -   Bipolar rereferences channels in the mne.io.Raw object.
+
+    rereference_CAR
+    -   Common-average rereferences channels in the mne.io.Raw object.
+
+    rereference_pseudo
+    -   Pseudo rereferences channels in the mne.io.Raw object. This allows
+        rereferencing types to be assigned to the channels without any
+        rereferencing occur. This is useful if e.g. the channels were already
+        hardware rereferenced.
+
+    epoch
+    -   Divides the mne.io.Raw object into epochs.
+    """
 
     def __init__(self,
         verbose: bool = True
