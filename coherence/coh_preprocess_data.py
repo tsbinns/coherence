@@ -16,6 +16,43 @@ def preprocessing(
     acquisition: str,
     run: str
     ) -> Signal:
+    """Preprocesses an mne.io.Raw object and epochs it.
+
+    PARAMETERS
+    ----------
+    folderpath_data : str
+    -   The folderpath to the location of the datasets.
+
+    folderpath_extras : str
+    -   The folderpath to the location of the datasets' 'extras' (e.g. the
+        annotations, processing settings, etc...)
+
+    dataset : str
+    -   The name of the dataset folder found in 'folderpath_data'.
+
+    analysis : str
+    -   The name of the analysis folder within "'folderpath_extras'/settings".
+
+    subject : str
+    -   The name of the subject whose data will be analysed.
+
+    session : str
+    -   The name of the session for which the data will be analysed.
+
+    task : str
+    -   The name of the task for which the data will be analysed.
+
+    acquisition : str
+    -   The name of the acquisition mode for which the data will be analysed.
+
+    run : str
+    -   The name of the run for which the data will be analysed.
+
+    RETURNS
+    -------
+    signal : Signal
+    -   The preprocessed and epoched data.
+    """
 
     ### Analysis setup
     ## Gets the relevant filepaths
@@ -74,6 +111,7 @@ def preprocessing(
     )
     signal.resample(analysis_settings['resample'])
     signal.epoch(analysis_settings['epoch_length'])
+    signal.order_channels(analysis_settings['post_reref_organisation'])
 
     return signal
 
