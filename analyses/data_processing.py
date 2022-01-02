@@ -9,7 +9,7 @@ from coh_preprocess_data import preprocessing
 
 
 ### Info about the data to analyse
-folderpath_data = 'C:\\Users\\tomth\\Data'
+folderpath_data = 'D:\\Data'
 folderpath_extras = 'C:\\Users\\tomth\\OneDrive\\My Documents\\Data\\ICN'
 dataset = 'BIDS_Berlin_ECOG_LFP'
 analysis = 'ECOG-LFP_coherence'
@@ -29,3 +29,5 @@ if __name__ == "__main__":
     )
 
     print("my name is jeff")
+
+

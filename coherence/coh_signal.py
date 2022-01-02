@@ -52,7 +52,11 @@ class Signal:
         if hasattr(class_object, attribute):
             setattr(class_object, attribute, value)
         else:
-            raise Exception(f"Error when attempting to update an attribute of {class_object}:\nThe attribute {attribute} does not exist, and so cannot be updated.")
+            raise Exception(
+                "Error when attempting to update an attribute of "
+                f"{class_object}:\nThe attribute {attribute} does not exist, "
+                "and so cannot be updated."
+            )
 
     
     def _update_processing_steps(self,
@@ -82,8 +86,10 @@ class Signal:
         ) -> tuple[list, list]:
 
         keep_i = [i for i, coords in enumerate(ch_coords) if coords != []]
-        return ([name for i, name in enumerate(ch_names) if i in keep_i],
-            [coords for i, coords in enumerate(ch_coords) if i in keep_i])
+        return (
+            [name for i, name in enumerate(ch_names) if i in keep_i],
+            [coords for i, coords in enumerate(ch_coords) if i in keep_i]
+        )
 
 
     def set_coordinates(self,
@@ -112,14 +118,21 @@ class Signal:
         ) -> None:
 
         if self._data_loaded:
-            raise Exception(f"Error when trying to load raw data:\nRaw data has already been loaded into the object.")
+            raise Exception(
+                "Error when trying to load raw data:\nRaw data has already "
+                "been loaded into the object."
+            )
 
         self._path_raw = path_raw
-        self.data = mne_bids.read_raw_bids(bids_path=self._path_raw, verbose=False)
+        self.data = mne_bids.read_raw_bids(
+            bids_path=self._path_raw, verbose=False
+        )
         self.data.load_data()
 
         self._updateattr(self, '_data_loaded', True)
-        self.extra_info['rereferencing_types'].update({ch_name: 'none' for ch_name in self.data.info['ch_names']})
+        self.extra_info['rereferencing_types'].update(
+            {ch_name: 'none' for ch_name in self.data.info['ch_names']}
+        )
         if self._verbose:
             print(f"Loading the data from the filepath:\n{path_raw}.")
 
@@ -129,15 +142,16 @@ class Signal:
         ) -> None:
 
         if self._epoched:
-            raise Exception(f"Error when adding annotations to the data:\n"
-                "Annotations should be added to the raw data, however the data"
-                "in this class has been epoched."
+            raise Exception(
+                "Error when adding annotations to the data:\nAnnotations "
+                "should be added to the raw data, however the data in this "
+                "class has been epoched."
             )
 
         if self._verbose:
             print(
-                f"Applying annotations to the data from the filepath:"
-                f"\n{path_annots}."
+                "Applying annotations to the data from the filepath:\n"
+                f"{path_annots}."
             )
 
         try:
@@ -154,8 +168,9 @@ class Signal:
         ) -> None:
 
         for key in self.extra_info.keys():
-            new_entry = {ch_name: self.extra_info[key][ch_name] for ch_name in 
-                ch_names}
+            new_entry = {
+                ch_name: self.extra_info[key][ch_name] for ch_name in ch_names
+            }
             self.extra_info[key] = new_entry
 
 
@@ -186,7 +201,7 @@ class Signal:
         self._update_processing_steps('channel_picks', ch_names)
         if self._verbose:
             print(
-                f"Picking specified channels from the data.\nChannels: "
+                "Picking specified channels from the data.\nChannels: "
                 f"{ch_names}."
             )
 
@@ -199,9 +214,14 @@ class Signal:
         self.data.filter(lowpass_freq, highpass_freq)
 
         self._updateattr(self, '_bandpass_filtered', True)
-        self._update_processing_steps('bandpass_filter', [lowpass_freq, highpass_freq])
+        self._update_processing_steps(
+            'bandpass_filter', [lowpass_freq, highpass_freq]
+        )
         if self._verbose:
-            print(f"Bandpass filtering the data.\nLow frequency: {lowpass_freq} Hz. High frequency: {highpass_freq} Hz.")
+            print(
+                f"Bandpass filtering the data.\nLow frequency: {lowpass_freq} "
+                f"Hz. High frequency: {highpass_freq} Hz."
+            )
 
     
     def notch_filter(self,
@@ -214,7 +234,10 @@ class Signal:
         self._updateattr(self, '_notch_filtered', True)
         self._update_processing_steps('notch_filter', freqs)
         if self._verbose:
-            print(f"Notch filtering the data with line noise frequency {line_freq} Hz at the following frequencies (Hz): {freqs}.")
+            print(
+                "Notch filtering the data with line noise frequency "
+                f"{line_freq} Hz at the following frequencies (Hz): {freqs}."
+            )
 
 
     def resample(self,
@@ -274,9 +297,9 @@ class Signal:
 
         self._drop_channels(ch_names)
         print(
-            f"Warning when rereferencing data:\nThe following rereferenced"
+            "Warning when rereferencing data:\nThe following rereferenced "
             f"channels {ch_names} are already present in the raw data.\n"
-            f"Removing the channels from the raw data."
+            "Removing the channels from the raw data."
         )
 
         
@@ -321,8 +344,8 @@ class Signal:
 
         if self._epoched:
             raise Exception(
-                f"Error when rereferencing the data:\nThe data to rereference"
-                f"should be raw, but it has been epoched."
+                "Error when rereferencing the data:\nThe data to rereference "
+                "should be raw, but it has been epoched."
             )
 
         rerefed_raw, reref_types_dict = self._apply_rereference(
@@ -426,7 +449,7 @@ class Signal:
 
         if self._epoched:
             raise Exception(
-                f"Error when epoching data:\nThe data has already been epoched."
+                "Error when epoching data:\nThe data has already been epoched."
             )
 
         self.data = mne.make_fixed_length_epochs(self.data, epoch_length)
@@ -436,5 +459,7 @@ class Signal:
         if self._verbose:
             print(
                 f"Epoching the data with epoch lengths of {epoch_length}"
-                f"seconds."
+                "seconds."
             )
+
+

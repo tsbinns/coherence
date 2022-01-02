@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 import mne
 
-from coh_check_entries import CheckLengthsListEqualsN, CheckLengthsListIdentical
+from coh_check_entries import CheckLengthsList
 
 
 
@@ -91,23 +91,6 @@ class RerefBipolar(Reref):
         ch_coords_new: list = []
         ) -> None:
 
-        lengths_to_check = [ch_names_old, ch_names_new, ch_types_new, reref_types]
-        if ch_coords_new != []:
-            lengths_to_check.append(ch_coords_new)
-        equal_lengths, self._n_channels = CheckLengthsListIdentical(
-            lengths_to_check, [[]]
-        ).check()
-        if not equal_lengths:
-            raise Exception(f"Error when reading rereferencing settings.\nThe length of entries within the settings dictionary are not identical:\n{self._n_channels}")
-
-        chs_to_analyse = np.unique(
-            [name for names in ch_names_old for name in names]
-        ).tolist()
-        raw.drop_channels(
-            [name for name in raw.info['ch_names']
-            if name not in chs_to_analyse]
-        )
-        raw.reorder_channels(chs_to_analyse)
         self.raw = raw
         self._ch_names_old = ch_names_old
         self._ch_names_new = ch_names_new
@@ -115,23 +98,75 @@ class RerefBipolar(Reref):
         self._ch_coords_new = ch_coords_new
         self._reref_types = reref_types
 
+        self._sort_inputs()
+
+
+    def _check_input_lengths(self
+        ) -> None:
+
+        lengths_to_check = [
+            self.ch_names_old, self.ch_names_new, self.ch_types_new, 
+            self.reref_types
+        ]
+        if self.ch_coords_new != []:
+            lengths_to_check.append(self.ch_coords_new)
+
+        equal_lengths, self._n_channels = CheckLengthsList(
+            lengths_to_check, [[]]
+        ).identical()
+
+        if not equal_lengths:
+            raise Exception(
+                "Error when reading rereferencing settings:\nThe length of "
+                "entries within the settings dictionary are not identical:\n"
+                f"{self._n_channels}"
+            )
+
+        
+    def _sort_raw(self
+        ) -> None:
+
+        chs_to_analyse = np.unique(
+            [name for names in self.ch_names_old for name in names]
+        ).tolist()
+
+        self.raw.drop_channels(
+            [name for name in self.raw.info['ch_names']
+            if name not in chs_to_analyse]
+        )
+
+        self.raw.reorder_channels(chs_to_analyse)
+
+
+    def _sort_inputs(self
+        ) -> None:
+
+        self._check_input_lengths()
+        self._sort_raw()
+
 
     def _data_from_raw(self
         ) -> None:
 
-        self._data, self._data_info, self._ch_names, self._ch_coords = super()._data_from_raw(self.raw)
+        self._data, self._data_info, self._ch_names, self._ch_coords = (
+            super()._data_from_raw(self.raw)
+        )
 
     
     def _raw_from_data(self
         ) -> None:
 
-        self.raw = super()._raw_from_data(self._new_data, self._new_data_info, self._new_ch_coords)
+        self.raw = super()._raw_from_data(
+            self._new_data, self._new_data_info, self._new_ch_coords
+        )
 
 
     def _store_rereference_types(self
         ) -> None:
 
-        self.reref_types = super()._store_rereference_types(self._ch_names_new, self._reref_types, self._n_channels)
+        self.reref_types = super()._store_rereference_types(
+            self._ch_names_new, self._reref_types, self._n_channels
+        )
 
 
     def _index_old_channels(self
@@ -146,11 +181,11 @@ class RerefBipolar(Reref):
     def _set_data(self
         ) -> None:
         
-        if not CheckLengthsListEqualsN(self._ch_names_old, 2):
+        if not CheckLengthsList(self._ch_names_old).equals_n(2):
             raise Exception(
-                f"Error when bipolar rereferencing data:\nThis must involve"
-                f"two, and only two channels of data, but the rereferencing"
-                f"settings specify otherwise."
+                "Error when bipolar rereferencing data:\nThis must involve "
+                "two, and only two channels of data, but the rereferencing "
+                "settings specify otherwise."
             )
         
         self._new_data = [
@@ -168,21 +203,24 @@ class RerefBipolar(Reref):
             coords_set = False
             if self._ch_coords_new != []:
                 if self._ch_coords_new[ch_i] != []:
-                    if CheckLengthsListEqualsN(
-                        self._ch_coords_new, 3, [[]]
-                    ).check():
+                    if CheckLengthsList(self._ch_coords_new, [[]]).equals_n(3):
                         raise Exception(
-                            f"Error when setting coordinates for the "
-                            f"rereferenced data:\nThree, and only three "
-                            f"coordinates (x, y, and z) must be present, but "
-                            f"the rereferencing settings specify otherwise.")
+                            "Error when setting coordinates for the "
+                            "rereferenced data:\nThree, and only three "
+                            "coordinates (x, y, and z) must be present, but "
+                            "the rereferencing settings specify otherwise."
+                        )
                     self._new_ch_coords.append(self._ch_coords_new[ch_i])
                     coords_set = True
             if coords_set == False:
                 self._new_ch_coords.append(
-                    np.around(np.mean([self._ch_coords[self._ch_index[ch_i][0]],
-                        self._ch_coords[self._ch_index[ch_i][1]]], axis=0), 2)
+                    np.around(
+                        np.mean(
+                            [self._ch_coords[self._ch_index[ch_i][0]],
+                            self._ch_coords[self._ch_index[ch_i][1]]], axis=0
+                        ), 2
                     )
+                )
 
 
     def _set_data_info(self
@@ -219,30 +257,58 @@ class RerefCAR(Reref):
         ch_coords_new: list = []
         ) -> None:
 
-        lengths_to_check = [
-            ch_names_old, ch_names_new, ch_types_new, reref_types
-        ]
-        if ch_coords_new != []:
-            lengths_to_check.append(ch_coords_new)
-        equal_lengths, self._n_channels = CheckLengthsListIdentical(
-            lengths_to_check, [[]]
-        ).check()
-        if not equal_lengths:
-            raise Exception(
-                f"Error when reading rereferencing settings:\nThe length of "
-                f"entries within the settings dictionary are not identical:\n"
-                f"{self._n_channels}")
-
-        raw.drop_channels(
-            [name for name in raw.info['ch_names'] if name not in ch_names_old]
-        )
-        raw.reorder_channels(ch_names_old)
         self.raw = raw
         self._ch_names_old = ch_names_old
         self._ch_names_new = ch_names_new
         self._ch_types_new = ch_types_new
         self._ch_coords_new = ch_coords_new
         self._reref_types = reref_types
+
+        self._sort_inputs()
+
+
+    def _check_input_lengths(self
+        ) -> None:
+
+        lengths_to_check = [
+            self.ch_names_old, self.ch_names_new, self.ch_types_new, 
+            self.reref_types
+        ]
+        if self.ch_coords_new != []:
+            lengths_to_check.append(self.ch_coords_new)
+
+        equal_lengths, self._n_channels = CheckLengthsList(
+            lengths_to_check, [[]]
+        ).identical()
+
+        if not equal_lengths:
+            raise Exception(
+                "Error when reading rereferencing settings:\nThe length of "
+                "entries within the settings dictionary are not identical:\n"
+                f"{self._n_channels}"
+            )
+
+        
+    def _sort_raw(self
+        ) -> None:
+
+        chs_to_analyse = np.unique(
+            [name for names in self.ch_names_old for name in names]
+        ).tolist()
+
+        self.raw.drop_channels(
+            [name for name in self.raw.info['ch_names']
+            if name not in chs_to_analyse]
+        )
+
+        self.raw.reorder_channels(chs_to_analyse)
+
+
+    def _sort_inputs(self
+        ) -> None:
+
+        self._check_input_lengths()
+        self._sort_raw()
 
 
     def _data_from_raw(self
@@ -295,14 +361,19 @@ class RerefCAR(Reref):
             coords_set = False
             if self._ch_coords_new != []:
                 if self._ch_coords_new[ch_i] != []:
-                    if CheckLengthsListEqualsN(
-                        self._ch_coords_new, 3, [[]]
-                    ).check():
-                        raise Exception(f"Error when setting coordinates for the rereferenced data.\nThree, and only three coordinates (x, y, and z) must be present, but the rereferencing settings specify otherwise.")
+                    if CheckLengthsList(self._ch_coords_new, [[]]).equals_n(3):
+                        raise Exception(
+                            "Error when setting coordinates for the "
+                            "rereferenced data.\nThree, and only three "
+                            "coordinates (x, y, and z) must be present, but "
+                            "the rereferencing settings specify otherwise."
+                        )
                     self._new_ch_coords.append(self._ch_coords_new[ch_i])
                     coords_set = True
             if coords_set == False:
-                self._new_ch_coords.append(self._ch_coords[self._ch_index[ch_i]])
+                self._new_ch_coords.append(
+                    self._ch_coords[self._ch_index[ch_i]]
+                )
 
 
     def _set_data_info(self
@@ -339,28 +410,58 @@ class RerefPseudo(Reref):
         ch_coords_new: list = []
         ) -> None:
 
-        lengths_to_check = [ch_names_old, ch_names_new, ch_types_new, reref_types]
-        if ch_coords_new != []:
-            lengths_to_check.append(ch_coords_new)
-        equal_lengths, self._n_channels = CheckLengthsListIdentical(
-            lengths_to_check, ignore_values=[[]]
-        ).check()
-        if not equal_lengths:
-            raise Exception(
-                f"Error when reading rereferencing settings.\nThe length of "
-                f"entries within the settings dictionary are not identical:\n"
-                f"{self._n_channels}")
-
-        raw.drop_channels(
-            [name for name in raw.info['ch_names'] if name not in ch_names_old]
-        )
-        raw.reorder_channels(ch_names_old)
         self.raw = raw
         self._ch_names_old = ch_names_old
         self._ch_names_new = ch_names_new
         self._ch_types_new = ch_types_new
         self._ch_coords_new = ch_coords_new
         self._reref_types = reref_types
+
+        self._sort_inputs()
+
+
+    def _check_input_lengths(self
+        ) -> None:
+
+        lengths_to_check = [
+            self.ch_names_old, self.ch_names_new, self.ch_types_new, 
+            self.reref_types
+        ]
+        if self.ch_coords_new != []:
+            lengths_to_check.append(self.ch_coords_new)
+
+        equal_lengths, self._n_channels = CheckLengthsList(
+            lengths_to_check, [[]]
+        ).identical()
+
+        if not equal_lengths:
+            raise Exception(
+                "Error when reading rereferencing settings:\nThe length of "
+                "entries within the settings dictionary are not identical:\n"
+                f"{self._n_channels}"
+            )
+
+        
+    def _sort_raw(self
+        ) -> None:
+
+        chs_to_analyse = np.unique(
+            [name for names in self.ch_names_old for name in names]
+        ).tolist()
+
+        self.raw.drop_channels(
+            [name for name in self.raw.info['ch_names']
+            if name not in chs_to_analyse]
+        )
+
+        self.raw.reorder_channels(chs_to_analyse)
+
+
+    def _sort_inputs(self
+        ) -> None:
+
+        self._check_input_lengths()
+        self._sort_raw()
 
 
     def _data_from_raw(self
@@ -412,14 +513,19 @@ class RerefPseudo(Reref):
             coords_set = False
             if self._ch_coords_new != []:
                 if self._ch_coords_new[ch_i] != []:
-                    if CheckLengthsListEqualsN(
-                        self._ch_coords_new, 3, [[]]
-                    ).check:
-                        raise Exception(f"Error when setting coordinates for the rereferenced data.\nThree, and only three coordinates (x, y, and z) must be present, but the rereferencing settings specify otherwise.")
+                    if CheckLengthsList(self._ch_coords_new, [[]]).equals_n(3):
+                        raise Exception(
+                            "Error when setting coordinates for the "
+                            "rereferenced data:\nThree, and only three "
+                            "coordinates (x, y, and z) must be present, but "
+                            "the rereferencing settings specify otherwise."
+                        )
                     self._new_ch_coords.append(self._ch_coords_new[ch_i])
                     coords_set = True
             if coords_set == False:
-                self._new_ch_coords.append(self._ch_coords[self._ch_index[ch_i]])
+                self._new_ch_coords.append(
+                    np.around(self._ch_coords[self._ch_index[ch_i]], 2)
+                )
 
 
     def _set_data_info(self
@@ -443,3 +549,5 @@ class RerefPseudo(Reref):
         self._store_rereference_types()
 
         return self.raw, self.reref_types
+
+
