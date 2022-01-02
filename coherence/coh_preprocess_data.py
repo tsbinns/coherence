@@ -58,15 +58,17 @@ def preprocessing(
         elif key == 'CAR':
             reref_method = signal.rereference_CAR
         else:
-            raise Exception(f"Error when rereferencing data:\nThe following" \
-                "rereferencing method {key} is not implemented.")
+            raise Exception(
+                "Error when rereferencing data:\nThe following rereferencing "
+                f"method {key} is not implemented."
+            )
         reref_method(
             reref_settings['ch_names_old'], reref_settings['ch_names_new'],
             reref_settings['ch_types_new'], reref_settings['reref_types'],
             reref_settings['ch_coords_new']
         )
     signal.drop_unrereferenced_channels()
-    signal.notch_filter(analysis_settings['line-noise'])
+    signal.notch_filter(analysis_settings['line_noise'])
     signal.bandpass_filter(
         analysis_settings['lowpass'], analysis_settings['highpass']
     )

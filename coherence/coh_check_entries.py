@@ -12,7 +12,7 @@ class CheckLengths(ABC):
     @abstractmethod
     def identical(self,
         entry_lengths: list
-        ) -> tuple(bool, int or list):
+        ) -> tuple[bool, int or list]:
 
         if entry_lengths.count(entry_lengths[0]) == len(entry_lengths):
             to_return = [True, entry_lengths[0]]
@@ -28,7 +28,7 @@ class CheckLengths(ABC):
         n: int
         ) -> bool:
 
-        if all(entry_lengths) == n:
+        if entry_lengths.count(n) == len(entry_lengths):
             all_n = True
         else:
             all_n = False

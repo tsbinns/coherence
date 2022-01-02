@@ -211,7 +211,7 @@ class Signal:
         highpass_freq: int
         ) -> None:
 
-        self.data.filter(lowpass_freq, highpass_freq)
+        self.data.filter(highpass_freq, lowpass_freq)
 
         self._updateattr(self, '_bandpass_filtered', True)
         self._update_processing_steps(
@@ -219,16 +219,19 @@ class Signal:
         )
         if self._verbose:
             print(
-                f"Bandpass filtering the data.\nLow frequency: {lowpass_freq} "
-                f"Hz. High frequency: {highpass_freq} Hz."
+                f"Bandpass filtering the data.\nLow frequency: {highpass_freq} "
+                f"Hz. High frequency: {lowpass_freq} Hz."
             )
 
     
     def notch_filter(self,
-        line_freq: int
+        line_noise_freq: int
         ) -> None:
 
-        freqs = np.arange(0, self.raw.info['lowpass']+1, line_freq)
+        freqs = np.arange(
+            line_noise_freq, self.data.info['lowpass'], line_noise_freq,
+            dtype=int
+        ).tolist()
         self.data.notch_filter(freqs)
 
         self._updateattr(self, '_notch_filtered', True)
@@ -236,7 +239,8 @@ class Signal:
         if self._verbose:
             print(
                 "Notch filtering the data with line noise frequency "
-                f"{line_freq} Hz at the following frequencies (Hz): {freqs}."
+                f"{line_noise_freq} Hz at the following frequencies (Hz): "
+                f"{freqs}."
             )
 
 
@@ -386,7 +390,7 @@ class Signal:
         self._update_processing_steps('rereferencing_bipolar', ch_reref_pairs)
         if self._verbose:
             print(f"The following channels have been bipolar rereferenced:")
-            [print(f"{old} -> {new}") for [old, new] in ch_reref_pairs]
+            [print(f"{old[0]} - {old[1]} -> {new}") for [old, new] in ch_reref_pairs]
         
 
     def rereference_CAR(self,

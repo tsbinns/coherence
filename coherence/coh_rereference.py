@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import numpy as np
 import mne
+from copy import deepcopy
 
 from coh_check_entries import CheckLengthsList
 
@@ -105,11 +106,11 @@ class RerefBipolar(Reref):
         ) -> None:
 
         lengths_to_check = [
-            self.ch_names_old, self.ch_names_new, self.ch_types_new, 
-            self.reref_types
+            self._ch_names_old, self._ch_names_new, self._ch_types_new, 
+            self._reref_types
         ]
-        if self.ch_coords_new != []:
-            lengths_to_check.append(self.ch_coords_new)
+        if self._ch_coords_new != []:
+            lengths_to_check.append(self._ch_coords_new)
 
         equal_lengths, self._n_channels = CheckLengthsList(
             lengths_to_check, [[]]
@@ -127,7 +128,7 @@ class RerefBipolar(Reref):
         ) -> None:
 
         chs_to_analyse = np.unique(
-            [name for names in self.ch_names_old for name in names]
+            [name for names in self._ch_names_old for name in names]
         ).tolist()
 
         self.raw.drop_channels(
@@ -172,7 +173,7 @@ class RerefBipolar(Reref):
     def _index_old_channels(self
         ) -> None:
         
-        self._ch_index = self._ch_names_old.copy()
+        self._ch_index = deepcopy(self._ch_names_old)
         for sublist_i, sublist in enumerate(self._ch_names_old):
             for name_i, name in enumerate(sublist):
                 self._ch_index[sublist_i][name_i] = self._ch_names.index(name)
@@ -203,7 +204,9 @@ class RerefBipolar(Reref):
             coords_set = False
             if self._ch_coords_new != []:
                 if self._ch_coords_new[ch_i] != []:
-                    if CheckLengthsList(self._ch_coords_new, [[]]).equals_n(3):
+                    if not CheckLengthsList(
+                        self._ch_coords_new, [[]]
+                    ).equals_n(3):
                         raise Exception(
                             "Error when setting coordinates for the "
                             "rereferenced data:\nThree, and only three "
@@ -271,11 +274,11 @@ class RerefCAR(Reref):
         ) -> None:
 
         lengths_to_check = [
-            self.ch_names_old, self.ch_names_new, self.ch_types_new, 
-            self.reref_types
+            self._ch_names_old, self._ch_names_new, self._ch_types_new, 
+            self._reref_types
         ]
-        if self.ch_coords_new != []:
-            lengths_to_check.append(self.ch_coords_new)
+        if self._ch_coords_new != []:
+            lengths_to_check.append(self._ch_coords_new)
 
         equal_lengths, self._n_channels = CheckLengthsList(
             lengths_to_check, [[]]
@@ -293,7 +296,7 @@ class RerefCAR(Reref):
         ) -> None:
 
         chs_to_analyse = np.unique(
-            [name for names in self.ch_names_old for name in names]
+            [name for name in self._ch_names_old]
         ).tolist()
 
         self.raw.drop_channels(
@@ -361,7 +364,9 @@ class RerefCAR(Reref):
             coords_set = False
             if self._ch_coords_new != []:
                 if self._ch_coords_new[ch_i] != []:
-                    if CheckLengthsList(self._ch_coords_new, [[]]).equals_n(3):
+                    if not CheckLengthsList(
+                        self._ch_coords_new, [[]]
+                    ).equals_n(3):
                         raise Exception(
                             "Error when setting coordinates for the "
                             "rereferenced data.\nThree, and only three "
@@ -424,11 +429,11 @@ class RerefPseudo(Reref):
         ) -> None:
 
         lengths_to_check = [
-            self.ch_names_old, self.ch_names_new, self.ch_types_new, 
-            self.reref_types
+            self._ch_names_old, self._ch_names_new, self._ch_types_new, 
+            self._reref_types
         ]
-        if self.ch_coords_new != []:
-            lengths_to_check.append(self.ch_coords_new)
+        if self._ch_coords_new != []:
+            lengths_to_check.append(self._ch_coords_new)
 
         equal_lengths, self._n_channels = CheckLengthsList(
             lengths_to_check, [[]]
@@ -446,7 +451,7 @@ class RerefPseudo(Reref):
         ) -> None:
 
         chs_to_analyse = np.unique(
-            [name for names in self.ch_names_old for name in names]
+            [name for name in self._ch_names_old]
         ).tolist()
 
         self.raw.drop_channels(
@@ -513,7 +518,9 @@ class RerefPseudo(Reref):
             coords_set = False
             if self._ch_coords_new != []:
                 if self._ch_coords_new[ch_i] != []:
-                    if CheckLengthsList(self._ch_coords_new, [[]]).equals_n(3):
+                    if not CheckLengthsList(
+                        self._ch_coords_new, [[]]
+                    ).equals_n(3):
                         raise Exception(
                             "Error when setting coordinates for the "
                             "rereferenced data:\nThree, and only three "
