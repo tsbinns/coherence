@@ -18,16 +18,14 @@ class Signal:
         self._initialise_entries()
 
 
-    def _initialise_entries(self
-        ) -> None:
+    def _initialise_entries(self) -> None:
 
         self.processing_steps = []
         self.extra_info = {}
         self.extra_info['rereferencing_types'] = {}
 
 
-    def _initialise_attributes(self
-        ) -> None:
+    def _initialise_attributes(self) -> None:
 
         setattr(self, '_data_loaded', False)
         setattr(self, '_annotations_loaded', False)
@@ -74,8 +72,7 @@ class Signal:
         self.data.reorder_channels(ch_names)
 
 
-    def get_coordinates(self
-        ) -> list:
+    def get_coordinates(self) -> list:
 
         return self.data._get_channel_positions().copy().tolist()
 
@@ -107,8 +104,7 @@ class Signal:
             print(f"Setting channel coordinates to:\n{ch_coords}.")
 
 
-    def get_data(self
-        ) -> np.array:
+    def get_data(self) -> np.array:
 
         return self.data.get_data(reject_by_annotation='omit').copy()
 
@@ -256,8 +252,7 @@ class Signal:
             print(f"Resampling the data at {resample_freq} Hz.")
 
 
-    def drop_unrereferenced_channels(self
-        ) -> None:
+    def drop_unrereferenced_channels(self) -> None:
 
         self._drop_channels(
             [ch_name for ch_name in 

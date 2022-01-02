@@ -50,8 +50,7 @@ class CheckLengthsDict(CheckLengths):
         self.ignore_keys = ignore_keys
 
 
-    def _check(self
-        ) -> list:
+    def _check(self) -> list:
 
         self.entry_lengths = []
         for key, value in self.to_check.items():
@@ -59,8 +58,7 @@ class CheckLengthsDict(CheckLengths):
                 self.entry_lengths.append(len(value))
 
 
-    def identical(self
-        ) -> tuple[bool, int or list]:
+    def identical(self) -> tuple[bool, int or list]:
 
         self._check()
 
@@ -89,8 +87,7 @@ class CheckLengthsList(CheckLengths):
         self.ignore_values = ignore_values
 
 
-    def _check(self
-        ) -> list:
+    def _check(self) -> list:
 
         self.entry_lengths = []
         for value in self.to_check:
@@ -98,8 +95,7 @@ class CheckLengthsList(CheckLengths):
                 self.entry_lengths.append(len(value))
 
     
-    def identical(self
-        ) -> tuple[bool, int or list]:
+    def identical(self) -> tuple[bool, int or list]:
 
         self._check()
 

@@ -36,8 +36,7 @@ class RawFilepath(Filepath):
         self.run = run
 
     
-    def path(self
-        ) -> mne_bids.BIDSPath:
+    def path(self) -> mne_bids.BIDSPath:
 
         return mne_bids.BIDSPath(
             subject=self.subject, session=self.session, task=self.task,
@@ -72,15 +71,13 @@ class DataWiseFilepath(Filepath):
         self.filetype = filetype
 
 
-    def _subfolders(self
-        ) -> str:
+    def _subfolders(self) -> str:
 
         return (f"{self.dataset}\\sub-{self.subject}\\ses-{self.session}\\"
             f"{self.group_type}")
 
 
-    def _filename(self
-        ) -> str:
+    def _filename(self) -> str:
 
         return (f"sub-{self.subject}_ses-{self.session}_task-{self.task}_"
             f"acq-{self.acquisition}_run-{self.run}_{self.group_type}"
@@ -88,8 +85,7 @@ class DataWiseFilepath(Filepath):
         )
 
 
-    def path(self
-        ) -> str:
+    def path(self) -> str:
 
         return os.path.join(
             self.folderpath, self._subfolders(), self._filename()
@@ -108,7 +104,6 @@ class AnalysisWiseFilepath(Filepath):
         self.analysis_name = analysis_name
         self.filetype = filetype
 
-    def path(self
-        ) -> str:
+    def path(self) -> str:
 
         return os.path.join(self.folderpath, self.analysis_name+self.filetype)

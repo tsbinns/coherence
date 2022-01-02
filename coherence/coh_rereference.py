@@ -102,8 +102,7 @@ class RerefBipolar(Reref):
         self._sort_inputs()
 
 
-    def _check_input_lengths(self
-        ) -> None:
+    def _check_input_lengths(self) -> None:
 
         lengths_to_check = [
             self._ch_names_old, self._ch_names_new, self._ch_types_new, 
@@ -124,8 +123,7 @@ class RerefBipolar(Reref):
             )
 
         
-    def _sort_raw(self
-        ) -> None:
+    def _sort_raw(self) -> None:
 
         chs_to_analyse = np.unique(
             [name for names in self._ch_names_old for name in names]
@@ -139,39 +137,34 @@ class RerefBipolar(Reref):
         self.raw.reorder_channels(chs_to_analyse)
 
 
-    def _sort_inputs(self
-        ) -> None:
+    def _sort_inputs(self) -> None:
 
         self._check_input_lengths()
         self._sort_raw()
 
 
-    def _data_from_raw(self
-        ) -> None:
+    def _data_from_raw(self) -> None:
 
         self._data, self._data_info, self._ch_names, self._ch_coords = (
             super()._data_from_raw(self.raw)
         )
 
     
-    def _raw_from_data(self
-        ) -> None:
+    def _raw_from_data(self) -> None:
 
         self.raw = super()._raw_from_data(
             self._new_data, self._new_data_info, self._new_ch_coords
         )
 
 
-    def _store_rereference_types(self
-        ) -> None:
+    def _store_rereference_types(self) -> None:
 
         self.reref_types = super()._store_rereference_types(
             self._ch_names_new, self._reref_types, self._n_channels
         )
 
 
-    def _index_old_channels(self
-        ) -> None:
+    def _index_old_channels(self) -> None:
         
         self._ch_index = deepcopy(self._ch_names_old)
         for sublist_i, sublist in enumerate(self._ch_names_old):
@@ -179,8 +172,7 @@ class RerefBipolar(Reref):
                 self._ch_index[sublist_i][name_i] = self._ch_names.index(name)
 
 
-    def _set_data(self
-        ) -> None:
+    def _set_data(self) -> None:
         
         if not CheckLengthsList(self._ch_names_old).equals_n(2):
             raise Exception(
@@ -196,8 +188,7 @@ class RerefBipolar(Reref):
         ]
 
 
-    def _set_coordinates(self
-        ) -> None:
+    def _set_coordinates(self) -> None:
         
         self._new_ch_coords = []
         for ch_i in range(self._n_channels):
@@ -226,16 +217,14 @@ class RerefBipolar(Reref):
                 )
 
 
-    def _set_data_info(self
-        ) -> None:
+    def _set_data_info(self) -> None:
 
         self._new_data_info = super()._set_data_info(
             self._ch_names_new, self._ch_types_new, self._data_info
         )
         
 
-    def rereference(self
-        ) -> tuple[mne.io.Raw, dict]:
+    def rereference(self) -> tuple[mne.io.Raw, dict]:
 
         self._data_from_raw()
         self._index_old_channels()
@@ -270,8 +259,7 @@ class RerefCAR(Reref):
         self._sort_inputs()
 
 
-    def _check_input_lengths(self
-        ) -> None:
+    def _check_input_lengths(self) -> None:
 
         lengths_to_check = [
             self._ch_names_old, self._ch_names_new, self._ch_types_new, 
@@ -292,8 +280,7 @@ class RerefCAR(Reref):
             )
 
         
-    def _sort_raw(self
-        ) -> None:
+    def _sort_raw(self) -> None:
 
         chs_to_analyse = np.unique(
             [name for name in self._ch_names_old]
@@ -307,47 +294,41 @@ class RerefCAR(Reref):
         self.raw.reorder_channels(chs_to_analyse)
 
 
-    def _sort_inputs(self
-        ) -> None:
+    def _sort_inputs(self) -> None:
 
         self._check_input_lengths()
         self._sort_raw()
 
 
-    def _data_from_raw(self
-        ) -> None:
+    def _data_from_raw(self) -> None:
 
         self._data, self._data_info, self._ch_names, self._ch_coords = (
             super()._data_from_raw(self.raw)
         )
 
     
-    def _raw_from_data(self
-        ) -> None:
+    def _raw_from_data(self) -> None:
 
         self.raw = super()._raw_from_data(
             self._new_data, self._new_data_info, self._new_ch_coords
         )
 
 
-    def _store_rereference_types(self
-        ) -> None:
+    def _store_rereference_types(self) -> None:
 
         self.reref_types = super()._store_rereference_types(
             self._ch_names_new, self._reref_types, self._n_channels
         )
 
 
-    def _index_old_channels(self
-        ) -> None:
+    def _index_old_channels(self) -> None:
         
         self._ch_index = (
             [self._ch_names.index(name) for name in self._ch_names_old]
         )
 
 
-    def _set_data(self
-        ) -> None:
+    def _set_data(self) -> None:
         
         avg_data = self._data[[ch_i for ch_i in self._ch_index]].mean(axis=0)
         self._new_data = (
@@ -356,8 +337,7 @@ class RerefCAR(Reref):
         )
 
 
-    def _set_coordinates(self
-        ) -> None:
+    def _set_coordinates(self) -> None:
         
         self._new_ch_coords = []
         for ch_i in range(self._n_channels):
@@ -381,16 +361,14 @@ class RerefCAR(Reref):
                 )
 
 
-    def _set_data_info(self
-        ) -> None:
+    def _set_data_info(self) -> None:
 
         self._new_data_info = super()._set_data_info(
             self._ch_names_new, self._ch_types_new, self._data_info
         )
         
 
-    def rereference(self
-        ) -> tuple[mne.io.Raw, dict]:
+    def rereference(self) -> tuple[mne.io.Raw, dict]:
 
         self._data_from_raw()
         self._index_old_channels()
@@ -425,8 +403,7 @@ class RerefPseudo(Reref):
         self._sort_inputs()
 
 
-    def _check_input_lengths(self
-        ) -> None:
+    def _check_input_lengths(self) -> None:
 
         lengths_to_check = [
             self._ch_names_old, self._ch_names_new, self._ch_types_new, 
@@ -447,8 +424,7 @@ class RerefPseudo(Reref):
             )
 
         
-    def _sort_raw(self
-        ) -> None:
+    def _sort_raw(self) -> None:
 
         chs_to_analyse = np.unique(
             [name for name in self._ch_names_old]
@@ -462,47 +438,41 @@ class RerefPseudo(Reref):
         self.raw.reorder_channels(chs_to_analyse)
 
 
-    def _sort_inputs(self
-        ) -> None:
+    def _sort_inputs(self) -> None:
 
         self._check_input_lengths()
         self._sort_raw()
 
 
-    def _data_from_raw(self
-        ) -> None:
+    def _data_from_raw(self) -> None:
 
         self._data, self._data_info, self._ch_names, self._ch_coords = (
             super()._data_from_raw(self.raw)
         )
 
     
-    def _raw_from_data(self
-        ) -> None:
+    def _raw_from_data(self) -> None:
 
         self.raw = super()._raw_from_data(
             self._new_data, self._new_data_info, self._new_ch_coords
         )
 
 
-    def _store_rereference_types(self
-        ) -> None:
+    def _store_rereference_types(self) -> None:
 
         self.reref_types = super()._store_rereference_types(
             self._ch_names_new, self._reref_types, self._n_channels
         )
 
 
-    def _index_old_channels(self
-        ) -> None:
+    def _index_old_channels(self) -> None:
         
         self._ch_index = (
             [self._ch_names.index(name) for name in self._ch_names_old]
         )
 
 
-    def _set_data(self
-        ) -> None:
+    def _set_data(self) -> None:
         
         self._new_data = (
             [self._data[self._ch_index[ch_i]]
@@ -510,8 +480,7 @@ class RerefPseudo(Reref):
         )
 
 
-    def _set_coordinates(self
-        ) -> None:
+    def _set_coordinates(self) -> None:
         
         self._new_ch_coords = []
         for ch_i in range(self._n_channels):
@@ -535,16 +504,14 @@ class RerefPseudo(Reref):
                 )
 
 
-    def _set_data_info(self
-        ) -> None:
+    def _set_data_info(self) -> None:
 
         self._new_data_info = super()._set_data_info(
             self._ch_names_new, self._ch_types_new, self._data_info
         )
         
 
-    def rereference(self
-        ) -> tuple[mne.io.Raw, dict]:
+    def rereference(self) -> tuple[mne.io.Raw, dict]:
 
         
         self._data_from_raw()
