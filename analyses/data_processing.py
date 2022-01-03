@@ -1,5 +1,5 @@
-import sys 
 import os
+import sys
 from pathlib import Path
 
 cd_path = Path(__file__).absolute().parent.parent

@@ -1,7 +1,8 @@
 import json
 
-from coh_signal import Signal
 from coh_filepath import DataWiseFilepath, AnalysisWiseFilepath, RawFilepath
+from coh_signal import Signal
+
 
 
 

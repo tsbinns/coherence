@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Any
 
 
 
@@ -27,11 +28,11 @@ class CheckLengths(ABC):
     def _check():
         """Finds the lengths of the entries in the input object. Implemented in
         the subclasses.
-        
+
         PARAMETERS
         ----------
         N/A
-        
+
         RETURNS
         -------
         N/A
@@ -41,14 +42,14 @@ class CheckLengths(ABC):
 
     @abstractmethod
     def identical(self,
-        entry_lengths: list
-        ) -> tuple[bool, int or list]:
+        entry_lengths: list[int]
+        ) -> tuple[bool, int or list[int]]:
         """Checks whether the lengths of entries in the input object are
         identical.
 
         PARAMETERS
         ----------
-        entry_lengths : list
+        entry_lengths : list[int]
         -   List containing the lengths of entries within the input object.
 
         RETURNS
@@ -56,7 +57,7 @@ class CheckLengths(ABC):
         identical : bool
         -   Whether or not the lengths of the entries are identical.
 
-        lengths : int or list
+        lengths : int or list[int]
         -   The length(s) of the entries. If the lengths are identical,
             'lengths' is an int representing the length of all items. If the
             lengths are not identical, 'lengths' is a list containing the
@@ -75,7 +76,7 @@ class CheckLengths(ABC):
     
     @abstractmethod
     def equals_n(self,
-        entry_lengths: list,
+        entry_lengths: list[int],
         n: int
         ) -> bool:
         """Checks whether the lengths of entries within the input object are
@@ -83,7 +84,7 @@ class CheckLengths(ABC):
 
         PARAMETERS
         ----------
-        entry_lengths : list
+        entry_lengths : list[int]
         -   List containing the lengths of entries within the input object.
 
         n : int
@@ -110,14 +111,14 @@ class CheckLengthsDict(CheckLengths):
 
     PARAMETERS
     ----------
-    to_check : dict
+    to_check : dict[Any, Any]
     -   The dictionary for which the lengths of the entries should be checked.
 
-    ignore_values : list | optional, default []
+    ignore_values : list[Any] | optional, default []
     -   The values of entries within 'to_check' to ignore when checking the 
         lengths of entries. If [] (default), no entries are ignored.
 
-    ignore_keys : list | optional, default []
+    ignore_keys : list[Any] | optional, default []
     -   The keys of entries within 'to_check' to ignore when checking the 
         lengths of entries. If [] (default), no entries are ignored.
 
@@ -131,9 +132,9 @@ class CheckLengthsDict(CheckLengths):
     """
 
     def __init__(self,
-        to_check: list,
-        ignore_values: list = [],
-        ignore_keys: list = []
+        to_check: dict[Any, Any],
+        ignore_values: list[Any] = [],
+        ignore_keys: list[Any] = []
         ) -> None:
 
         self.to_check = to_check
@@ -215,10 +216,10 @@ class CheckLengthsList(CheckLengths):
 
     PARAMETERS
     ----------
-    to_check : list
+    to_check : list[Any]
     -   The list for which the lengths of the entries should be checked.
 
-    ignore_values : list | optional, default []
+    ignore_values : list[Any] | optional, default []
     -   The values of entries within 'to_check' to ignore when checking the 
         lengths of entries. If [] (default), no entries are ignored.
 
@@ -232,8 +233,8 @@ class CheckLengthsList(CheckLengths):
     """
 
     def __init__(self,
-        to_check: list,
-        ignore_values: list = []
+        to_check: list[Any],
+        ignore_values: list[Any] = []
         ) -> None:
 
         self.to_check = to_check
@@ -259,7 +260,7 @@ class CheckLengthsList(CheckLengths):
                 self.entry_lengths.append(len(value))
 
     
-    def identical(self) -> tuple[bool, int or list]:
+    def identical(self) -> tuple[bool, int or list[int]]:
         """Checks whether the lengths of entries in the input dictionary are
         identical. Partially implemented in the parent class.
 

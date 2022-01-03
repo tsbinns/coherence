@@ -1,7 +1,8 @@
-from abc import ABC, abstractmethod
-import numpy as np
 import mne
+import numpy as np
+from abc import ABC, abstractmethod
 from copy import deepcopy
+from typing import Union
 
 from coh_check_entries import CheckLengthsList
 
@@ -9,11 +10,59 @@ from coh_check_entries import CheckLengthsList
 
 
 class Reref(ABC):
+    """Abstract class for rereferencing data in mne.io.Raw objects.
+
+    METHODS
+    -------
+    rereference (abstract)
+    -   Rereferences the data in an mne.io.Raw object.
+
+    SUBCLASSES
+    ----------
+    RerefBipolar
+    -   Bipolar rereferences data.
+
+    RerefCAR
+    -   Common-average rereferences data.
+
+    RerefPseudo
+    -   Psuedo rereferences data. This allows you to alter characteristics of
+        the mne.io.Raw object (e.g. channel coordinates) and assign a
+        rereferencing type to the channels without altering the data. This is
+        useful if e.g. the channels were already hardware rereferenced.
+    """
 
     @abstractmethod
     def _data_from_raw(self,
         raw: mne.io.Raw
-        ) -> tuple[np.array, mne.Info, list, list]:
+        ) -> tuple[
+            np.array, mne.Info, list[str], list[list[Union[int, float]]]
+        ]:
+        """Extracts components of an mne.io.Raw object and returns them.
+
+        PARAMETERS
+        ----------
+        raw : mne.io.Raw
+        -   The mne.io.Raw object whose data and information should be
+            extracted.
+
+        RETURNS
+        -------
+        np.array
+        -   Array of the data with shape [n_channels, n_timepoints].
+
+        mne.Info
+        -   Information taken from the mne.io.Raw object.
+
+        list[str]
+        -   List of channel names taken from the mne.io.Raw object corresponding
+            to the channels in the data array.
+
+        list[list[int or float]]
+        -   List of channel coordinates taken from the mne.io.Raw object, with 
+            each channel's coordinates given in a sublist containing the x, y, 
+            and z coordinates.
+        """
 
         return (raw.get_data(reject_by_annotation='omit').copy(),
                 raw.info.copy(),
@@ -25,51 +74,146 @@ class Reref(ABC):
     def _raw_from_data(self,
         data: np.array,
         data_info: mne.Info,
-        ch_coords: list
+        ch_coords: list = []
         ) -> mne.io.Raw:
+        """Generates an mne.io.Raw object based on the rereferenced data and its
+        associated information.
+
+        PARAMETERS
+        ----------
+        data : np.array
+        -   Array of the rereferenced data with shape
+            [n_channels x n_timepoints].
+
+        data_info : mne.Info
+        -   Information about the data in 'data'.
+
+        ch_coords : empty list or list[list[int or float]] | optional, default 
+        []
+        -   Coordinates of the channels, with each channel's coordinates
+            contained in a sublist consisting of the x, y, and z coordinates.
+
+        RETURNS
+        -------
+        raw : mne.io.Raw
+        -   The constructed mne.io.Raw object containing the rereferenced data.
+        """
         
         raw = mne.io.RawArray(data, data_info)
-        raw._set_channel_positions(ch_coords, data_info['ch_names'])
+        if ch_coords != []:
+            raw._set_channel_positions(ch_coords, data_info['ch_names'])
 
         return raw
 
 
     @abstractmethod
     def _store_rereference_types(self,
-        ch_names: list,
-        reref_types: list,
-        n_channels: int
-        ) -> dict:
+        ch_names: list[str],
+        reref_types: list[str]
+        ) -> dict[str, str]:
+        """Generates a dictionary of key:value pairs consisting of channel name
+        : rereferencing type.
 
-        return {ch_names[i]: reref_types[i] for i in range(n_channels)}
+        PARAMETERS
+        ----------
+        ch_names : list[str]
+        -   The names of the channels that will become the dictionary keys.
+
+        reref_types : list[str]
+        -   The types of the rereferencing applied, corresponding to the
+            channels in 'ch_names', that will become the dictionary values.
+
+        RETURNS
+        -------
+        dict[str, str]
+        -   Dictionary of key:value pairs consisting of channel name :
+            rereferencing type.
+        """
+
+        return {ch_names[i]: reref_types[i] for i in range(len(ch_names))}
         
 
     @abstractmethod
     def _index_old_channels():
+        """Creates an index of channels that are being rereferenced. Implemented
+        in the subclasses.
+
+        PARAMETERS
+        ----------
+        N/A
+
+        RETURNS
+        -------
+        N/A
+        """
         pass
 
 
     @abstractmethod
     def _set_data():
+        """Rereferences the data. Implemented in the subclasses.
+
+        PARAMETERS
+        ----------
+        N/A
+
+        RETURNS
+        -------
+        N/A
+        """
         pass
 
 
     @abstractmethod
     def _set_coordinates():
+        """Sets the coordinates of the newly rereferenced channels. Implemented
+        in the subclasses.
+
+        PARAMETERS
+        ----------
+        N/A
+
+        RETURNS
+        -------
+        N/A
+        """
         pass
 
 
     @abstractmethod
     def _set_data_info(self,
-        ch_names: list,
-        ch_types: list,
+        ch_names: list[str],
+        ch_types: list[str],
         old_info: mne.Info
         ) -> mne.Info:
+        """Creates an mne.Info object containing information about the newly
+        rereferenced data.
+
+        PARAMETERS
+        ----------
+        ch_names : list[str]
+        -   The names of the channels in the rereferenced data.
+
+        ch_types : list[str]
+        -   The types of channels in the rereferenced data, according to those
+            recognised by MNE, corresponding to the channels in 'ch_names'.
+
+        old_info : mne.Info
+        -   The mne.Info object from the unrereferenced mne.io.Raw object to
+            extract still-relevant information from to set in the new mne.Info
+            object.
+
+        RETURNS
+        -------
+        new_info : mne.Info
+        -   mne.Info object containing information about the newly rereferenced
+            data.
+        """
 
         new_info = mne.create_info(ch_names, old_info['sfreq'], ch_types)
-        frozen_entries = ['ch_names', 'chs', 'nchan']
+        do_not_overwrite = ['ch_names', 'chs', 'nchan']
         for key, value in old_info.items():
-            if key not in frozen_entries:
+            if key not in do_not_overwrite:
                 new_info[key] = value
 
         return new_info
@@ -77,6 +221,17 @@ class Reref(ABC):
 
     @abstractmethod
     def rereference():
+        """Rereferences the data in an mne.io.Raw object. Implemented in the
+        subclasses.
+
+        PARAMETERS
+        ----------
+        N/A
+
+        RETURNS
+        -------
+        N/A
+        """
         pass
 
 

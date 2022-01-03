@@ -3,7 +3,8 @@ from abc import ABC
 
 
 class CustomError(ABC):
-    """Abstract class for defining custom exceptions/errors.
+    """Abstract class for defining custom exceptions/errors. Implemented in the
+    subclasses.
 
     PARAMETERS
     ----------

@@ -1,6 +1,6 @@
+import mne_bids
 import os
 from abc import ABC, abstractmethod
-import mne_bids
 
 
 
