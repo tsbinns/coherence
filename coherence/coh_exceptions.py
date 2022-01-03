@@ -3,7 +3,7 @@ from abc import ABC
 
 
 class CustomError(ABC):
-    """An abstract class for defining custom exceptions/errors.
+    """Abstract class for defining custom exceptions/errors.
 
     PARAMETERS
     ----------
@@ -19,7 +19,7 @@ class CustomError(ABC):
 
 class ProcessingOrderError(CustomError):
     """Class for raising exceptions/errors associated with performing processing
-    steps in an incorrect order.
+    steps in an incorrect order. Subclass of the abstract class 'CustomError'.
 
     PARAMETERS
     ----------
@@ -35,7 +35,8 @@ class ProcessingOrderError(CustomError):
 
 class MissingAttributeError(CustomError):
     """Class for raising exceptions/errors associated with attributes of an
-    object that have not been instantiated.
+    object that have not been instantiated. Subclass of the abstract class
+    'CustomError'.
 
     PARAMETERS
     ----------
