@@ -109,7 +109,7 @@ class RawFilepath(Filepath):
 
         RETURNS
         -------
-        path
+        mne_bids.BIDSPath
         -   An mne_bids.BIDSPath object for loading an mne.io.Raw object.
         """
 
@@ -194,7 +194,7 @@ class DataWiseFilepath(Filepath):
 
         RETURNS
         -------
-        subfolders_path : str
+        str
         -   The path of the subfolders.
         """
 
@@ -214,7 +214,7 @@ class DataWiseFilepath(Filepath):
 
         RETURNS
         -------
-        filename : str
+        str
         -   The name of the file.
         """
 
@@ -236,7 +236,7 @@ class DataWiseFilepath(Filepath):
 
         RETURNS
         -------
-        filepath : str
+        str
         -   The filepath of the object.
         
         """
@@ -278,6 +278,7 @@ class AnalysisWiseFilepath(Filepath):
         self.analysis_name = analysis_name
         self.filetype = filetype
 
+
     def path(self) -> str:
         """Generates a filepath for an object that corresponds to a particular
         analysis spanning multiple recordings sessions.
@@ -288,7 +289,7 @@ class AnalysisWiseFilepath(Filepath):
 
         RETURNS
         -------
-        filepath : str
+        str
         -   The filepath of the object.
         """
 

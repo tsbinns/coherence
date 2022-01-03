@@ -170,10 +170,10 @@ class CheckLengthsDict(CheckLengths):
 
         RETURNS
         -------
-        identical : bool
+        bool
         -   Whether or not the lengths of the entries are identical.
 
-        lengths : int or list
+        int or list
         -   The length(s) of the entries. If the lengths are identical,
             'lengths' is an int representing the length of all items. If the
             lengths are not identical, 'lengths' is a list containing the
@@ -198,7 +198,7 @@ class CheckLengthsDict(CheckLengths):
         
         RETURNS
         -------
-        all_n : bool
+        bool
         -   Whether or not the lengths of the entries are equal to 'n'.
         """
 
@@ -269,10 +269,10 @@ class CheckLengthsList(CheckLengths):
 
         RETURNS
         -------
-        identical : bool
+        bool
         -   Whether or not the lengths of the entries are identical.
 
-        lengths : int or list
+        int or list
         -   The length(s) of the entries. If the lengths are identical,
             'lengths' is an int representing the length of all items. If the
             lengths are not identical, 'lengths' is a list containing the
@@ -297,7 +297,7 @@ class CheckLengthsList(CheckLengths):
         
         RETURNS
         -------
-        all_n : bool
+        bool
         -   Whether or not the lengths of the entries are equal to 'n'.
         """
 
