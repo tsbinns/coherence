@@ -113,11 +113,11 @@ class CheckLengthsDict(CheckLengths):
     to_check : dict
     -   The dictionary for which the lengths of the entries should be checked.
 
-    ignore_values : list (default [])
+    ignore_values : list | optional, default []
     -   The values of entries within 'to_check' to ignore when checking the 
         lengths of entries. If [] (default), no entries are ignored.
 
-    ignore_keys : list (default [])
+    ignore_keys : list | optional, default []
     -   The keys of entries within 'to_check' to ignore when checking the 
         lengths of entries. If [] (default), no entries are ignored.
 
@@ -218,7 +218,7 @@ class CheckLengthsList(CheckLengths):
     to_check : list
     -   The list for which the lengths of the entries should be checked.
 
-    ignore_values : list (default [])
+    ignore_values : list | optional, default []
     -   The values of entries within 'to_check' to ignore when checking the 
         lengths of entries. If [] (default), no entries are ignored.
 
