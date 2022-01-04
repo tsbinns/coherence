@@ -112,7 +112,7 @@ def preprocessing(
     )
     signal.resample(analysis_settings['resample'])
     signal.epoch(analysis_settings['epoch_length'])
-    signal.order_channels(analysis_settings['post_reref_organisation'])
+    signal.order_channels(data_settings['post_reref_organisation'])
 
     return signal
 

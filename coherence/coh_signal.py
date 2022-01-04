@@ -354,7 +354,7 @@ class Signal:
         )
         self.data.load_data()
 
-        self._updateattr(self, '_data_loaded', True)
+        self._updateattr('_data_loaded', True)
         self.extra_info['rereferencing_types'].update(
             {ch_name: 'none' for ch_name in self.data.info['ch_names']}
         )
@@ -1076,6 +1076,7 @@ class Signal:
             )
 
         self.data = mne.make_fixed_length_epochs(self.data, epoch_length)
+        self.data.load_data()
 
         self._updateattr('_epoched', True)
         self._update_processing_steps('epoch_data', epoch_length)

@@ -505,7 +505,7 @@ class RerefBipolar(Reref):
         """
 
         self.reref_types = super()._store_rereference_types(
-            self._ch_names_new, self._reref_types, self._n_channels
+            self._ch_names_new, self._reref_types
         )
 
 
@@ -834,7 +834,7 @@ class RerefCAR(Reref):
         """
 
         self.reref_types = super()._store_rereference_types(
-            self._ch_names_new, self._reref_types, self._n_channels
+            self._ch_names_new, self._reref_types
         )
 
 
@@ -1148,7 +1148,7 @@ class RerefPseudo(Reref):
         """
 
         self.reref_types = super()._store_rereference_types(
-            self._ch_names_new, self._reref_types, self._n_channels
+            self._ch_names_new, self._reref_types
         )
 
 
