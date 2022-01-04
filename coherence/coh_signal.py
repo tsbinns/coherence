@@ -1,8 +1,9 @@
 import mne
 import mne_bids
 import numpy as np
-from typing import Any, Union
+from typing import Any, Option, Union
 
+from coh_dtypes import realnum
 from coh_exceptions import ProcessingOrderError, MissingAttributeError
 from coh_rereference import Reref, RerefBipolar, RerefCAR, RerefPseudo
 
@@ -88,15 +89,7 @@ class Signal:
 
     def _initialise_entries(self) -> None:
         """Initialises aspects of the Signal object that will be filled with
-        information as the data is processed.
-
-        PARAMETERS
-        ----------
-        N/A
-
-        RETURNS
-        -------
-        N/A        
+        information as the data is processed.   
         """
 
         self.processing_steps = []
@@ -107,14 +100,6 @@ class Signal:
     def _initialise_attributes(self) -> None:
         """Initialises aspects of the Signal object that indicate which methods
         have been called (starting as 'False'), which can later be updated.
-
-        PARAMETERS
-        ----------
-        N/A
-
-        RETURNS
-        -------
-        N/A
         """
 
         setattr(self, '_data_loaded', False)
@@ -147,10 +132,6 @@ class Signal:
         value : Any
         -   The value to update the attribute with.
 
-        RETURNS
-        -------
-        N/A
-
         RAISES
         ------
         MissingAttributeError
@@ -182,10 +163,6 @@ class Signal:
 
         step_value : Any
         -   A value representing what processing has taken place.
-
-        RETURNS
-        -------
-        N/A
         """
 
         self.processing_steps.append([step_name, step_value])
@@ -202,26 +179,18 @@ class Signal:
         ch_names : list[str]
         -   A list of channel names in the mne.io.Raw or mne.Epochs object in
             the order that you want the channels to be ordered.
-
-        RETURNS
-        -------
-        N/A
         """
 
         self.data.reorder_channels(ch_names)
 
 
-    def get_coordinates(self) -> list[list]:
+    def get_coordinates(self) -> list[list[realnum]]:
         """Extracts coordinates of the channels from the mne.io.Raw or
         mne.Epochs object.
 
-        PARAMETERS
-        ----------
-        N/A
-
         RETURNS
         -------
-        list[list]
+        list[list[int or float]]
         -   List of the channel coordinates, with each list entry containing the
             x, y, and z coordinates of each channel.
         """
@@ -231,7 +200,7 @@ class Signal:
 
     def _discard_missing_coordinates(self,
         ch_names: list[str],
-        ch_coords: list
+        ch_coords: list[list[realnum]]
         ) -> tuple[list, list]:
         """Removes empty sublists from a parent list of channel coordinates
         (also removes them from the corresponding entries of channel names)
@@ -270,7 +239,7 @@ class Signal:
 
     def set_coordinates(self,
         ch_names: list[str],
-        ch_coords: list
+        ch_coords: list[list[realnum]]
         ) -> None:
         """Assigns coordinates to the channels in the mne.io.Raw or mne.Epochs
         object.
@@ -285,10 +254,6 @@ class Signal:
         -   Coordinates of the channels, with each entry consiting of a sublist
             containing the x, y, and z coordinates of the corresponding channel
             specified in 'ch_names'.
-
-        RETURNS
-        -------
-        N/A
         """
 
         ch_names, ch_coords = self._discard_missing_coordinates(
@@ -304,10 +269,6 @@ class Signal:
     def get_data(self) -> np.array:
         """Extracts the data array from the mne.io.Raw or mne.Epochs object,
         excluding data based on the annotations.
-
-        PARAMETERS
-        ----------
-        N/A
 
         RETURNS
         -------
@@ -329,10 +290,6 @@ class Signal:
         ----------
         path_raw : mne_bids.BIDSPath
         -   The path of the raw data to be loaded.
-
-        RETURNS
-        -------
-        N/A
 
         RAISES
         ------
@@ -371,10 +328,6 @@ class Signal:
         ----------
         path_annots : str
         -   The filepath of the annotations to load.
-
-        RETURNS
-        -------
-        N/A
 
         RAISES
         ------
@@ -418,10 +371,6 @@ class Signal:
         ----------
         ch_names : list[str]
         -   The names of the channels whose entries should be retained.
-
-        RETURNS
-        -------
-        N/A
         """
 
         for key in self.extra_info.keys():
@@ -441,10 +390,6 @@ class Signal:
         ----------
         ch_names : list[str]
         -   The names of the channels whose entries should be discarded.
-
-        RETURNS
-        -------
-        N/A
         """
 
         for key in self.extra_info.keys():
@@ -461,10 +406,6 @@ class Signal:
         ----------
         ch_names : list[str]
         -   The names of the channels that should be discarded.
-
-        RETURNS
-        -------
-        N/A
         """
 
         self.data.drop_channels(ch_names)
@@ -481,10 +422,6 @@ class Signal:
         ----------
         ch_names : list[str]
         -   The names of the channels that should be retained.
-
-        RETURNS
-        -------
-        N/A
         """
 
         self.data.pick_channels(ch_names)
@@ -512,10 +449,6 @@ class Signal:
 
         highpass_freq : int
         -   The frequency (Hz) at which to highpass filter the data.
-
-        RETURNS
-        -------
-        N/A
         """
 
         self.data.filter(highpass_freq, lowpass_freq)
@@ -541,10 +474,6 @@ class Signal:
         line_noise : int
         -   The line noise frequency (Hz) for which the notch filter, including
             the harmonics, is produced.
-
-        RETURNS
-        -------
-        N/A
         """
 
         freqs = np.arange(
@@ -572,10 +501,6 @@ class Signal:
         ----------
         resample_freq : int
         -   The frequency at which to resample the data.
-
-        RETURNS
-        -------
-        N/A
         """
 
         self.data.resample(resample_freq)
@@ -590,14 +515,6 @@ class Signal:
         """Drops channels that have not been rereferenced from the mne.io.Raw or
         mne.Epochs object, also discarding entries for these channels from
         'extra_info'.
-
-        PARAMETERS
-        ----------
-        N/A
-
-        RETURNS
-        -------
-        N/A
         """
 
         self._drop_channels(
@@ -610,10 +527,10 @@ class Signal:
     def _apply_rereference(self,
         RerefMethod: Reref,
         ch_names_old: Union[list[str], list[list[str]]],
-        ch_names_new: list[str],
-        ch_types_new: list[str],
-        reref_types: list[str],
-        ch_coords_new: list
+        ch_names_new: Option[list[Option[str]]],
+        ch_types_new: Option[list[Option[str]]],
+        reref_types: Option[list[Option[str]]],
+        ch_coords_new: Option[list[Option[list[realnum]]]]
         ) -> tuple[mne.io.Raw, dict[str, str]]:
         """Applies a rereferencing method to the mne.io.Raw object.
 
@@ -706,10 +623,6 @@ class Signal:
         ch_names : list[str]
         -   Names of channels to remove from the mne.io.Raw or mne.Epochs
             object.
-
-        RETURNS
-        -------
-        N/A
         """
 
         self._drop_channels(ch_names)
@@ -732,10 +645,6 @@ class Signal:
         rerefed_raw : mne.io.Raw
         -   An mne.io.Raw object that has been rereferenced which will be
             appended.
-        
-        RETURNS
-        -------
-        N/A
         """
 
         ch_names = self._check_conflicting_channels(
@@ -757,10 +666,6 @@ class Signal:
         reref_types : dict[str, str]
         -   Dictionary with key:value pairs of channel name : rereferencing
             type.
-        
-        RETURNS
-        -------
-        N/A
         """
 
         self.extra_info['rereferencing_types'].update(reref_types)
@@ -799,10 +704,10 @@ class Signal:
     def _rereference(self,
         RerefMethod: Reref,
         ch_names_old: Union[list[str], list[list[str]]],
-        ch_names_new: list[str],
-        ch_types_new: list[str],
-        reref_types: list[str],
-        ch_coords_new: list
+        ch_names_new: Option[list[Option[str]]],
+        ch_types_new: Option[list[Option[str]]],
+        reref_types: Option[list[Option[str]]],
+        ch_coords_new: Option[list[Option[list[realnum]]]]
         ) -> None:
         """Parent method for calling on other methods to rereference the data,
         add it to the self mne.io.Raw object, and add the rereferecing
@@ -841,10 +746,6 @@ class Signal:
             missing have their coordinates taken from the mne.io.Raw object
             according to the corresponding channel in 'ch_names_old'.
 
-        RETURNS
-        -------
-        N/A
-
         RAISES
         ------
         ProcessingOrderError
@@ -875,7 +776,7 @@ class Signal:
         ch_names_new: list[str],
         ch_types_new: list[str],
         reref_types: list[str],
-        ch_coords_new: list
+        ch_coords_new: Option[list[Option[list[realnum]]]]
         ) -> None:
         """Bipolar rereferences channels in the mne.io.Raw object.
 
@@ -908,10 +809,6 @@ class Signal:
             given are used, whilst those channels for which the coordinates are
             missing have their coordinates taken from the mne.io.Raw object
             according to the corresponding channel in 'ch_names_old'.
-
-        RETURNS
-        -------
-        N/A
         """
 
         self._rereference(
@@ -930,11 +827,11 @@ class Signal:
         
 
     def rereference_CAR(self,
-        ch_names_old: list[str],
+        ch_names_old: list[list[str]],
         ch_names_new: list[str],
         ch_types_new: list[str],
         reref_types: list[str],
-        ch_coords_new: list
+        ch_coords_new: Option[list[Option[list[realnum]]]]
         ) -> None:
         """Common-average rereferences channels in the mne.io.Raw object.
 
@@ -965,10 +862,6 @@ class Signal:
             given are used, whilst those channels for which the coordinates are
             missing have their coordinates taken from the mne.io.Raw object
             according to the corresponding channel in 'ch_names_old'.
-
-        RETURNS
-        -------
-        N/A
         """
 
         self._rereference(
@@ -987,11 +880,11 @@ class Signal:
     
 
     def rereference_pseudo(self,
-        ch_names_old: list[str],
+        ch_names_old: list[list[str]],
         ch_names_new: list[str],
         ch_types_new: list[str],
         reref_types: list[str],
-        ch_coords_new: list
+        ch_coords_new: Option[list[Option[list[realnum]]]]
         ) -> None:
         """Pseudo rereferences channels in the mne.io.Raw object.
         -   This allows e.g. rereferencing types, channel coordinates, etc... to
@@ -1026,10 +919,6 @@ class Signal:
             given are used, whilst those channels for which the coordinates are
             missing have their coordinates taken from the mne.io.Raw object
             according to the corresponding channel in 'ch_names_old'.
-
-        RETURNS
-        -------
-        N/A
         """
 
         self._rereference(
@@ -1056,10 +945,6 @@ class Signal:
         ----------
         epoch_length : int
         -   The duration of the epochs (seconds) to divide the data into.
-
-        RETURNS
-        -------
-        N/A
 
         RAISES
         ------

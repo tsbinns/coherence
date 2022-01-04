@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Union
 
 
 
@@ -28,14 +28,6 @@ class CheckLengths(ABC):
     def _check():
         """Finds the lengths of the entries in the input object.
         -   Implemented in the subclasses' method.
-
-        PARAMETERS
-        ----------
-        N/A
-
-        RETURNS
-        -------
-        N/A
         """
         pass
 
@@ -43,7 +35,7 @@ class CheckLengths(ABC):
     @abstractmethod
     def identical(self,
         entry_lengths: list[int]
-        ) -> tuple[bool, int or list[int]]:
+        ) -> tuple[bool, Union[int, list[int]]]:
         """Checks whether the lengths of entries in the input object are
         identical.
 
@@ -147,14 +139,6 @@ class CheckLengthsDict(CheckLengths):
     def _check(self) -> list:
         """Finds the lengths of the values of the entries within the input
         dictionary.
-        
-        PARAMETERS
-        ----------
-        N/A
-
-        RETURNS
-        -------
-        N/A
         """
 
         self.entry_lengths = []
@@ -163,14 +147,10 @@ class CheckLengthsDict(CheckLengths):
                 self.entry_lengths.append(len(value))
 
 
-    def identical(self) -> tuple[bool, int or list]:
+    def identical(self) -> tuple[bool, Union[int, list[int]]]:
         """Checks whether the lengths of entries in the input dictionary are
         identical.
         -   Partially implemented in the parent class' method.
-
-        PARAMETERS
-        ----------
-        N/A
 
         RETURNS
         -------
@@ -249,14 +229,6 @@ class CheckLengthsList(CheckLengths):
     def _check(self) -> list:
         """Finds the lengths of the values of the entries within the input
         dictionary.
-        
-        PARAMETERS
-        ----------
-        N/A
-
-        RETURNS
-        -------
-        N/A
         """
 
         self.entry_lengths = []
@@ -265,14 +237,10 @@ class CheckLengthsList(CheckLengths):
                 self.entry_lengths.append(len(value))
 
     
-    def identical(self) -> tuple[bool, int or list[int]]:
+    def identical(self) -> tuple[bool, Union[int, list[int]]]:
         """Checks whether the lengths of entries in the input dictionary are
         identical.
         -   Partially implemented in the parent class' method.
-
-        PARAMETERS
-        ----------
-        N/A
 
         RETURNS
         -------

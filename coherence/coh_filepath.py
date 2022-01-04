@@ -31,14 +31,6 @@ class Filepath(ABC):
     def path():
         """Generates the filepath.
         -   Implemented in the subclasses' method.
-
-        PARAMETERS
-        ----------
-        N/A
-
-        RETURNS
-        -------
-        N/A
         """
         pass
 
@@ -103,10 +95,6 @@ class RawFilepath(Filepath):
     def path(self) -> mne_bids.BIDSPath:
         """Generates an mne_bids.BIDSPath object for loading an mne.io.Raw
         object.
-
-        PARAMETERS
-        ----------
-        N/A
 
         RETURNS
         -------
@@ -189,10 +177,6 @@ class DataWiseFilepath(Filepath):
     def _subfolders(self) -> str:
         """Generates the path for the subfolders within 'folderpath'.
 
-        PARAMETERS
-        ----------
-        N/A
-
         RETURNS
         -------
         str
@@ -208,10 +192,6 @@ class DataWiseFilepath(Filepath):
     def _filename(self) -> str:
         """Generates the name of the file located within 'folderpath' and
         subfolders path.
-
-        PARAMETERS
-        ----------
-        N/A
 
         RETURNS
         -------
@@ -230,10 +210,6 @@ class DataWiseFilepath(Filepath):
         """Generates the filepath for an object that corresponds to an
         individual recording session based on the MNE data-storage filepath
         structure.
-
-        PARAMETERS
-        ----------
-        N/A
 
         RETURNS
         -------
@@ -283,10 +259,6 @@ class AnalysisWiseFilepath(Filepath):
     def path(self) -> str:
         """Generates a filepath for an object that corresponds to a particular
         analysis spanning multiple recordings sessions.
-
-        PARAMETERS
-        ----------
-        N/A
 
         RETURNS
         -------
