@@ -25,8 +25,8 @@ def preprocessing(
     -   The folderpath to the location of the datasets.
 
     folderpath_extras : str
-    -   The folderpath to the location of the datasets' 'extras' (e.g. the
-        annotations, processing settings, etc...)
+    -   The folderpath to the location of the datasets' 'extras', e.g. the
+        annotations, processing settings, etc...
 
     dataset : str
     -   The name of the dataset folder found in 'folderpath_data'.

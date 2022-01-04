@@ -41,8 +41,7 @@ class Signal:
         channels present in the mne.io.Raw object to 'none'.
 
     load_annotations
-    -   Loads annotations corresponding to the mne.io.Raw object. Can only be
-        applied to an mne.io.Raw object, not an mne.Epochs object.
+    -   Loads annotations corresponding to the mne.io.Raw object.
 
     pick_channels
     -   Retains only certain channels in the mne.io.Raw or mne.Epochs object,
@@ -69,10 +68,10 @@ class Signal:
     -   Common-average rereferences channels in the mne.io.Raw object.
 
     rereference_pseudo
-    -   Pseudo rereferences channels in the mne.io.Raw object. This allows
-        rereferencing types to be assigned to the channels without any
-        rereferencing occur. This is useful if e.g. the channels were already
-        hardware rereferenced.
+    -   Pseudo rereferences channels in the mne.io.Raw object.
+    -   This allows e.g. rereferencing types, channel coordinates, etc... to be
+        assigned to the channels without any rereferencing occuring.
+    -   This is useful if e.g. the channels were already hardware rereferenced.
 
     epoch
     -   Divides the mne.io.Raw object into epochs of a specified duration.
@@ -137,7 +136,8 @@ class Signal:
         value: Any
         ) -> None:
         """Updates aspects of the Signal object that indicate which methods
-        have been called. The aspects must have already been instantiated.
+        have been called.
+        -   The aspects must have already been instantiated.
 
         PARAMETERS
         ----------
@@ -145,7 +145,7 @@ class Signal:
         -   The name of the aspect to update.
 
         value : Any
-        -   The value to update the attribute with
+        -   The value to update the attribute with.
 
         RETURNS
         -------
@@ -338,8 +338,8 @@ class Signal:
         ------
         ProcessingOrderError
         -   Raised if the user attempts to load an mne.io.Raw object into the
-            self object if an mne.io.Raw object has already been loaded. A new
-            Signal object should be instantiated and used instead.
+            self object if an mne.io.Raw object has already been loaded.
+        -   A new Signal object should be instantiated and used instead.
         """
 
         if self._data_loaded:
@@ -365,8 +365,7 @@ class Signal:
     def load_annotations(self,
         path_annots: str
         ) -> None:
-        """Loads annotations corresponding to the mne.io.Raw object. Can only be
-        applied to an mne.io.Raw object, not an mne.Epochs object.
+        """Loads annotations corresponding to the mne.io.Raw object.
 
         PARAMETERS
         ----------
@@ -381,9 +380,10 @@ class Signal:
         ------
         ProcessingOrderError
         -   Raised if the user attempts to load annotations into the data after
-            it has been epoched. Annotations should be loaded before epoching
-            has occured, when the data is in the form of an mne.io.Raw object 
-            rather than an mne.Epochs object.
+            it has been epoched.
+        -   Annotations should be loaded before epoching has occured, when the 
+            data is in the form of an mne.io.Raw object rather than an 
+            mne.Epochs object.
         """
 
         if self._epoched:
@@ -609,7 +609,7 @@ class Signal:
 
     def _apply_rereference(self,
         RerefMethod: Reref,
-        ch_names_old: list[str],
+        ch_names_old: Union[list[str], list[list[str]]],
         ch_names_new: list[str],
         ch_types_new: list[str],
         reref_types: list[str],
@@ -622,8 +622,10 @@ class Signal:
         RerefMethod : Reref
         -   The rereferencing method to apply.
 
-        ch_names_old : list[str]
+        ch_names_old : list[str or list[str]]
         -   The names of the channels in the mne.io.Raw object to rereference.
+        -   If bipolar rereferencing, each entry of the list should be a list of
+            two channel names (i.e. a cathode and an anode).
 
         ch_names_new : list[str]
         -   The names of the newly rereferenced channels, corresponding to the
@@ -671,8 +673,8 @@ class Signal:
         ch_names_2: list[str]
         ) -> list:
         """Checks whether there are any of the same channel names in two lists.
-        Useful to perform before appending an external mne.io.Raw or mne.Epochs
-        object.
+        -   Useful to perform before appending an external mne.io.Raw or
+            mne.Epochs object.
 
         PARAMETERS
         ----------
@@ -695,8 +697,9 @@ class Signal:
         ch_names: list[str]
         ) -> None:
         """Removes channels from the self mne.io.Raw or mne.Epochs object. 
-        Designed for use alongside '_append_rereferenced_raw'. Useful to perform
-        before appending an external mne.io.Raw or mne.Epochs object.
+        -   Designed for use alongside '_append_rereferenced_raw'.
+        -   Useful to perform before appending an external mne.io.Raw or
+            mne.Epochs object.
 
         PARAMETERS
         ----------
@@ -764,7 +767,7 @@ class Signal:
 
 
     def _get_channel_rereferencing_pairs(self,
-        ch_names_old: list[str],
+        ch_names_old: Union[list[str], list[list[str]]],
         ch_names_new: list[str]
         ) -> list:
         """Collects the names of the channels that were referenced and the newly
@@ -772,8 +775,10 @@ class Signal:
 
         PARAMETERS
         ----------
-        ch_names_old : list[str]
+        ch_names_old : list[str or list[str]]
         -   Names of the channels that were rereferenced.
+        -   If bipolar rereferencing, each entry of the list should be a list of
+            two channel names (i.e. a cathode and an anode).
 
         ch_names_new : list[str]
         -   Names of the channels that were produced by the rereferencing.
@@ -793,7 +798,7 @@ class Signal:
 
     def _rereference(self,
         RerefMethod: Reref,
-        ch_names_old: list[str],
+        ch_names_old: Union[list[str], list[list[str]]],
         ch_names_new: list[str],
         ch_types_new: list[str],
         reref_types: list[str],
@@ -808,8 +813,10 @@ class Signal:
         RerefMethod : Reref
         -   The rereferencing method to apply.
 
-        ch_names_old : list[str]
+        ch_names_old : list[str or list[str]]
         -   The names of the channels in the mne.io.Raw object to rereference.
+        -   If bipolar rereferencing, each entry of the list should be a list of
+            two channel names (i.e. a cathode and an anode).
 
         ch_names_new : list[str]
         -   The names of the newly rereferenced channels, corresponding to the
@@ -842,9 +849,9 @@ class Signal:
         ------
         ProcessingOrderError
         -   Raised if the user attempts to rereference the data after it has
-            already been epoched. Rereferencing should only be applied when the
-            data in self is held as an mne.io.Raw object rather than an
-            mne.Epochs object.
+            already been epoched.
+        -   Rereferencing should only be applied when the data in self is held
+            as an mne.io.Raw object rather than an mne.Epochs object.
         """
 
         if self._epoched:
@@ -864,7 +871,7 @@ class Signal:
 
 
     def rereference_bipolar(self,
-        ch_names_old: list[str],
+        ch_names_old: list[list[str]],
         ch_names_new: list[str],
         ch_types_new: list[str],
         reref_types: list[str],
@@ -874,8 +881,10 @@ class Signal:
 
         PARAMETERS
         ----------
-        ch_names_old : list[str]
+        ch_names_old : list[list[str]]
         -   The names of the channels in the mne.io.Raw object to rereference.
+        -   Each entry of the list should be a list of two channel names (i.e. a 
+            cathode and an anode).
 
         ch_names_new : list[str]
         -   The names of the newly rereferenced channels, corresponding to the
@@ -984,10 +993,11 @@ class Signal:
         reref_types: list[str],
         ch_coords_new: list
         ) -> None:
-        """Pseudo rereferences channels in the mne.io.Raw object. This allows
-        rereferencing types to be assigned to the channels without any
-        rereferencing occur. This is useful if e.g. the channels were already
-        hardware rereferenced.
+        """Pseudo rereferences channels in the mne.io.Raw object.
+        -   This allows e.g. rereferencing types, channel coordinates, etc... to
+            be assigned to the channels without any rereferencing occuring.
+        -   This is useful if e.g. the channels were already hardware
+            rereferenced.
 
         PARAMETERS
         ----------
@@ -1055,8 +1065,9 @@ class Signal:
         ------
         ProcessingOrderError
         -   Raised if the user attempts to epoch the data once it has already
-            been epoched. This method can only be called if the data is stored
-            as an mne.io.Raw object, not as an mne.Epochs object.
+            been epoched.
+        -   This method can only be called if the data is stored as an 
+            mne.io.Raw object, not as an mne.Epochs object.
         """
 
         if self._epoched:

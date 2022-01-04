@@ -29,7 +29,8 @@ class Filepath(ABC):
 
     @abstractmethod
     def path():
-        """Generates the filepath. Implemented in the subclasses.
+        """Generates the filepath.
+        -   Implemented in the subclasses' method.
 
         PARAMETERS
         ----------
@@ -151,10 +152,10 @@ class DataWiseFilepath(Filepath):
 
     group_type : str
     -   The name of the group of files for which the filepath should be
-        generated. E.g. 'annotations', 'settings'.
+        generate, e.g. 'annotations', 'settings'.
     
     filetype : str
-    -   The file extension, prefixed with a period. E.g. '.json', '.csv'.
+    -   The file extension, prefixed with a period, e.g. '.json', '.csv'.
 
     METHODS
     -------
@@ -260,7 +261,7 @@ class AnalysisWiseFilepath(Filepath):
         "'folderpath'/settings".
     
     filetype : str
-    -   The file extension, prefixed with a period. E.g. '.json', '.csv'.
+    -   The file extension, prefixed with a period, e.g. '.json', '.csv'.
 
     METHODS
     -------

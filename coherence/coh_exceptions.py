@@ -20,7 +20,7 @@ class CustomError(ABC):
 
 class ProcessingOrderError(CustomError):
     """Class for raising exceptions/errors associated with performing processing
-    steps in an incorrect order. Subclass of the abstract class 'CustomError'.
+    steps in an incorrect order. Subclass of the abstract class CustomError.
 
     PARAMETERS
     ----------
@@ -37,7 +37,7 @@ class ProcessingOrderError(CustomError):
 class MissingAttributeError(CustomError):
     """Class for raising exceptions/errors associated with attributes of an
     object that have not been instantiated. Subclass of the abstract class
-    'CustomError'.
+    CustomError.
 
     PARAMETERS
     ----------
@@ -50,3 +50,16 @@ class MissingAttributeError(CustomError):
     pass
 
 
+
+class EntryLengthError(CustomError):
+    """Class for raising exceptions/error associated with entries within a list
+    having a nonidentical length. Subclass of the abstract class CustomError.
+
+    PARAMETERS
+    ----------
+    N/A
+
+    METHODS
+    -------
+    N/A
+    """
