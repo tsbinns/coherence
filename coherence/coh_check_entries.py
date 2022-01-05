@@ -25,7 +25,7 @@ class CheckLengths(ABC):
     """
 
     @abstractmethod
-    def _check():
+    def _check(self):
         """Finds the lengths of the entries in the input object.
         -   Implemented in the subclasses' method.
         """
@@ -136,7 +136,7 @@ class CheckLengthsDict(CheckLengths):
         self.ignore_keys = ignore_keys
 
 
-    def _check(self) -> list:
+    def _check(self) -> None:
         """Finds the lengths of the values of the entries within the input
         dictionary.
         """
@@ -226,7 +226,7 @@ class CheckLengthsList(CheckLengths):
         self.ignore_values = ignore_values
 
 
-    def _check(self) -> list:
+    def _check(self) -> None:
         """Finds the lengths of the values of the entries within the input
         dictionary.
         """

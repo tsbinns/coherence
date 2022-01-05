@@ -28,7 +28,7 @@ class Filepath(ABC):
     """
 
     @abstractmethod
-    def path():
+    def path(self):
         """Generates the filepath.
         -   Implemented in the subclasses' method.
         """

@@ -2,7 +2,7 @@ import mne
 import numpy as np
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from typing import Option, Union
+from typing import Optional
 
 from coh_check_entries import CheckLengthsList
 from coh_dtypes import realnum
@@ -65,7 +65,7 @@ class Reref(ABC):
         """
         
         equal_lengths, n_channels = CheckLengthsList(
-            lengths_to_check, [[]]
+            lengths_to_check, [None]
         ).identical()
 
         if not equal_lengths:
@@ -111,27 +111,27 @@ class Reref(ABC):
 
 
     @abstractmethod
-    def _sort_ch_names_new():
+    def _sort_ch_names_new(self) -> None:
         pass
 
 
     @abstractmethod
-    def _sort_ch_types_new():
+    def _sort_ch_types_new(self) -> None:
         pass
 
 
     @abstractmethod
-    def _sort_reref_types():
+    def _sort_reref_types(self) -> None:
         pass
 
 
     @abstractmethod
-    def _sort_ch_coords_new():
+    def _sort_ch_coords_new(self) -> None:
         pass
 
 
     @abstractmethod
-    def _sort_inputs():
+    def _sort_inputs(self) -> None:
         """Checks that rereferencing settings are compatible and discards
         rereferencing-irrelevant channels from the data.
         -   Implemented in the subclasses' method.
@@ -142,7 +142,7 @@ class Reref(ABC):
     def _data_from_raw(self,
         raw: mne.io.Raw
         ) -> tuple[
-            np.array, mne.Info, list[str], list[list[realnum]]
+            np.ndarray, mne.Info, list[str], list[list[realnum]]
         ]:
         """Extracts components of an mne.io.Raw object and returns them.
 
@@ -178,7 +178,7 @@ class Reref(ABC):
 
     @abstractmethod
     def _raw_from_data(self,
-        data: np.array,
+        data: np.ndarray,
         data_info: mne.Info,
         ch_coords: list[list[realnum]]
         ) -> mne.io.Raw:
@@ -240,7 +240,7 @@ class Reref(ABC):
         
 
     @abstractmethod
-    def _index_old_channels():
+    def _index_old_channels(self) -> None:
         """Creates an index of channels that are being rereferenced.
         -   Implemented in the subclasses' method.
         """
@@ -248,7 +248,7 @@ class Reref(ABC):
 
 
     @abstractmethod
-    def _set_data():
+    def _set_data(self) -> None:
         """Rereferences the data.
         -   Implemented in the subclasses' method.
         """
@@ -256,7 +256,7 @@ class Reref(ABC):
 
 
     @abstractmethod
-    def _set_coordinates():
+    def _set_coordinates(self) -> None:
         """Sets the coordinates of the new, rereferenced channels.
         -   Implemented in the subclasses.
         """
@@ -303,7 +303,7 @@ class Reref(ABC):
 
 
     @abstractmethod
-    def rereference():
+    def rereference(self) -> None:
         """Rereferences the data in an mne.io.Raw object.
         -   Implemented in the subclasses' method.
         """
@@ -360,10 +360,10 @@ class RerefBipolar(Reref):
     def __init__(self,
         raw: mne.io.Raw,
         ch_names_old: list[str],
-        ch_names_new: Option[list[Option[str]]] = None,
-        ch_types_new: Option[list[Option[str]]] = None,
-        reref_types: Option[list[Option[str]]] = None,
-        ch_coords_new: Option[list[Option[list[realnum]]]] = None
+        ch_names_new: Optional[list[Optional[str]]] = None,
+        ch_types_new: Optional[list[Optional[str]]] = None,
+        reref_types: Optional[list[Optional[str]]] = None,
+        ch_coords_new: Optional[list[Optional[list[realnum]]]] = None
         ) -> None:
 
         self.raw = raw
@@ -435,7 +435,7 @@ class RerefBipolar(Reref):
             for ch_names in self._ch_names_old:
                 self._ch_names_new.append('-'.join(name for name in ch_names))
         elif any([item == None for item in self._ch_names_new]):
-            for i, ch_name in self._ch_names_new:
+            for i, ch_name in enumerate(self._ch_names_new):
                 if ch_name == None:
                     self._ch_names_new[i] = '-'.join(
                         name for name in self._ch_names_old[i]
@@ -470,9 +470,11 @@ class RerefBipolar(Reref):
         if self._ch_types_new == None:
             self._ch_types_new = []
             for ch_names in self._ch_names_old:
-                ch_types_old = np.unique(self.raw.get_channel_types(ch_names))
+                ch_types_old = list(np.unique(
+                    self.raw.get_channel_types(ch_names))
+                )
                 if len(ch_types_old) == 1:
-                    self._ch_types_new.append(ch_types_old)
+                    self._ch_types_new.append(ch_types_old[0])
                 else:
                     raise ChannelTypeMismatch(
                         "Error when trying to bipolar rereference data:\nNo "
@@ -484,11 +486,11 @@ class RerefBipolar(Reref):
         elif any([item == None for item in self._ch_types_new]):
             for i, ch_type in enumerate(self._ch_types_new):
                 if ch_type == None:
-                    ch_types_old = np.unique(
+                    ch_types_old = list(np.unique(
                         self.raw.get_channel_types(self._ch_names_old[i])
-                    )
+                    ))
                     if len(ch_types_old) == 1:
-                        self._ch_types_new.append(ch_types_old)
+                        self._ch_types_new.append(ch_types_old[0])
                     else:
                         raise ChannelTypeMismatch(
                             "Error when trying to bipolar rereference data:\n"
@@ -655,7 +657,7 @@ class RerefBipolar(Reref):
         )
         
 
-    def rereference(self) -> tuple[mne.io.Raw, dict[str, str]]:
+    def rereference(self) -> tuple[mne.io.Raw, list[str], dict[str, str]]:
         """Rereferences the data in an mne.io.Raw object.
         
         RETURNS
@@ -663,7 +665,10 @@ class RerefBipolar(Reref):
         mne.io.Raw
         -   The mne.io.Raw object containing the bipolar rereferenced data.
         
-        dict
+        list[str]
+        -   Names of the channels that were produced by the rereferencing.
+
+        dict[str, str]
         -   Dictionary containing information about the type of rereferencing 
             applied to generate each new channel, with key:value pairs of
             channel name : rereference type.
@@ -675,7 +680,7 @@ class RerefBipolar(Reref):
         self._raw_from_data()
         self._store_rereference_types()
 
-        return self.raw, self.reref_types
+        return self.raw, self._ch_names_new, self.reref_types
 
 
 
@@ -728,10 +733,10 @@ class RerefCAR(Reref):
     def __init__(self,
         raw: mne.io.Raw,
         ch_names_old: list[str],
-        ch_names_new: Option[list[Option[str]]] = None,
-        ch_types_new: Option[list[Option[str]]] = None,
-        reref_types: Option[list[Option[str]]] = None,
-        ch_coords_new: Option[list[Option[list[realnum]]]] = None
+        ch_names_new: Optional[list[Optional[str]]] = None,
+        ch_types_new: Optional[list[Optional[str]]] = None,
+        reref_types: Optional[list[Optional[str]]] = None,
+        ch_coords_new: Optional[list[Optional[list[realnum]]]] = None
         ) -> None:
 
         self.raw = raw
@@ -782,7 +787,7 @@ class RerefCAR(Reref):
         if self._ch_names_new == None:
             self._ch_names_new = [name for name in self._ch_names_old]
         elif any([item == None for item in self._ch_names_new]):
-            for i, ch_name in self._ch_names_new:
+            for i, ch_name in enumerate(self._ch_names_new):
                 if ch_name == None:
                     self._ch_names_new[i] = [
                         name for name in self._ch_names_old[i]
@@ -807,12 +812,14 @@ class RerefCAR(Reref):
         """
 
         if self._ch_types_new == None:
-            self._ch_types_new = self.raw.get_channel_types(self._ch_names_old)
+            self._ch_types_new = list(
+                self.raw.get_channel_types(self._ch_names_old)
+            )
         elif any([item == None for item in self._ch_types_new]):
             for i, ch_type in enumerate(self._ch_types_new):
                 if ch_type == None:
-                    self._ch_types_new[i] = self.raw.get_channel_types(
-                        self._ch_names_old[i]
+                    self._ch_types_new[i] = list(
+                        self.raw.get_channel_types(self._ch_names_old[i])
                     )
 
 
@@ -961,7 +968,7 @@ class RerefCAR(Reref):
         )
         
 
-    def rereference(self) -> tuple[mne.io.Raw, dict[str, str]]:
+    def rereference(self) -> tuple[mne.io.Raw, list[str], dict[str, str]]:
         """Rereferences the data in an mne.io.Raw object.
         
         RETURNS
@@ -969,6 +976,9 @@ class RerefCAR(Reref):
         mne.io.Raw
         -   The mne.io.Raw object containing the common-average rereferenced
             data.
+
+        list[str]
+        -   Names of the channels that were produced by the rereferencing.
         
         dict
         -   Dictionary containing information about the type of rereferencing 
@@ -982,7 +992,7 @@ class RerefCAR(Reref):
         self._raw_from_data()
         self._store_rereference_types()
 
-        return self.raw, self.reref_types
+        return self.raw, self._ch_names_new, self.reref_types
 
 
 
@@ -1039,10 +1049,10 @@ class RerefPseudo(Reref):
     def __init__(self,
         raw: mne.io.Raw,
         ch_names_old: list[str],
-        ch_names_new: Option[list[Option[str]]] = None,
-        ch_types_new: Option[list[Option[str]]] = None,
-        reref_types: Option[list[Option[str]]] = None,
-        ch_coords_new: Option[list[Option[list[realnum]]]] = None
+        ch_names_new: Optional[list[Optional[str]]] = None,
+        ch_types_new: Optional[list[Optional[str]]] = None,
+        reref_types: Optional[list[Optional[str]]] = None,
+        ch_coords_new: Optional[list[Optional[list[realnum]]]] = None
         ) -> None:
 
         self.raw = raw
@@ -1093,7 +1103,7 @@ class RerefPseudo(Reref):
         if self._ch_names_new == None:
             self._ch_names_new = [name for name in self._ch_names_old]
         elif any([item == None for item in self._ch_names_new]):
-            for i, ch_name in self._ch_names_new:
+            for i, ch_name in enumerate(self._ch_names_new):
                 if ch_name == None:
                     self._ch_names_new[i] = [
                         name for name in self._ch_names_old[i]
@@ -1113,14 +1123,11 @@ class RerefPseudo(Reref):
         """
         
         if None in self._reref_types:
-            error = True
-
-        if error:
             raise TypeError(
                 "Error when pseudo rereferencing:\nRereferencing types of each "
                 "new channel must be specified, there can be no missing entries"
                 "."
-                )
+            )
 
 
     def _sort_ch_types_new(self) -> None:
@@ -1129,12 +1136,14 @@ class RerefPseudo(Reref):
         """
 
         if self._ch_types_new == None:
-            self._ch_types_new = self.raw.get_channel_types(self._ch_names_old)
+            self._ch_types_new = list(
+                self.raw.get_channel_types(self._ch_names_old)
+            )
         elif any([item == None for item in self._ch_types_new]):
             for i, ch_type in enumerate(self._ch_types_new):
                 if ch_type == None:
-                    self._ch_types_new[i] = self.raw.get_channel_types(
-                        self._ch_names_old[i]
+                    self._ch_types_new[i] = list(
+                        self.raw.get_channel_types(self._ch_names_old[i])
                     )
 
     
@@ -1283,16 +1292,19 @@ class RerefPseudo(Reref):
         )
         
 
-    def rereference(self) -> tuple[mne.io.Raw, dict[str, str]]:
+    def rereference(self) -> tuple[mne.io.Raw, list[str], dict[str, str]]:
         """Rereferences the data in an mne.io.Raw object.
         
         RETURNS
         -------
         mne.io.Raw
-        -   The mne.io.Raw object containing the common-average rereferenced
+        -   The mne.io.Raw object containing the pseudo rereferenced
             data.
         
-        dict
+        list[str]
+        -   Names of the channels that were produced by the rereferencing.
+
+        dict[str, str]
         -   Dictionary containing information about the type of rereferencing 
             applied to generate each new channel, with key:value pairs of
             channel name : rereference type.
@@ -1304,6 +1316,6 @@ class RerefPseudo(Reref):
         self._raw_from_data()
         self._store_rereference_types()
 
-        return self.raw, self.reref_types
+        return self.raw, self._ch_names_new, self.reref_types
 
 

@@ -1,7 +1,7 @@
 import mne
 import mne_bids
 import numpy as np
-from typing import Any, Option, Union
+from typing import Any, Optional, Union
 
 from coh_dtypes import realnum
 from coh_exceptions import ProcessingOrderError, MissingAttributeError
@@ -15,7 +15,7 @@ class Signal:
 
     PARAMETERS
     ----------
-    verbose : bool | optional, default True
+    verbose : bool | Optionalal, default True
     -   Whether or not to print information about the information processing.
 
     METHODS
@@ -527,11 +527,11 @@ class Signal:
     def _apply_rereference(self,
         RerefMethod: Reref,
         ch_names_old: Union[list[str], list[list[str]]],
-        ch_names_new: Option[list[Option[str]]],
-        ch_types_new: Option[list[Option[str]]],
-        reref_types: Option[list[Option[str]]],
-        ch_coords_new: Option[list[Option[list[realnum]]]]
-        ) -> tuple[mne.io.Raw, dict[str, str]]:
+        ch_names_new: Optional[list[Optional[str]]],
+        ch_types_new: Optional[list[Optional[str]]],
+        reref_types: Optional[list[Optional[str]]],
+        ch_coords_new: Optional[list[Optional[list[realnum]]]]
+        ) -> tuple[mne.io.Raw, list[str], dict[str, str]]:
         """Applies a rereferencing method to the mne.io.Raw object.
 
         PARAMETERS
@@ -571,6 +571,9 @@ class Signal:
         -------
         mne.io.Raw
         -   The rereferenced data in an mne.io.Raw object.
+
+        list[str]
+        -   Names of the channels that were produced by the rereferencing.
 
         dict[str, str]
         -   Dictionary showing the rereferencing types applied to the channels, 
@@ -704,11 +707,11 @@ class Signal:
     def _rereference(self,
         RerefMethod: Reref,
         ch_names_old: Union[list[str], list[list[str]]],
-        ch_names_new: Option[list[Option[str]]],
-        ch_types_new: Option[list[Option[str]]],
-        reref_types: Option[list[Option[str]]],
-        ch_coords_new: Option[list[Option[list[realnum]]]]
-        ) -> None:
+        ch_names_new: Optional[list[Optional[str]]],
+        ch_types_new: Optional[list[Optional[str]]],
+        reref_types: Optional[list[Optional[str]]],
+        ch_coords_new: Optional[list[Optional[list[realnum]]]]
+        ) -> list[str]:
         """Parent method for calling on other methods to rereference the data,
         add it to the self mne.io.Raw object, and add the rereferecing
         information to 'extra_info'.
@@ -749,6 +752,11 @@ class Signal:
             missing have their coordinates taken from the mne.io.Raw object
             according to the corresponding channel in 'ch_names_old'.
 
+        RETURNS
+        -------
+        ch_names_new : list[str]
+        -   List containing the names of the new, rereferenced channels.
+
         RAISES
         ------
         ProcessingOrderError
@@ -764,7 +772,7 @@ class Signal:
                 "should be raw, but it has been epoched."
             )
 
-        rerefed_raw, reref_types_dict = self._apply_rereference(
+        rerefed_raw, ch_names_new, reref_types_dict = self._apply_rereference(
             RerefMethod, ch_names_old, ch_names_new, ch_types_new, reref_types,
             ch_coords_new
         )
@@ -773,13 +781,15 @@ class Signal:
 
         self._updateattr('_rereferenced', True)
 
+        return ch_names_new
+
 
     def rereference_bipolar(self,
         ch_names_old: list[list[str]],
         ch_names_new: list[str],
         ch_types_new: list[str],
         reref_types: list[str],
-        ch_coords_new: Option[list[Option[list[realnum]]]]
+        ch_coords_new: Optional[list[Optional[list[realnum]]]]
         ) -> None:
         """Bipolar rereferences channels in the mne.io.Raw object.
 
@@ -817,7 +827,7 @@ class Signal:
             according to the corresponding channel in 'ch_names_old'.
         """
 
-        self._rereference(
+        ch_names_new = self._rereference(
             RerefBipolar, ch_names_old, ch_names_new, ch_types_new, reref_types,
             ch_coords_new
         )
@@ -829,7 +839,8 @@ class Signal:
         self._update_processing_steps('rereferencing_bipolar', ch_reref_pairs)
         if self._verbose:
             print(f"The following channels have been bipolar rereferenced:")
-            [print(f"{old[0]} - {old[1]} -> {new}") for [old, new] in ch_reref_pairs]
+            [print(f"{old[0]} - {old[1]} -> {new}") for [old, new] in 
+            ch_reref_pairs]
         
 
     def rereference_CAR(self,
@@ -837,7 +848,7 @@ class Signal:
         ch_names_new: list[str],
         ch_types_new: list[str],
         reref_types: list[str],
-        ch_coords_new: Option[list[Option[list[realnum]]]]
+        ch_coords_new: Optional[list[Optional[list[realnum]]]]
         ) -> None:
         """Common-average rereferences channels in the mne.io.Raw object.
 
@@ -875,7 +886,7 @@ class Signal:
             according to the corresponding channel in 'ch_names_old'.
         """
 
-        self._rereference(
+        ch_names_new = self._rereference(
             RerefCAR, ch_names_old, ch_names_new, ch_types_new, reref_types,
             ch_coords_new,
         )
@@ -895,7 +906,7 @@ class Signal:
         ch_names_new: list[str],
         ch_types_new: list[str],
         reref_types: list[str],
-        ch_coords_new: Option[list[Option[list[realnum]]]]
+        ch_coords_new: Optional[list[Optional[list[realnum]]]]
         ) -> None:
         """Pseudo rereferences channels in the mne.io.Raw object.
         -   This allows e.g. rereferencing types, channel coordinates, etc... to
@@ -937,7 +948,7 @@ class Signal:
             according to the corresponding channel in 'ch_names_old'.
         """
 
-        self._rereference(
+        ch_names_new = self._rereference(
             RerefPseudo, ch_names_old, ch_names_new, ch_types_new, reref_types,
             ch_coords_new
         )
