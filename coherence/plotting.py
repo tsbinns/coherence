@@ -191,6 +191,7 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[],
             if same_y == True:
                 if plot_std == True and power_key+'_std' in psd.keys() and add_avg == []:
                     group_ylim = helpers.same_axes(psd[power_key][idc_group_master] + psd[power_key+'_std'][idc_group_master])
+                    group_ylim[0] = helpers.same_axes(psd[power_key][idc_group_master] - psd[power_key+'_std'][idc_group_master])[0]
                 else:
                     group_ylim = helpers.same_axes(psd[power_key][idc_group_master])
 
@@ -230,7 +231,9 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[],
                     elif n_rows == 1 and n_cols > 1:
                         axs = np.vstack((axs, [0,0])) # adds an extra row for later indexing
                     elif n_cols == 1 and n_rows > 1:
-                        axs = np.hstack((axs), [0,0]) # adds and extra column for later indexing
+                        axs = np.reshape(axs, [n_rows, 1])
+                        fill = np.reshape([0]*n_rows, (n_rows, 1))
+                        axs = np.hstack((axs, fill)) # adds and extra column for later indexing
                     plt.tight_layout(rect = [0, 0, 1, .95])
                     fig.suptitle(wind_title)
 
@@ -292,7 +295,7 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[],
                                     
                                     # Plots std (if applicable and if average data is not being added)
                                     if std_present == True and add_avg == []:
-                                        if 'psd_std' in data.keys():
+                                        if f'{power_key}_std' in data.keys():
                                             std_plus = data[power_key][:freq_limit_i+1] + data[power_key+'_std'][:freq_limit_i+1]
                                             std_minus = data[power_key][:freq_limit_i+1] - data[power_key+'_std'][:freq_limit_i+1]
                                             axs[row_i, col_i].fill_between(data.freqs[:freq_limit_i+1], std_plus,
@@ -332,6 +335,9 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[],
                                     if ylim[1] > ylim_max[0]:
                                         upper_ylim = ylim_max[1]
                                     axs[row_i, col_i].set_ylim(lower_ylim, upper_ylim)
+
+                                axs[row_i, col_i].minorticks_on()
+                                axs[row_i, col_i].grid(which='both', axis='x')
 
 
                                 plotgroup_i += 1
