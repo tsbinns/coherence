@@ -9,25 +9,23 @@ from coh_preprocess_data import preprocessing
 
 
 ### Info about the data to analyse
-folderpath_data = 'D:\\Data'
-folderpath_extras = 'C:\\Users\\tomth\\OneDrive\\My Documents\\Data\\ICN'
-dataset = 'BIDS_Berlin_ECOG_LFP'
-analysis = 'ECOG-LFP_coherence'
-subject = '001'
-session = 'EphysMedOff01'
-task = 'Rest'
-acquisition = 'StimOff'
-run = '01'
+FOLDERPATH_DATA = 'D:\\Data'
+FOLDERPATH_EXTRAS = 'C:\\Users\\tomth\\OneDrive\\My Documents\\Data\\ICN'
+DATASET = 'BIDS_Berlin_ECOG_LFP'
+ANALYSIS = 'ECOG-LFP_coherence'
+SUBJECT = '001'
+SESSION = 'EphysMedOff01'
+TASK = 'Rest'
+ACQUISITION = 'StimOff'
+RUN = '01'
 
 
 
 if __name__ == "__main__":
 
     preprocessed = preprocessing(
-        folderpath_data, folderpath_extras, dataset, analysis, subject, session,
-        task, acquisition, run
+        FOLDERPATH_DATA, FOLDERPATH_EXTRAS, DATASET, ANALYSIS, SUBJECT, SESSION,
+        TASK, ACQUISITION, RUN
     )
 
     print("my name is jeff")
-
-

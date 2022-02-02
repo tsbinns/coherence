@@ -115,5 +115,3 @@ def preprocessing(
     signal.order_channels(data_settings['post_reref_organisation'])
 
     return signal
-
-

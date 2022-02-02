@@ -6,7 +6,6 @@ class ProcessingOrderError(Exception):
     """Class for raising exceptions/errors associated with performing processing
     steps in an incorrect order.
     """
-    pass
 
 
 
@@ -14,7 +13,6 @@ class MissingAttributeError(Exception):
     """Class for raising exceptions/errors associated with attributes of an
     object that have not been instantiated.
     """
-    pass
 
 
 

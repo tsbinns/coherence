@@ -1,13 +1,13 @@
-import mne_bids
 import os
 from abc import ABC, abstractmethod
+import mne_bids
 
 
 
 
 class Filepath(ABC):
     """Abstract class for generating filepaths.
-    
+  
     METHODS
     -------
     path (abstract)
@@ -38,7 +38,7 @@ class Filepath(ABC):
 
 class RawFilepath(Filepath):
     """Generates an mne_bids.BIDSPath object for loading an mne.io.Raw object.
-    
+
     PARAMETERS
     ----------
     folderpath : str
@@ -62,9 +62,9 @@ class RawFilepath(Filepath):
     acquisition : str
     -   The name of the acquisition mode for which the mne_bids.BIDSPath object
         should be generated.
-    
+
     run : str
-    -   The name of the run for which the mne_bids.BIDSPath object should be 
+    -   The name of the run for which the mne_bids.BIDSPath object should be
         generated.
 
     METHODS
@@ -91,7 +91,7 @@ class RawFilepath(Filepath):
         self.acquisition = acquisition
         self.run = run
 
-    
+
     def path(self) -> mne_bids.BIDSPath:
         """Generates an mne_bids.BIDSPath object for loading an mne.io.Raw
         object.
@@ -113,7 +113,7 @@ class RawFilepath(Filepath):
 class DataWiseFilepath(Filepath):
     """Generates a filepath for an object that corresponds to an individual
     recording session based on the MNE data-storage filepath structure.
-    
+
     PARAMETERS
     ----------
     folderpath : str
@@ -134,14 +134,14 @@ class DataWiseFilepath(Filepath):
     acquisition : str
     -   The name of the acquisition mode for which the filepath should be
         generated.
-    
+
     run : str
     -   The name of the run for which the filepath should be generated.
 
     group_type : str
     -   The name of the group of files for which the filepath should be
         generate, e.g. 'annotations', 'settings'.
-    
+
     filetype : str
     -   The file extension, prefixed with a period, e.g. '.json', '.csv'.
 
@@ -215,7 +215,7 @@ class DataWiseFilepath(Filepath):
         -------
         str
         -   The filepath of the object.
-        
+
         """
 
         return os.path.join(
@@ -226,7 +226,7 @@ class DataWiseFilepath(Filepath):
 class AnalysisWiseFilepath(Filepath):
     """Generates a filepath for an object that corresponds to a particular
     analysis spanning multiple recordings sessions.
-    
+
     PARAMETERS
     ----------
     folderpath : str
@@ -235,7 +235,7 @@ class AnalysisWiseFilepath(Filepath):
     analysis_name : str
     -   The name of the analysis folder within the folder given in
         "'folderpath'/settings".
-    
+
     filetype : str
     -   The file extension, prefixed with a period, e.g. '.json', '.csv'.
 

@@ -1,7 +1,7 @@
+from typing import Any, Optional, Union
 import mne
 import mne_bids
 import numpy as np
-from typing import Any, Optional, Union
 
 from coh_dtypes import realnum
 from coh_exceptions import ProcessingOrderError, MissingAttributeError
@@ -89,7 +89,7 @@ class Signal:
 
     def _initialise_entries(self) -> None:
         """Initialises aspects of the Signal object that will be filled with
-        information as the data is processed.   
+        information as the data is processed.
         """
 
         self.processing_steps = []
@@ -148,7 +148,7 @@ class Signal:
                 "updated."
             )
 
-    
+
     def _update_processing_steps(self,
         step_name: str,
         step_value: Any
@@ -223,11 +223,11 @@ class Signal:
         -   Names of the channels corresponding to the coordinates in
             'ch_coords', with those names corresponding to empty sublists (i.e
             missing coordinates) in 'ch_coords' having been removed.
-        
+
         empty list or list[list[int or float]]
         -   Coordinates of the channels corresponding the the channel names in
             'ch_names', with the empty sublists (i.e missing coordinates) having
-            been removed. 
+            been removed.
         """
 
         keep_i = [i for i, coords in enumerate(ch_coords) if coords != []]
@@ -318,7 +318,7 @@ class Signal:
         if self._verbose:
             print(f"Loading the data from the filepath:\n{path_raw}.")
 
-    
+
     def load_annotations(self,
         path_annots: str
         ) -> None:
@@ -334,8 +334,8 @@ class Signal:
         ProcessingOrderError
         -   Raised if the user attempts to load annotations into the data after
             it has been epoched.
-        -   Annotations should be loaded before epoching has occured, when the 
-            data is in the form of an mne.io.Raw object rather than an 
+        -   Annotations should be loaded before epoching has occured, when the
+            data is in the form of an mne.io.Raw object rather than an
             mne.Epochs object.
         """
 
@@ -395,7 +395,7 @@ class Signal:
         for key in self.extra_info.keys():
             [self.extra_info[key].pop(name) for name in ch_names]
 
-    
+
     def _drop_channels(self,
         ch_names: list[str]
         ) -> None:
@@ -435,7 +435,7 @@ class Signal:
                 f"{ch_names}."
             )
 
-    
+
     def bandpass_filter(self,
         lowpass_freq: int,
         highpass_freq: int
@@ -463,7 +463,7 @@ class Signal:
                 f"Hz. High frequency: {lowpass_freq} Hz."
             )
 
-    
+
     def notch_filter(self,
         line_noise_freq: int
         ) -> None:
@@ -518,7 +518,7 @@ class Signal:
         """
 
         self._drop_channels(
-            [ch_name for ch_name in 
+            [ch_name for ch_name in
             self.extra_info['rereferencing_types'].keys()
             if self.extra_info['rereferencing_types'][ch_name] == 'none']
         )
@@ -576,7 +576,7 @@ class Signal:
         -   Names of the channels that were produced by the rereferencing.
 
         dict[str, str]
-        -   Dictionary showing the rereferencing types applied to the channels, 
+        -   Dictionary showing the rereferencing types applied to the channels,
             in which the key:value pairs are channel name : rereference type.
         """
 
@@ -616,7 +616,7 @@ class Signal:
     def _remove_conflicting_channels(self,
         ch_names: list[str]
         ) -> None:
-        """Removes channels from the self mne.io.Raw or mne.Epochs object. 
+        """Removes channels from the self mne.io.Raw or mne.Epochs object.
         -   Designed for use alongside '_append_rereferenced_raw'.
         -   Useful to perform before appending an external mne.io.Raw or
             mne.Epochs object.
@@ -635,14 +635,14 @@ class Signal:
             "Removing the channels from the raw data."
         )
 
-        
+
     def _append_rereferenced_raw(self,
         rerefed_raw: mne.io.Raw
         ) -> None:
         """Appends a rereferenced mne.io.Raw object to the self mne.io.Raw
         object, first discarding channels in the self mne.io.Raw object which
         have the same names as those in the mne.io.Raw object to append.
-        
+  
         PARAMETERS
         ----------
         rerefed_raw : mne.io.Raw
@@ -655,7 +655,7 @@ class Signal:
         )
         if ch_names != []:
             self._remove_conflicting_channels(ch_names)
-            
+
         self.data.add_channels([rerefed_raw])
 
 
@@ -690,7 +690,7 @@ class Signal:
 
         ch_names_new : list[str]
         -   Names of the channels that were produced by the rereferencing.
-        
+
         RETURNS
         -------
         list
@@ -839,7 +839,7 @@ class Signal:
         self._update_processing_steps('rereferencing_bipolar', ch_reref_pairs)
         if self._verbose:
             print(f"The following channels have been bipolar rereferenced:")
-            [print(f"{old[0]} - {old[1]} -> {new}") for [old, new] in 
+            [print(f"{old[0]} - {old[1]} -> {new}") for [old, new] in
             ch_reref_pairs]
         
 
@@ -933,8 +933,9 @@ class Signal:
         reref_types : list[str]
         -   The rereferencing type applied to the channels, corresponding to the
             channels in 'ch_names_new'.
-        -   No missing values (None) can be given, as the rereferencing type cannot
-            be determined dynamically from this arbitrary rereferencing method.
+        -   No missing values (None) can be given, as the rereferencing type
+            cannot be determined dynamically from this arbitrary rereferencing
+            method.
 
         ch_coords_new : list[list[int or float] or None] or None | default None
         -   The coordinates of the newly rereferenced channels, corresponding to
@@ -978,7 +979,7 @@ class Signal:
         ProcessingOrderError
         -   Raised if the user attempts to epoch the data once it has already
             been epoched.
-        -   This method can only be called if the data is stored as an 
+        -   This method can only be called if the data is stored as an
             mne.io.Raw object, not as an mne.Epochs object.
         """
 
@@ -997,5 +998,4 @@ class Signal:
                 f"Epoching the data with epoch lengths of {epoch_length}"
                 "seconds."
             )
-
 

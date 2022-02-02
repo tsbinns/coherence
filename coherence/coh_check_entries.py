@@ -65,7 +65,7 @@ class CheckLengths(ABC):
 
         return identical, lengths
 
-    
+
     @abstractmethod
     def equals_n(self,
         entry_lengths: list[int],
@@ -81,7 +81,7 @@ class CheckLengths(ABC):
 
         n : int
         -   The integer which the lengths of the entries should be equal to.
-        
+
         RETURNS
         -------
         all_n : bool
@@ -92,7 +92,7 @@ class CheckLengths(ABC):
             all_n = True
         else:
             all_n = False
-            
+
         return all_n
 
 
@@ -107,12 +107,12 @@ class CheckLengthsDict(CheckLengths):
     -   The dictionary for which the lengths of the entries should be checked.
 
     ignore_values : list[Any] | optional, default []
-    -   The values of entries within 'to_check' to ignore when checking the 
+    -   The values of entries within 'to_check' to ignore when checking the
         lengths of entries.
     -   If [] (default), no entries are ignored.
 
     ignore_keys : list[Any] | optional, default []
-    -   The keys of entries within 'to_check' to ignore when checking the 
+    -   The keys of entries within 'to_check' to ignore when checking the
         lengths of entries.
     -   If [] (default), no entries are ignored.
 
@@ -180,7 +180,7 @@ class CheckLengthsDict(CheckLengths):
         ----------
         n : int
         -   The integer which the lengths of the entries should be equal to.
-        
+
         RETURNS
         -------
         bool
@@ -204,7 +204,7 @@ class CheckLengthsList(CheckLengths):
     -   The list for which the lengths of the entries should be checked.
 
     ignore_values : list[Any] | optional, default []
-    -   The values of entries within 'to_check' to ignore when checking the 
+    -   The values of entries within 'to_check' to ignore when checking the
         lengths of entries.
     -   If [] (default), no entries are ignored.
 
@@ -236,7 +236,7 @@ class CheckLengthsList(CheckLengths):
             if value not in self.ignore_values:
                 self.entry_lengths.append(len(value))
 
-    
+
     def identical(self) -> tuple[bool, Union[int, list[int]]]:
         """Checks whether the lengths of entries in the input dictionary are
         identical.
@@ -270,7 +270,7 @@ class CheckLengthsList(CheckLengths):
         ----------
         n : int
         -   The integer which the lengths of the entries should be equal to.
-        
+
         RETURNS
         -------
         bool
@@ -281,5 +281,3 @@ class CheckLengthsList(CheckLengths):
         self._check()
 
         return super().equals_n(self.entry_lengths, self.n)
-
-
