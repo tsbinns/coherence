@@ -7,6 +7,9 @@ To be implemented:
 -   Power and coherence calculations.
 """
 
+
+
+
 import os
 import sys
 from pathlib import Path
@@ -14,6 +17,7 @@ from pathlib import Path
 cd_path = Path(__file__).absolute().parent.parent
 sys.path.append(os.path.join(cd_path, 'coherence'))
 from coh_preprocess_data import preprocessing
+
 
 
 

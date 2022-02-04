@@ -6,6 +6,9 @@ Signal
 -   Class for loading, preprocessing, and epoching an mne.io.Raw object.
 """
 
+
+
+
 from typing import Any, Optional, Union
 import mne
 import mne_bids
@@ -13,10 +16,7 @@ import numpy as np
 
 from coh_dtypes import realnum
 from coh_exceptions import ProcessingOrderError, MissingAttributeError
-from coh_rereference import Reref
-from coh_rereference_bipolar import RerefBipolar
-from coh_rereference_CAR import RerefCAR
-from coh_rereference_pseudo import RerefPseudo
+from coh_rereference import Reref, RerefBipolar, RerefCAR, RerefPseudo
 
 
 
@@ -1009,4 +1009,3 @@ class Signal:
                 f"Epoching the data with epoch lengths of {epoch_length}"
                 "seconds."
             )
-

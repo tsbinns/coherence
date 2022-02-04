@@ -19,6 +19,9 @@ AnalysisWiseFilepath : subclass of the abstract base class Filepath
     analysis spanning multiple recordings sessions.
 """
 
+
+
+
 import os
 from abc import ABC, abstractmethod
 import mne_bids
