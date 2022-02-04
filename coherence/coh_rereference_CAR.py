@@ -1,3 +1,11 @@
+"""A class for common-average rereferencing data in an mne.io.Raw object.
+
+CLASSES
+-------
+RerefCAR : Subclass of the abstract base class Reref
+-   Common-average rereferences data in an mne.io.Raw object.
+"""
+
 from typing import Optional
 import mne
 import numpy as np

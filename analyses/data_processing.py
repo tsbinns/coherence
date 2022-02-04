@@ -1,3 +1,12 @@
+"""Processes ECoG and LFP data to generate power and coherence spectra.
+
+So far implemented:
+-   Data preprocessing
+
+To be implemented:
+-   Power and coherence calculations.
+"""
+
 import os
 import sys
 from pathlib import Path

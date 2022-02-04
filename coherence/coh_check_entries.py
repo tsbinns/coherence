@@ -1,3 +1,20 @@
+"""Contains classes for checking properties of entries within objects.
+
+CLASSES
+-------
+CheckLengths : abstract base class
+-   Abstract class for checking the lengths of entries within an input
+    object.
+-   This class should not be called directly. Instead, its subclasses
+    should be called from this file.
+
+CheckLengthsDict : subclass of the abstract base class CheckLengths
+-   Checks the lengths of entries within an input dictionary.
+
+CheckLengthsList : subclass of the abstract base class CheckLengths
+-   Checks the lengths of entries within an input list.
+"""
+
 from abc import ABC, abstractmethod
 from typing import Any, Union
 
@@ -6,6 +23,8 @@ from typing import Any, Union
 class CheckLengths(ABC):
     """Abstract class for checking the lengths of entries within an input
     object.
+    -   This class should not be called directly. Instead, its subclasses
+        should be called from this file.
 
     METHODS
     -------

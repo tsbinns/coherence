@@ -1,3 +1,11 @@
+"""A class for bipolar rereferencing data in an mne.io.Raw object.
+
+CLASSES
+-------
+RerefBipolar : Subclass of the abstract base class Reref
+-   Bipolar rereferences data in an mne.io.Raw object.
+"""
+
 from copy import deepcopy
 from typing import Optional
 import mne
@@ -5,7 +13,7 @@ import numpy as np
 
 from coh_check_entries import CheckLengthsList
 from coh_dtypes import realnum
-from coh_exceptions import ChannelTypeMismatch, EntryLengthError
+from coh_exceptions import ChannelTypeError, EntryLengthError
 
 from coh_rereference import Reref
 
@@ -177,7 +185,7 @@ class RerefBipolar(Reref):
                 if len(ch_types_old) == 1:
                     self._ch_types_new.append(ch_types_old[0])
                 else:
-                    raise ChannelTypeMismatch(
+                    raise ChannelTypeError(
                         "Error when trying to bipolar rereference data:\nNo "
                         "channel types of rereferenced channels have been "
                         "specified, and they cannot be generated based on the "
@@ -193,7 +201,7 @@ class RerefBipolar(Reref):
                     if len(ch_types_old) == 1:
                         self._ch_types_new.append(ch_types_old[0])
                     else:
-                        raise ChannelTypeMismatch(
+                        raise ChannelTypeError(
                             "Error when trying to bipolar rereference data:\n"
                             "Some channel types of rereferenced channels have "
                             "not been specified, and they cannot be generated "

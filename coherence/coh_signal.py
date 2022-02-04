@@ -1,3 +1,11 @@
+"""A class for loading, preprocessing, and epoching an mne.io.Raw object.
+
+CLASSES
+-------
+Signal
+-   Class for loading, preprocessing, and epoching an mne.io.Raw object.
+"""
+
 from typing import Any, Optional, Union
 import mne
 import mne_bids
@@ -5,7 +13,10 @@ import numpy as np
 
 from coh_dtypes import realnum
 from coh_exceptions import ProcessingOrderError, MissingAttributeError
-from coh_rereference import Reref, RerefBipolar, RerefCAR, RerefPseudo
+from coh_rereference import Reref
+from coh_rereference_bipolar import RerefBipolar
+from coh_rereference_CAR import RerefCAR
+from coh_rereference_pseudo import RerefPseudo
 
 
 
@@ -838,10 +849,10 @@ class Signal:
         )
         self._update_processing_steps('rereferencing_bipolar', ch_reref_pairs)
         if self._verbose:
-            print(f"The following channels have been bipolar rereferenced:")
+            print("The following channels have been bipolar rereferenced:")
             [print(f"{old[0]} - {old[1]} -> {new}") for [old, new] in
             ch_reref_pairs]
-        
+
 
     def rereference_CAR(self,
         ch_names_old: list[list[str]],
@@ -897,7 +908,7 @@ class Signal:
         )
         self._update_processing_steps('rereferencing_CAR', ch_reref_pairs)
         if self._verbose:
-            print(f"The following channels have been CAR rereferenced:")
+            print("The following channels have been CAR rereferenced:")
             [print(f"{old} -> {new}") for [old, new] in ch_reref_pairs]
     
 

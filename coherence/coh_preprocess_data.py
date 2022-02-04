@@ -1,3 +1,11 @@
+"""Loads and preprocesses ECoG and LFP data stored in the MNE-BIDS format.
+
+METHODS
+-------
+preprocessing
+-   Loads an mne.io.Raw object, preprocesses it, and epochs it.
+"""
+
 import json
 
 from coh_filepath import DataWiseFilepath, AnalysisWiseFilepath, RawFilepath
@@ -17,7 +25,7 @@ def preprocessing(
     acquisition: str,
     run: str
     ) -> Signal:
-    """Preprocesses an mne.io.Raw object and epochs it.
+    """Loads an mne.io.Raw object, preprocesses it, and epochs it.
 
     PARAMETERS
     ----------

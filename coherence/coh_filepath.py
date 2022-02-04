@@ -1,3 +1,24 @@
+"""Generates filepaths in the MNE-BIDS format.
+
+CLASSES
+-------
+Filepath : abstract base class
+-   Abstract class for generating filepaths.
+-   This class should not be called directly. Instead, its subclasses should be
+    called from this file.
+
+RawFilepath : subclass of the abstract base class Filepath
+-   Generates an mne_bids.BIDSPath object for loading an mne.io.Raw object.
+
+DataWiseFilepath : subclass of the abstract base class Filepath
+-   Generates a filepath for an object that corresponds to an individual
+    recording session based on the MNE data-storage filepath structure.
+
+AnalysisWiseFilepath : subclass of the abstract base class Filepath
+-   Generates a filepath for an object that corresponds to a particular
+    analysis spanning multiple recordings sessions.
+"""
+
 import os
 from abc import ABC, abstractmethod
 import mne_bids
@@ -7,7 +28,9 @@ import mne_bids
 
 class Filepath(ABC):
     """Abstract class for generating filepaths.
-  
+    -   This class should not be called directly. Instead, its subclasses should
+        be called from this file.
+
     METHODS
     -------
     path (abstract)

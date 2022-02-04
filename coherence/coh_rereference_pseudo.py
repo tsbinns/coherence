@@ -1,3 +1,11 @@
+"""A class for pseudo rereferencing data in an mne.io.Raw object.
+
+CLASSES
+-------
+RerefPseudo : Subclass of the abstract base class Reref
+-   Pseudo rereferences data in an mne.io.Raw object.
+"""
+
 from typing import Optional
 import mne
 import numpy as np

@@ -1,4 +1,23 @@
+"""Custom exception classes.
 
+CLASSES
+-------
+ProcessingOrderError : Exception
+-   Class for raising exceptions/errors associated with performing processing
+    steps in an incorrect order.
+
+MissingAttributeError : Exception
+-   Class for raising exceptions/errors associated with attributes of an
+    object that have not been instantiated.
+
+EntryLengthError : Exception
+-   Class for raising exceptions/error associated with entries within a list
+    having a nonidentical length.
+
+ChannelTypeError : Exception
+-   Class for raising exceptions/errors associated with trying to handle
+    channels of different types.
+"""
 
 
 
@@ -23,7 +42,7 @@ class EntryLengthError(Exception):
 
 
 
-class ChannelTypeMismatch(Exception):
+class ChannelTypeError(Exception):
     """Class for raising exceptions/errors associated with trying to handle
     channels of different types.
     """

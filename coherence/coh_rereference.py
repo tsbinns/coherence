@@ -1,3 +1,13 @@
+"""An abstract class for rereferencing data in an mne.io.Raw object.
+
+CLASSES
+-------
+Reref : abstract base class
+-   Abstract class for rereferencing data in an mne.io.Raw object.
+-   This class should not be called directly. Instead, its subclasses should be
+    called from their respective files.
+"""
+
 from abc import ABC, abstractmethod
 import mne
 import numpy as np
@@ -10,7 +20,9 @@ from coh_exceptions import EntryLengthError
 
 
 class Reref(ABC):
-    """Abstract class for rereferencing data in mne.io.Raw objects.
+    """Abstract class for rereferencing data in an mne.io.Raw object.
+    -   This class should not be called directly. Instead, its subclasses should
+        be called from their respective files.
 
     METHODS
     -------
