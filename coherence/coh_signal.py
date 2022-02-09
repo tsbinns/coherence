@@ -93,38 +93,31 @@ class Signal:
         verbose: bool = True
         ) -> None:
 
-        setattr(self, '_verbose', verbose)
-        self._initialise_attributes()
-        self._initialise_entries()
+        # Initialises inputs of the Signal object.
+        self._verbose = verbose
 
-
-    def _initialise_entries(self) -> None:
-        """Initialises aspects of the Signal object that will be filled with
-        information as the data is processed.
-        """
-
+        # Initialises aspects of the Signal object that will be filled with
+        # information as the data is processed.
         self.processing_steps = []
         self.extra_info = {}
         self.extra_info['rereferencing_types'] = {}
+        self.data = None
+        self._path_raw = None
 
-
-    def _initialise_attributes(self) -> None:
-        """Initialises aspects of the Signal object that indicate which methods
-        have been called (starting as 'False'), which can later be updated.
-        """
-
-        setattr(self, '_data_loaded', False)
-        setattr(self, '_annotations_loaded', False)
-        setattr(self, '_channels_picked', False)
-        setattr(self, '_coordinates_set', False)
-        setattr(self, '_bandpass_filtered', False)
-        setattr(self, '_notch_filtered', False)
-        setattr(self, '_resampled', False)
-        setattr(self, '_rereferenced', False)
-        setattr(self, '_rereferenced_bipolar', False)
-        setattr(self, '_rereferenced_CAR', False)
-        setattr(self, '_rereferenced_pseudo', False)
-        setattr(self, '_epoched', False)
+        # Initialises aspects of the Signal object that indicate which methods
+        # have been called (starting as 'False'), which can later be updated.
+        self._data_loaded = False
+        self._annotations_loaded = False
+        self._channels_picked = False
+        self._coordinates_set = False
+        self._bandpass_filtered = False
+        self._notch_filtered = False
+        self._resampled = False
+        self._rereferenced = False
+        self._rereferenced_bipolar = False
+        self._rereferenced_CAR = False
+        self._rereferenced_pseudo = False
+        self._epoched = False
 
 
     def _updateattr(self,
@@ -158,6 +151,40 @@ class Signal:
                 f"attribute {attribute} does not exist, and so cannot be "
                 "updated."
             )
+
+
+    def _getattr(self,
+        attribute: str
+        ) -> Any:
+        """Gets aspects of the Signal object that indicate which methods have
+        been called.
+        -   The aspects must have already been instantiated.
+
+        PARAMETERS
+        ----------
+        attribute : str
+        -   The name of the aspect whose value should be returned.
+
+        RETURNS
+        -------
+        Any
+        -   The value of the aspect.
+
+        RAISES
+        ------
+        MissingAttributeError
+        -   Raised if the user attempts to access an attribute that has not been
+            instantiated in '_instantiate_attributes'.
+        """
+
+        if not hasattr(self, attribute):
+            raise MissingAttributeError(
+                f"Error when attempting to get an attribute of {self}:\nThe "
+                f"attribute {attribute} does not exist, and so its value "
+                "cannot be updated."
+            )
+
+        return getattr(self, attribute)
 
 
     def _update_processing_steps(self,
@@ -273,7 +300,7 @@ class Signal:
         self.data._set_channel_positions(ch_coords, ch_names)
 
         self._updateattr('_coordinates_set', True)
-        if self._verbose:
+        if self._getattr('_verbose'):
             print(f"Setting channel coordinates to:\n{ch_coords}.")
 
 
@@ -310,7 +337,7 @@ class Signal:
         -   A new Signal object should be instantiated and used instead.
         """
 
-        if self._data_loaded:
+        if self._getattr('_data_loaded'):
             raise ProcessingOrderError(
                 "Error when trying to load raw data:\nRaw data has already "
                 "been loaded into the object."
@@ -971,7 +998,7 @@ class Signal:
         )
         self._update_processing_steps('rereferencing_pseudo', ch_reref_pairs)
         if self._verbose:
-            print(f"The following channels have been pseudo rereferenced:")
+            print("The following channels have been pseudo rereferenced:")
             [print(f"{old} -> {new}") for [old, new] in ch_reref_pairs]
 
 

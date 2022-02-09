@@ -84,9 +84,9 @@ def preprocessing(
     ).path()
 
     ## Loads the analysis settings
-    with open(analysis_settings_fpath) as json_file:
+    with open(analysis_settings_fpath, encoding='utf-8') as json_file:
         analysis_settings = json.load(json_file)
-    with open(data_settings_fpath) as json_file:
+    with open(data_settings_fpath, encoding='utf-8') as json_file:
         data_settings = json.load(json_file)
 
 

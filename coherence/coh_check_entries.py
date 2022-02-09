@@ -52,7 +52,6 @@ class CheckLengths(ABC):
         """Finds the lengths of the entries in the input object.
         -   Implemented in the subclasses' method.
         """
-        pass
 
 
     @abstractmethod
@@ -154,9 +153,14 @@ class CheckLengthsDict(CheckLengths):
         ignore_keys: list[Any] = []
         ) -> None:
 
+        # Initialises inputs of the object.
         self.to_check = to_check
         self.ignore_values = ignore_values
         self.ignore_keys = ignore_keys
+
+        # Initialises aspects of the object that will later be filled.
+        self.entry_lengths = None
+        self.n = None
 
 
     def _check(self) -> None:
@@ -245,8 +249,13 @@ class CheckLengthsList(CheckLengths):
         ignore_values: list[Any] = []
         ) -> None:
 
+        # Initialises inputs of the object.
         self.to_check = to_check
         self.ignore_values = ignore_values
+
+        # Initialises aspects of the object that will later be filled.
+        self.entry_lengths = None
+        self.n = None
 
 
     def _check(self) -> None:

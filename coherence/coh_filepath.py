@@ -58,7 +58,6 @@ class Filepath(ABC):
         """Generates the filepath.
         -   Implemented in the subclasses' method.
         """
-        pass
 
 
 

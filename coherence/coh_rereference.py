@@ -376,6 +376,7 @@ class RerefBipolar(Reref):
         ch_coords_new: Optional[list[Optional[list[realnum]]]] = None
         ) -> None:
 
+        # Initialises inputs of the RerefBipolar object.
         self.raw = raw
         self._data_from_raw()
         self._ch_names_old = ch_names_old
@@ -384,8 +385,12 @@ class RerefBipolar(Reref):
         self._ch_types_new = ch_types_new
         self._ch_coords_new = ch_coords_new
         self._reref_types = reref_types
-
         self._sort_inputs()
+
+        # Initialises aspects of the RerefBipolar object that will be filled
+        # with information as the data is processed.
+        self._new_data = None
+        self._new_ch_coords = None
 
 
     def _check_input_lengths(self) -> None:
@@ -749,6 +754,7 @@ class RerefCAR(Reref):
         ch_coords_new: Optional[list[Optional[list[realnum]]]] = None
         ) -> None:
 
+        # Initialises inputs of the RerefCAR object.
         self.raw = raw
         self._data_from_raw()
         self._ch_names_old = ch_names_old
@@ -757,8 +763,12 @@ class RerefCAR(Reref):
         self._ch_types_new = ch_types_new
         self._ch_coords_new = ch_coords_new
         self._reref_types = reref_types
-
         self._sort_inputs()
+
+        # Initialises aspects of the RerefCAR object that will be filled
+        # with information as the data is processed.
+        self._new_data = None
+        self._new_ch_coords = None
 
 
     def _check_input_lengths(self) -> None:
@@ -1061,6 +1071,7 @@ class RerefPseudo(Reref):
         ch_coords_new: Optional[list[Optional[list[realnum]]]] = None
         ) -> None:
 
+        # Iniialises inputs of the RerefPseudo object.
         self.raw = raw
         self._data_from_raw()
         self._ch_names_old = ch_names_old
@@ -1069,8 +1080,12 @@ class RerefPseudo(Reref):
         self._ch_types_new = ch_types_new
         self._ch_coords_new = ch_coords_new
         self._reref_types = reref_types
-
         self._sort_inputs()
+
+        # Initialises aspects of the RerefPseudo object that will be filled
+        # with information as the data is processed.
+        self._new_data = None
+        self._new_ch_coords = None
 
 
     def _check_input_lengths(self) -> None:
