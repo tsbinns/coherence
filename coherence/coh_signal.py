@@ -26,7 +26,7 @@ class Signal:
 
     PARAMETERS
     ----------
-    verbose : bool | Optionalal, default True
+    verbose : bool | Optional, default True
     -   Whether or not to print information about the information processing.
 
     METHODS

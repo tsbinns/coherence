@@ -11,12 +11,16 @@ MissingAttributeError : Exception
     object that have not been instantiated.
 
 EntryLengthError : Exception
--   Class for raising exceptions/error associated with entries within a list
+-   Class for raising exceptions/errors associated with entries within a list
     having a nonidentical length.
 
 ChannelTypeError : Exception
 -   Class for raising exceptions/errors associated with trying to handle
     channels of different types.
+
+InputTypeError : Exception
+-   Class for raising exceptions/errors associated with input objects being of
+    the wrong type.
 """
 
 
@@ -46,4 +50,11 @@ class EntryLengthError(Exception):
 class ChannelTypeError(Exception):
     """Class for raising exceptions/errors associated with trying to handle
     channels of different types.
+    """
+
+
+
+class InputTypeError(Exception):
+    """Class for raising exceptions/errors associated with input objects being
+    of the wrong type.
     """
