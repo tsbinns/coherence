@@ -56,7 +56,8 @@ class PowerMorlet(ProcMethod):
         self.processing_steps = deepcopy(self.signal.processing_steps)
         self.processing_steps['analysis'] = {}
         self._processing_step_number = 1
-        self.data = None
+        self.power = None
+        self.itc = None
 
         # Initialises aspects of the Analysis object that indicate which methods
         # have been called (starting as 'False'), which can later be updated.
@@ -64,7 +65,6 @@ class PowerMorlet(ProcMethod):
 
 
     def _getattr(self,
-        obj: Any,
         attribute: str
         ) -> Any:
         """Gets aspects of the input object that indicate which methods have
@@ -73,9 +73,6 @@ class PowerMorlet(ProcMethod):
 
         PARAMETERS
         ----------
-        obj : Any
-        -   The object whose aspect should be examined.
-
         attribute : str
         -   The name of the aspect whose value should be returned.
 
@@ -91,15 +88,48 @@ class PowerMorlet(ProcMethod):
             instantiated.
         """
 
-        if not hasattr(obj, attribute):
+        if not hasattr(self, attribute):
             raise MissingAttributeError(
-                f"Error when attempting to get an attribute of {obj}:\nThe "
+                f"Error when attempting to get an attribute of {self}:\nThe "
                 f"attribute {attribute} does not exist, and so its value "
                 "cannot be updated."
             )
 
-        return getattr(obj, attribute)
+        return getattr(attribute)
 
+
+    def _updateattr(self,
+        attribute: str,
+        value: Any
+        ) -> None:
+        """Updates aspects of the object that indicate which methods
+        have been called.
+        -   The aspects must have already been instantiated.
+
+        PARAMETERS
+        ----------
+        attribute : str
+        -   The name of the aspect to update.
+
+        value : Any
+        -   The value to update the attribute with.
+
+        RAISES
+        ------
+        MissingAttributeError
+        -   Raised if the user attempts to update an attribute that has not been
+            instantiated in '_instantiate_attributes'.
+        """
+
+        if hasattr(self, attribute):
+            setattr(self, attribute, value)
+        else:
+            raise MissingAttributeError(
+                f"Error when attempting to update an attribute of {self}:\nThe "
+                f"attribute {attribute} does not exist, and so cannot be "
+                "updated."
+            )
+    
 
     def _sort_inputs(self) -> None:
         """Checks the inputs to the Analysis object to ensure that they match
@@ -112,17 +142,16 @@ class PowerMorlet(ProcMethod):
             which is necessary for power and connectivity analyses.
         """
 
-        if self._getattr(self.signal, '_epoched') is False:
+        if self.signal._getattr('_epoched') is False:
             raise InputTypeError(
                 "The provided Signal object does not contain epoched data. "
                 "Epoched data is required for power and connectivity analyses."
-                )
-        
+            )
 
 
     def _update_processing_steps(self,
         step_name: str,
-        step_value: Any
+        step_value: Any,
         ) -> None:
         """Updates the 'preprocessing' entry of the 'processing_steps'
         dictionary of the Signal object with new information consisting of a
@@ -138,7 +167,7 @@ class PowerMorlet(ProcMethod):
         """
 
         step_name = f"{self._processing_step_number}.{step_name}"
-        self.processing_steps['preprocessing'][step_name] = step_value
+        self.processing_steps['analysis'][step_name] = step_value
         self._processing_step_number += 1
 
 
@@ -197,13 +226,16 @@ class PowerMorlet(ProcMethod):
         -   Can be 'power' or 'complex'. If 'complex', average must be False.
         """
 
-        if self._getattr(self, '_processed'):
+        if self._getattr('_processed'):
             print(
                 "The data in this object has already been processed. "
                 "Initialise a new instance of the object if you want to "
                 "perform other analyses on the data."
             )
-        
+
+        if self._verbose:
+            print("Performing Morlet wavelet power analysis on the data.")
+
         result = time_frequency.tfr_morlet(
             self.signal, freqs, n_cycles, use_fft=use_fft,
             return_itc=return_itc, decim=decim, n_jobs=n_jobs, picks=picks,
@@ -211,7 +243,24 @@ class PowerMorlet(ProcMethod):
             verbose=self._verbose,
         )
         if return_itc is True:
-            power = result[0]
-            itc = result[1]
+            self.power = result[0]
+            self.itc = result[1]
         else:
-            power = result
+            self.power = result
+
+        self._updateattr('_processed', True)
+        self._update_processing_steps('power_morlet', {
+            'freqs': freqs, 'n_cycles': n_cycles, 'use_fft': use_fft,
+            'return_itc': return_itc, 'decim': decim, 'n_jobs': n_jobs,
+            'picks': picks, 'zero_mean': zero_mean, 'average': average,
+            'output': output,
+        })
+
+
+    def save(self,
+        fpath: str
+        ) -> None:
+
+        attr_to_save = ['power', 'itc', 'processing_steps']
+
+        super()._save(self, attr_to_save, fpath, self._verbose)

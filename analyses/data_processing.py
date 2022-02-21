@@ -16,6 +16,7 @@ from pathlib import Path
 
 cd_path = Path(__file__).absolute().parent.parent
 sys.path.append(os.path.join(cd_path, 'coherence'))
+from coh_power_analysis import power_analysis
 from coh_preprocess_data import preprocessing
 
 
@@ -40,5 +41,11 @@ if __name__ == "__main__":
         FOLDERPATH_DATA, FOLDERPATH_EXTRAS, DATASET, ANALYSIS, SUBJECT, SESSION,
         TASK, ACQUISITION, RUN
     )
+
+    power_analysis(
+        preprocessed, FOLDERPATH_DATA, FOLDERPATH_EXTRAS, DATASET, ANALYSIS,
+        SUBJECT, SESSION, TASK, ACQUISITION, RUN
+    )
+
 
     print("my name is jeff")

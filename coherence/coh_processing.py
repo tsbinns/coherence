@@ -151,7 +151,7 @@ class Analysis:
                 )
 
 
-    def morlet_power(self,
+    def power_morlet(self,
         freqs : list[realnum],
         n_cycles : Union[int, list[int]],
         use_fft : bool = False,
@@ -220,20 +220,12 @@ class Analysis:
         -   The inter-trial coherence. If average is True, coherence is averaged
             across epochs. If average is False, coherence is returned for each
             epoch. Only returned if return_itc is True.
-
-        RAISES
-        ------
-        ProcessingOrderError
-        -   Raised if a type of non-FOOOF power analysis has already been
-            performed on the data.
         """
 
-        if self._getattr(self, '_power') is False:
-            raise ProcessingOrderError(
-                "Error when trying to perform Morlet wavelet analysis on the "
-                "data. A type of non-FOOOF power analysis has already been "
-                "performed on this data, but only one type of non-FOOOF power "
-                "analysis can be performed on the data."
+        if self._getattr(self, '_morlet_power'):
+            print(
+                "Morlet wavelet analysis has already been performed on the "
+                "data. The previous results will be overwritten."
             )
 
         result = time_frequency.tfr_morlet(

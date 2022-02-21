@@ -4,17 +4,15 @@ CLASSES
 -------
 Filepath : abstract base class
 -   Abstract class for generating filepaths.
--   This class should not be called directly. Instead, its subclasses should be
-    called from this file.
 
 RawFilepath : subclass of the abstract base class Filepath
 -   Generates an mne_bids.BIDSPath object for loading an mne.io.Raw object.
 
-DataWiseFilepath : subclass of the abstract base class Filepath
+SessionwiseFilepath : subclass of the abstract base class Filepath
 -   Generates a filepath for an object that corresponds to an individual
     recording session based on the MNE data-storage filepath structure.
 
-AnalysisWiseFilepath : subclass of the abstract base class Filepath
+AnalysiswiseFilepath : subclass of the abstract base class Filepath
 -   Generates a filepath for an object that corresponds to a particular
     analysis spanning multiple recordings sessions.
 """
@@ -44,11 +42,11 @@ class Filepath(ABC):
     RawFilepath
     -   Generates an mne_bids.BIDSPath object for loading an mne.io.Raw object.
 
-    DataWiseFilepath
+    SessionwiseFilepath
     -   Generates a filepath for an object that corresponds to an individual
         recording session based on the MNE data-storage filepath structure.
 
-    AnalysisWiseFilepath
+    AnalysiswiseFilepath
     -   Generates a filepath for an object that corresponds to a particular
         analysis spanning multiple recordings sessions.
     """
@@ -135,7 +133,7 @@ class RawFilepath(Filepath):
 
 
 
-class DataWiseFilepath(Filepath):
+class SessionwiseFilepath(Filepath):
     """Generates a filepath for an object that corresponds to an individual
     recording session based on the MNE data-storage filepath structure.
 
@@ -198,33 +196,25 @@ class DataWiseFilepath(Filepath):
         self.group_type = group_type
         self.filetype = filetype
 
+        self._subfolders()
+        self._filename()
+
 
     def _subfolders(self) -> str:
-        """Generates the path for the subfolders within 'folderpath'.
+        """Generates the path for the subfolders within 'folderpath'."""
 
-        RETURNS
-        -------
-        str
-        -   The path of the subfolders.
-        """
-
-        return (
+        self.subfolders = (
             f"{self.dataset}\\sub-{self.subject}\\ses-{self.session}\\"
             f"{self.group_type}"
         )
 
 
-    def _filename(self) -> str:
+    def _filename(self) -> None:
         """Generates the name of the file located within 'folderpath' and
         subfolders path.
-
-        RETURNS
-        -------
-        str
-        -   The name of the file.
         """
 
-        return (
+        self.filename = (
             f"sub-{self.subject}_ses-{self.session}_task-{self.task}_"
             f"acq-{self.acquisition}_run-{self.run}_{self.group_type}"
             f"{self.filetype}"
@@ -240,15 +230,13 @@ class DataWiseFilepath(Filepath):
         -------
         str
         -   The filepath of the object.
-
         """
 
-        return os.path.join(
-            self.folderpath, self._subfolders(), self._filename()
-        )
+        return os.path.join(self.folderpath, self.subfolders, self.filename)
 
 
-class AnalysisWiseFilepath(Filepath):
+
+class AnalysiswiseFilepath(Filepath):
     """Generates a filepath for an object that corresponds to a particular
     analysis spanning multiple recordings sessions.
 

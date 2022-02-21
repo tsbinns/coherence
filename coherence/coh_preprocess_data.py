@@ -11,7 +11,7 @@ preprocessing
 
 import json
 
-from coh_filepath import DataWiseFilepath, AnalysisWiseFilepath, RawFilepath
+from coh_filepath import SessionwiseFilepath, AnalysiswiseFilepath, RawFilepath
 from coh_signal import Signal
 
 
@@ -68,17 +68,17 @@ def preprocessing(
 
     ### Analysis setup
     ## Gets the relevant filepaths
-    analysis_settings_fpath = AnalysisWiseFilepath(
+    analysis_settings_fpath = AnalysiswiseFilepath(
         folderpath_extras+'\\settings', analysis, '.json'
     ).path()
-    data_settings_fpath = DataWiseFilepath(
+    data_settings_fpath = SessionwiseFilepath(
         folderpath_extras, dataset, subject, session, task, acquisition, run,
         'settings', '.json'
     ).path()
     raw_fpath = RawFilepath(
         folderpath_data, dataset, subject, session, task, acquisition, run
     ).path()
-    annotations_fpath = DataWiseFilepath(
+    annotations_fpath = SessionwiseFilepath(
         folderpath_extras, dataset, subject, session, task, acquisition, run,
         'annotations', '.csv'
     ).path()
