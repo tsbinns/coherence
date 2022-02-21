@@ -98,7 +98,8 @@ class Signal:
 
         # Initialises aspects of the Signal object that will be filled with
         # information as the data is processed.
-        self.processing_steps = []
+        self.processing_steps = {'preprocessing':{}}
+        self._processing_step_number = 1
         self.extra_info = {}
         self.extra_info['rereferencing_types'] = {}
         self.data = None
@@ -191,8 +192,9 @@ class Signal:
         step_name: str,
         step_value: Any
         ) -> None:
-        """Updates the 'processing_steps' aspect of the Signal object with new
-        information.
+        """Updates the 'preprocessing' entry of the 'processing_steps'
+        dictionary of the Signal object with new information consisting of a
+        key:value pair in which the key is numbered based on the applied steps.
 
         PARAMETERS
         ----------
@@ -203,7 +205,9 @@ class Signal:
         -   A value representing what processing has taken place.
         """
 
-        self.processing_steps.append([step_name, step_value])
+        step_name = f"{self._processing_step_number}.{step_name}"
+        self.processing_steps['preprocessing'][step_name] = step_value
+        self._processing_step_number += 1
 
 
     def order_channels(self,
