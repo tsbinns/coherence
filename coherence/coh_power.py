@@ -11,7 +11,6 @@ PowerMorlet
 
 from copy import deepcopy
 from typing import Any, Union
-
 from mne import time_frequency
 
 from coh_dtypes import realnum
@@ -39,7 +38,6 @@ class PowerMorlet(ProcMethod):
     -   Performs Morlet wavelet power analysis using the implementation in
         mne.time_frequency.tfr_morlet.
     """
-
 
     def __init__(self,
         signal: coh_signal.Signal,
@@ -129,7 +127,7 @@ class PowerMorlet(ProcMethod):
                 f"attribute {attribute} does not exist, and so cannot be "
                 "updated."
             )
-    
+
 
     def _sort_inputs(self) -> None:
         """Checks the inputs to the Analysis object to ensure that they match
@@ -261,6 +259,9 @@ class PowerMorlet(ProcMethod):
         fpath: str
         ) -> None:
 
+        if self.verbose:
+            print(f"Saving the morlet power results to:\n'{fpath}'.")
+
         attr_to_save = ['power', 'itc', 'processing_steps']
 
-        super()._save(self, attr_to_save, fpath, self._verbose)
+        super()._save(fpath, self, attr_to_save, self._verbose)

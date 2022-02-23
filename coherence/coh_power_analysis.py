@@ -59,10 +59,20 @@ def power_analysis(
     -   The name of the run for which the data will be analysed.
     """
 
-    powermorlet_fpath = SessionwiseFilepath(
+    morlet_fpath = SessionwiseFilepath(
         folderpath_extras, dataset, subject, session, task, acquisition, run,
-        'powermorlet', ''
+        'power-morlet', ''
     ).path()
 
-    powermorlet = PowerMorlet(signal).process()
-    powermorlet.save(powermorlet_fpath)
+    morlet = PowerMorlet(signal)
+    morlet.process()
+    morlet.save(morlet_fpath)
+
+    fooof_fpath = SessionwiseFilepath(
+        folderpath_extras, dataset, subject, session, task, acquisition, run,
+        'power-fooof', ''
+    ).path()
+
+    fooof = PowerFOOOF(signal)
+    fooof.process()
+    fooof.save(fooof_fpath)
