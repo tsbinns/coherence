@@ -243,8 +243,10 @@ class PowerMorlet(ProcMethod):
         if return_itc is True:
             self.power = result[0]
             self.itc = result[1]
+            self._itc_returned = True
         else:
             self.power = result
+            self._itc_returned = False
 
         self._updateattr('_processed', True)
         self._update_processing_steps('power_morlet', {
@@ -256,12 +258,34 @@ class PowerMorlet(ProcMethod):
 
 
     def save(self,
-        fpath: str
+        fpath: str,
+        ask_before_overwrite: bool = self._verbose
         ) -> None:
+        """Saves the processing results to a specified location.
+
+        PARAMETERS
+        ----------
+        fpath : str
+        -   The filepath where the results will be saved.
+
+        ask_before_overwrite : bool | Optional, default the object's verbosity
+        -   If True, the user is asked to confirm whether or not to overwrite a
+            pre-existing file if one exists. If False, the user is not asked to
+            confirm this and it is done automatically. By default, this is set
+            to the value of the verbosity when the PowerMorlet object was
+            instantiated.
+        """
 
         if self._verbose:
             print(f"Saving the morlet power results to:\n'{fpath}'.")
 
-        attr_to_save = ['power', 'itc', 'processing_steps']
+        attr_to_save = ['power', 'processing_steps']
+        if self._itc_returned:
+            attr_to_save.append('itc')
 
-        super().save(fpath, self, attr_to_save, self._verbose)
+        super().save(fpath, self, attr_to_save, ask_before_overwrite)
+
+
+
+class PowerFOOOF(ProcMethod):
+
