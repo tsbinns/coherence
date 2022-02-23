@@ -259,9 +259,9 @@ class PowerMorlet(ProcMethod):
         fpath: str
         ) -> None:
 
-        if self.verbose:
+        if self._verbose:
             print(f"Saving the morlet power results to:\n'{fpath}'.")
 
         attr_to_save = ['power', 'itc', 'processing_steps']
 
-        super()._save(fpath, self, attr_to_save, self._verbose)
+        super().save(fpath, self, attr_to_save, self._verbose)
