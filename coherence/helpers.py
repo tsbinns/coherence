@@ -4,6 +4,7 @@ import os
 from copy import deepcopy
 from matplotlib import pyplot as plt
 from fooof import FOOOF
+from scipy import stats as st
 
 
 
@@ -851,18 +852,36 @@ def average_data(data, axis=0):
 
     std : list
     -   The standard deviation of the data that was averaged.
+
+    sem : list
+    -   The standard error of the mean of the data that was averaged.
+
+    ci : list
+    -   The 95% confidence interval of the data that was averaged.
     """
 
     # Converts data to a workable type
     if type(data) != list:
-        data = list(data)
+        data = data.tolist()
+
+    if axis == 0:
+        n_points = np.size(data, axis=1)
+    elif axis == 1:
+        n_points = np.size(data, axis=0)
+    else:
+        raise Exception("The data should be a 2D object.")
 
     # Processes data
     avg = np.mean(data, axis=axis)
     std = np.std(data, axis=axis)
+    sem = st.sem(data, axis=axis)
+    ci = []
+    #for i in range(n_points):
+    #    intervals = st.t.interval(0.95, np.size(data, axis=axis)-1, avg[i], std[i])
+    #    ci.append(intervals[1] - avg[i])
 
 
-    return avg, std
+    return avg, std, sem, ci
 
 
 
@@ -923,11 +942,15 @@ def average_dataset(data, avg_over, separate, x_keys, y_keys, cat=[], data_keys=
     # Gets the keys of the data whose values should be combined
     comb_keys = [key for key in data.keys() if key not in avg_over and key not in separate and key not in x_keys and 
                  key not in y_keys]
-    std_keys = [f'{key}_std' for key in y_keys]
+    stats = ['std', 'sem', 'ci']
+    stat_keys = []
+    for stat in stats:
+        for key in y_keys:
+            stat_keys.append(f'{key}_{stat}')
     discard = []
     for comb_key in comb_keys: # prevents keys containing S.D. data from being combined, as this...
     #... needs to be recalculated
-        if comb_key in std_keys:
+        if comb_key in stat_keys:
             discard.append(comb_key)
     if discard != []:
         comb_keys = [key for key in comb_keys if key not in discard]
@@ -937,22 +960,31 @@ def average_dataset(data, avg_over, separate, x_keys, y_keys, cat=[], data_keys=
     # Averages across the y_keys for each unique channel
     all_avg = {}
     all_std = {}
+    all_sem = {}
+    all_ci = {}
     for y_key in y_keys:
         all_avg[y_key] = []
         all_std[f'{y_key}_std'] = []
+        all_sem[f'{y_key}_sem'] = []
+        all_ci[f'{y_key}_ci'] = []
         for unique_i in unique_idc:
-            avg, std = average_data(data[y_key][unique_i])
+            avg, std, sem, ci = average_data(data[y_key][unique_i])
             all_avg[y_key].append(avg)
             all_std[f'{y_key}_std'].append(std)
+            all_sem[f'{y_key}_sem'].append(sem)
+            all_ci[f'{y_key}_ci'].append(ci)
     avg = all_avg
     std = all_std
+    sem = all_sem
+    ci = all_ci
 
-    # Adds new columns for std data of each y_key (if not already present)
-    holder = np.repeat(np.nan, np.shape(data)[0])
-    for y_key in y_keys:
-        if f'{y_key}_std' not in data.columns:
-            y_key_pos = list(data.columns).index(y_key)
-            data.insert(y_key_pos+1, y_key+'_std', holder)
+    # Adds new columns for std and ci data of each y_key (if not already present)
+    for stat in stats:
+        holder = np.repeat(np.nan, np.shape(data)[0])
+        for y_key in y_keys:
+            if f'{y_key}_{stat}' not in data.columns:
+                y_key_pos = list(data.columns).index(y_key)
+                data.insert(y_key_pos+1, y_key+f'_{stat}', holder)
 
     # Collates data for new DataFrame
     new_cols = []
@@ -978,6 +1010,10 @@ def average_dataset(data, avg_over, separate, x_keys, y_keys, cat=[], data_keys=
                 new_cols[-1].append(data[key][unique_i[0]])
         elif 'std' in key: # the std values (should not be in y_keys, as you don't want to average over std)
             new_cols[-1].extend(std[key])
+        elif 'sem' in key: # the sem values (should not be in y_keys, as you don't want to average over std)
+            new_cols[-1].extend(sem[key])
+        elif 'ci' in key: # the ci values (should not be in y_keys, as you don't want to average over cis)
+            new_cols[-1].extend(ci[key])
         else:
             raise ValueError(f"Unknown key '{key}' present when averaging data.")
     
@@ -993,7 +1029,9 @@ def average_dataset(data, avg_over, separate, x_keys, y_keys, cat=[], data_keys=
                 recalc_max, recalc_fmax = recalculate_band_max(data[data_key], data['freqs'], data['fbands'])
                 data['fbands_max'] = recalc_max
                 data['fbands_fmax'] = recalc_fmax
-            new_data = new_data.drop(columns=[data_key+'_fbands_max_std', data_key+'_fbands_fmax_std'])
+            new_data = new_data.drop(columns=[data_key+'_fbands_max_std', data_key+'_fbands_fmax_std',
+                                              data_key+'_fbands_max_sem', data_key+'_fbands_fmax_sem',
+                                              data_key+'_fbands_max_ci', data_key+'_fbands_fmax_ci'])
 
             
     return new_data
@@ -1101,13 +1139,15 @@ def alter_by_condition(data, cond, types, method, separate, x_keys, y_keys, avg_
             discard.append(idx)
     unique_idc = [unique_idc[i] for i in range(len(unique_idc)) if i not in discard]
 
-    # Removes the S.D. columns from the data for certain alteration methods
-    std_cols = []
+    # Removes the S.D. and CI columns from the data for certain alteration methods
+    stats = ['std', 'sem', 'ci']
+    stat_cols = []
     for name in data.columns:
-        if 'std' in name:
-            std_cols.append(name)
+        for stat in stats:
+            if stat in name:
+                stat_cols.append(name)
     if method in ['subtract']:
-        data = data.drop(columns=std_cols)
+        data = data.drop(columns=stat_cols)
 
     # Alters the data
     altered = {}
@@ -1161,6 +1201,14 @@ def alter_by_condition(data, cond, types, method, separate, x_keys, y_keys, avg_
             new_data = new_data.drop(columns=['fbands_max_std'])
         if 'fbands_fmax_std' in new_data.columns:
             new_data = new_data.drop(columns=['fbands_fmax_std'])
+        if 'fbands_max_sem' in new_data.columns:
+            new_data = new_data.drop(columns=['fbands_max_sem'])
+        if 'fbands_fmax_sem' in new_data.columns:
+            new_data = new_data.drop(columns=['fbands_fmax_sem'])
+        if 'fbands_max_ci' in new_data.columns:
+            new_data = new_data.drop(columns=['fbands_max_ci'])
+        if 'fbands_fmax_ci' in new_data.columns:
+            new_data = new_data.drop(columns=['fbands_fmax_ci'])
             
 
 
@@ -1693,7 +1741,7 @@ def check_fm_fits(power, freqs, params=None, title='', report=True):
     fm_fixed_gof = '' # string to print for the goodness of fit metrics
     for i, idx in enumerate(fm_fixed_idc):
         fm_fixed_gof += f"{gof_metrics[i]}={round(fm_fixed_results[idx], 3)}; "
-    fm_fixed_gof = fm_fixed_gof[:-2] # removes the last semicolon ans space
+    fm_fixed_gof = fm_fixed_gof[:-2] # removes the last semicolon and space
     axs[0,0].set_title(f"'fixed' aperiodic mode | {fm_fixed_gof}") # adds the info to the plot title
 
     # 'fixed' mode model

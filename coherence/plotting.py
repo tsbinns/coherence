@@ -2,14 +2,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy
 from scipy import io
-from scipy import stats
+from scipy import stats as st
 import pandas as pd
 import datetime
 import helpers
 
 
 def psd_freqwise(psd, group_master, group_fig=[], group_plot=[],
-                 power_keys=['power','power_periodic','power_aperiodic'], plot_shuffled=False, plot_std=True,
+                 power_keys=['power','power_periodic','power_aperiodic'], plot_shuffled=False, plot_stat=None,
                  plot_layout=[2,3], freq_limit=None, ylim_max=None, same_y=True, avg_as_equal=True, mark_y0=False,
                  add_avg=[]):
     """ Plots frequency-wise PSDs of the data.
@@ -81,14 +81,24 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[],
     """
 
     ### Setup
-    # Checks to make sure that S.D. data is present if it is requested
-    std_present=False
-    if plot_std is True:
+    # Checks to make sure that CI data is present if it is requested
+    stat_present=False
+    if plot_stat is not None:
         for col in psd.columns:
-            if 'std' in col:
-                std_present = True
-        if std_present == False:
-            print(f"Warning: Standard deviation data is not present, so it cannot be plotted.")
+            if plot_stat in col:
+                stat_present = True
+        if stat_present == False:
+            print(f"Warning: Stat data is not present, so it cannot be plotted.")
+    
+    # Drops other stat data
+    stats = ['std', 'sem', 'ci']
+    stat_cols = []
+    for key in psd.keys():
+        for stat in stats:
+            if stat in key and stat != plot_stat:
+                stat_cols.append(key)
+    psd = psd.drop(columns=stat_cols)
+
 
     # Checks that add_avg is in the correct format
     if add_avg != []:
@@ -133,12 +143,13 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[],
 
     # Keys used to label figures, plots, and data
     power_data_keys = power_keys.copy()
-    data_key_appends = ['_std', '_fbands_avg', '_fbands_avg_std', '_fbands_max', '_fbands_max_std', '_fbands_fmax',
-                        '_fbands_fmax_std']
+    data_key_appends = ['_fbands_avg', '_fbands_max', '_fbands_fmax']
+    if stat_present:
+        data_key_appends.extend([f'_{plot_stat}', f'_fbands_avg_{plot_stat}', f'_fbands_max_{plot_stat}', f'_fbands_fmax_{plot_stat}'])
     for power_key in power_keys:
         for data_key_append in data_key_appends:
             power_data_keys.append(power_key+data_key_append)
-    psd_data_keys = ['ch_coords', 'ch_coords_std', 'freqs', 'fbands', *power_data_keys]
+    psd_data_keys = ['ch_coords', f'ch_coords_{plot_stat}', 'freqs', 'fbands', *power_data_keys]
     data_keys = [key for key in psd.keys() if key not in group_fig+group_plot+psd_data_keys]
     plot_keys = [key for key in psd.keys() if key not in group_fig+psd_data_keys+data_keys]
     fig_keys = [key for key in psd.keys() if key not in psd_data_keys+data_keys+plot_keys]
@@ -178,6 +189,12 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[],
             if add_avg[1] == 'grey':
                 colours[add_avg[0]][i][:3] = [0, 0, 0]
 
+    # Pyplot params
+    plt.rc('axes', labelsize=30)    # fontsize of the x and y labels
+    plt.rc('xtick', labelsize=28)    # fontsize of the tick labels
+    plt.rc('ytick', labelsize=28)    # fontsize of the tick labels
+    plt.rc('legend', fontsize=28)    # legend fontsize
+
 
     ### Plotting
     for power_key in power_keys:
@@ -189,9 +206,10 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[],
             
             # Gets a global y-axis for all data of the same mastergroup (if requested)
             if same_y == True:
-                if plot_std == True and power_key+'_std' in psd.keys() and add_avg == []:
-                    group_ylim = helpers.same_axes(psd[power_key][idc_group_master] + psd[power_key+'_std'][idc_group_master])
-                    group_ylim[0] = helpers.same_axes(psd[power_key][idc_group_master] - psd[power_key+'_std'][idc_group_master])[0]
+                key_and_stat = f'{power_key}_{plot_stat}'
+                if stat_present == True and key_and_stat in psd.keys() and add_avg == []:
+                    group_ylim = helpers.same_axes(psd[power_key][idc_group_master] + psd[key_and_stat][idc_group_master])
+                    group_ylim[0] = helpers.same_axes(psd[power_key][idc_group_master] - psd[key_and_stat][idc_group_master])[0]
                 else:
                     group_ylim = helpers.same_axes(psd[power_key][idc_group_master])
 
@@ -273,6 +291,10 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[],
                                         data_info[key] = data[key]
                                     data_title = helpers.data_title(data_info, already_included=now_included,
                                                                     full_info=False)
+                                    if data_title == 'med-Off':
+                                        data_title = 'OFF'
+                                    if data_title == 'med-On':
+                                        data_title = 'ON'
                                     if data_title == '': # don't label the data if there is no info to add
                                         data_title = None
 
@@ -285,34 +307,69 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[],
                                         #... data's characteristics
                                     else: # if there is no colour info, set the colour to black
                                         colour = [0, 0, 0, 1]
+
+                                    ###TEMP
+                                    """
+                                    if data_info['med'] == 'Off':
+                                        col_scaling = .65
+                                    elif data_info['med'] == 'On':
+                                        col_scaling = 1.1
+
+                                    if plot_info['loc_group'] == 'Prefrontal':
+                                        colour = [113, 189, 174, 1]
+                                    elif plot_info['loc_group'] == 'Motor':
+                                        colour = [224, 74, 74, 1]
+                                    elif plot_info['loc_group'] == 'Sensory':
+                                        colour = [55, 110, 181, 1]
+                                    elif plot_info['loc_group'] == 'Parietal':
+                                        colour = [216, 179, 66, 1]
+
+                                    for colour_i, col in enumerate(colour):
+                                        if colour_i < 3:
+                                            colour[colour_i] = (col*col_scaling)/256
+                                    """
+                                    """
+                                    if data_info['med'] == 'Off':
+                                        colour = [.2, .2, .2, 1]
+                                    elif data_info['med'] == 'On':
+                                        colour = [.6, .6, .6, 1]
+                                    """
+
                                     
                                     # Plots data
                                     axs[row_i, col_i].plot(data.freqs[:freq_limit_i+1],
                                                            data[power_key][:freq_limit_i+1],
-                                                           label=data_title, linewidth=2, color=colour)
+                                                           label=data_title, linewidth=4, color=colour)
                                     if data_title != None: # if data has been labelled, plot the legend
                                         axs[row_i, col_i].legend(labelspacing=0)
                                     
-                                    # Plots std (if applicable and if average data is not being added)
-                                    if std_present == True and add_avg == []:
-                                        if f'{power_key}_std' in data.keys():
-                                            std_plus = data[power_key][:freq_limit_i+1] + data[power_key+'_std'][:freq_limit_i+1]
-                                            std_minus = data[power_key][:freq_limit_i+1] - data[power_key+'_std'][:freq_limit_i+1]
-                                            axs[row_i, col_i].fill_between(data.freqs[:freq_limit_i+1], std_plus,
-                                                                           std_minus, color=colour, alpha=colour[-1]*.2)
+                                    # Plots stat (if applicable and if average data is not being added)
+                                    if stat_present == True and add_avg == []:
+                                        if key_and_stat in data.keys():
+                                            stat_plus = data[power_key][:freq_limit_i+1] + data[key_and_stat][:freq_limit_i+1]
+                                            stat_minus = data[power_key][:freq_limit_i+1] - data[key_and_stat][:freq_limit_i+1]
+                                            axs[row_i, col_i].fill_between(data.freqs[:freq_limit_i+1], stat_plus,
+                                                                           stat_minus, color=colour, alpha=colour[-1]*.2,
+                                                                           edgecolor='none')
 
                                     # Adds the averaged data, if requested
                                     if ch_idx == idc_group_plot[-1] and add_avg != []:
-                                        avg_data = np.mean(psd[power_key][idc_group_plot], axis=0)
+                                        avg_data, std, sem, ci = helpers.average_data(psd[power_key][idc_group_plot], axis=0)
                                         axs[row_i, col_i].plot(data.freqs[:freq_limit_i+1], avg_data[:freq_limit_i+1],
                                                             label=f"avg[{add_avg[0]}]", linewidth=4, color=[0,0,0,1])
-                                        if plot_std == True:
-                                            std_plus = avg_data + np.std(psd[power_key][idc_group_plot].values, axis=0)
-                                            std_minus = avg_data - np.std(psd[power_key][idc_group_plot].values, axis=0)
+                                        if stat_present == True:
+                                            if plot_stat == 'std':
+                                                stat = std
+                                            elif plot_stat == 'sem':
+                                                stat = sem
+                                            elif plot_stat == 'ci':
+                                                stat = ci
+                                            stat_plus = avg_data + stat
+                                            stat_minus = avg_data - stat
                                             axs[row_i, col_i].fill_between(data.freqs[:freq_limit_i+1],
-                                                                           std_plus[:freq_limit_i+1],
-                                                                           std_minus[:freq_limit_i+1],
-                                                                           color=[0,0,0], alpha=.2)
+                                                                           stat_plus[:freq_limit_i+1],
+                                                                           stat_minus[:freq_limit_i+1],
+                                                                           color=[0,0,0], alpha=.2, edgecolor='none')
 
                                     # Demarcates 0 on the y-axis, if requested
                                     if mark_y0 == True:
@@ -335,9 +392,11 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[],
                                     if ylim[1] > ylim_max[0]:
                                         upper_ylim = ylim_max[1]
                                     axs[row_i, col_i].set_ylim(lower_ylim, upper_ylim)
+                                # TEMP
+                                #axs[row_i, col_i].set_ylim(-3.69, 11.12)                                
 
-                                axs[row_i, col_i].minorticks_on()
-                                axs[row_i, col_i].grid(which='both', axis='x')
+                                #axs[row_i, col_i].minorticks_on()
+                                axs[row_i, col_i].grid(which='major', axis='x')
 
 
                                 plotgroup_i += 1
@@ -1028,7 +1087,7 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], group_plot=[],
 
                             if same_y_groupwise == True:
                                 for idc_group_norm in idcs_group_norm:
-                                    norm_vals = stats.zscore([item for sublist in 
+                                    norm_vals = st.zscore([item for sublist in 
                                                             psd[plot_key].iloc[idc_group_norm].values.flatten()
                                                             for item in sublist]) # gets the normalised values
                                     norm_vals = np.reshape(norm_vals, (len(psd[plot_key].iloc[idc_group_norm]),
@@ -1039,7 +1098,7 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], group_plot=[],
                             elif same_y_bandwise == True:
                                 for idc_group_norm in idcs_group_norm:
                                     for fband_i in range(len(fbands)): # gets the normalised values
-                                        norm_vals = stats.zscore([list(item)[fband_i] for item in 
+                                        norm_vals = st.zscore([list(item)[fband_i] for item in 
                                                                 psd[plot_key].iloc[idc_group_norm].values.flatten()])
                                         for idx, idx_group_norm in enumerate(idc_group_norm): # assigns the normalised...
                                         #... values
@@ -1160,7 +1219,7 @@ def psd_bandwise_gb(psd, areas, group_master, group_fig=[], group_plot=[],
 
 
 
-def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_std=True, plot_layout=[2,3],
+def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=False, plot_stat=None, plot_layout=[2,3],
                  freq_limit=None, ylim_max=None, same_y=True, avg_as_equal=True, mark_y0=True, add_avg=[]):
     """ Plots single-frequency-wise coherence data.
 
@@ -1232,15 +1291,23 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     """
 
     ### Setup
-    # Checks to make sure that S.D. data is present if it is requested
-    if plot_std is True:
-        std_present = False
+    # Checks to make sure that the stat data is present if it is requested
+    stat_present=False
+    if plot_stat is not None:
         for col in coh.columns:
-            if 'std' in col:
-                std_present = True
-        if std_present == False:
-            print(f"Warning: Standard deviation data is not present, so it cannot be plotted.")
-            plot_std = False
+            if plot_stat in col:
+                stat_present = True
+        if stat_present == False:
+            print(f"Warning: Stat data is not present, so it cannot be plotted.")
+    
+    # Drops other stat data
+    stats = ['std', 'sem', 'ci']
+    stat_cols = []
+    for key in coh.keys():
+        for stat in stats:
+            if stat in key and stat != plot_stat:
+                stat_cols.append(key)
+    coh = coh.drop(columns=stat_cols)
 
     # Checks that add_avg is in the correct format
     if add_avg != []:
@@ -1280,9 +1347,13 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
         group_plot = group_fig
 
     # Keys used to label figures, plots, and data
-    coh_data_keys = ['ch_coords_cortical', 'ch_coords_deep', 'ch_coords_cortical_std', 'ch_coords_deep_std', 'freqs',
-                     'coh', 'coh_std', 'fbands', 'coh_fbands_avg', 'coh_fbands_avg_std', 'coh_fbands_max',
-                     'coh_fbands_max_std', 'coh_fbands_fmax', 'coh_fbands_fmax_std']
+    coh_data_keys = ['ch_coords_cortical', 'ch_coords_deep', 'freqs',
+                     'coh', 'fbands', 'coh_fbands_avg', 'coh_fbands_max',
+                     'coh_fbands_fmax']
+    if stat_present == True:
+        coh_data_keys.extend([f'ch_coords_cortical_{plot_stat}', f'ch_coords_deep_{plot_stat}', 
+                              f'coh_{plot_stat}', f'coh_fbands_avg_{plot_stat}', f'coh_fbands_max_{plot_stat}', 
+                              f'coh_fbands_fmax_{plot_stat}'])
     data_keys = [key for key in coh.keys() if key not in group_fig+group_plot+coh_data_keys]
     plot_keys = [key for key in coh.keys() if key not in group_fig+coh_data_keys+data_keys]
     fig_keys = [key for key in coh.keys() if key not in coh_data_keys+data_keys+plot_keys]
@@ -1318,20 +1389,27 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     # Name of the folder in which to save figures (based on the current time)
     foldername = 'coh_freqwise-'+''.join([str(x) for x in datetime.datetime.now().timetuple()[:-3]])
 
+    # Pyplot params
+    plt.rc('axes', labelsize=30)    # fontsize of the x and y labels
+    plt.rc('xtick', labelsize=28)    # fontsize of the tick labels
+    plt.rc('ytick', labelsize=28)    # fontsize of the tick labels
+    plt.rc('legend', fontsize=28)    # legend fontsize
+
 
     ### Plotting
     for mastergroup_i, idc_group_master in enumerate(idcs_group_master):
 
         # Gets a global y-axis for all data of the same type (if requested)
         if same_y == True:
-            if plot_std == True and add_avg == []:
-                if 'coh_std' in coh.keys():
+            key_and_stat = f'coh_{plot_stat}'
+            if stat_present == True and add_avg == []:
+                if key_and_stat in coh.keys():
                     ylim = []
-                    ylim.extend(helpers.same_axes(coh.coh[idc_group_master] + coh.coh_std[idc_group_master]))
-                    ylim.extend(helpers.same_axes(coh.coh[idc_group_master] - coh.coh_std[idc_group_master]))
+                    ylim.extend(helpers.same_axes(coh.coh[idc_group_master] + coh[key_and_stat][idc_group_master]))
+                    ylim.extend(helpers.same_axes(coh.coh[idc_group_master] - coh[key_and_stat][idc_group_master]))
                     group_ylim = [min(ylim), max(ylim)]
                 else:
-                    raise ValueError("Plotting S.D. is requested, but the values are not present in the data.")
+                    raise ValueError("Plotting stats is requested, but the values are not present in the data.")
             else:
                 group_ylim = helpers.same_axes(coh.coh[idc_group_master])
 
@@ -1371,7 +1449,9 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                 elif n_rows == 1 and n_cols > 1:
                     axs = np.vstack((axs, [0,0])) # adds an extra row for later indexing
                 elif n_cols == 1 and n_rows > 1:
-                    axs = np.hstack((axs), [0,0]) # adds and extra column for later indexing
+                    axs = np.reshape(axs, [n_rows, 1])
+                    fill = np.reshape([0]*n_rows, (n_rows, 1))
+                    axs = np.hstack((axs, fill)) # adds and extra column for later indexing
                 plt.tight_layout(rect = [0, 0, 1, .95])
                 fig.suptitle(wind_title)
 
@@ -1411,6 +1491,10 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                     data_info[key] = data[key]
                                 data_title = helpers.data_title(data_info, already_included=now_included,
                                                                 full_info=False)
+                                if data_title == 'med-Off':
+                                    data_title = 'OFF'
+                                if data_title == 'med-On':
+                                    data_title = 'ON'
                                 if data_title == '': # don't label the data if there is no info to add
                                     data_title = None
 
@@ -1423,30 +1507,62 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                     #... data's characteristics
                                 else: # if there is no colour info, set the colour to black
                                     colour = [0, 0, 0, 1]
+
+                                # TEMP
+                                """
+                                if data_info['med'] == 'Off':
+                                    col_scaling = .65
+                                elif data_info['med'] == 'On':
+                                    col_scaling = 1.1
+
+                                if plot_info['loc_group'] == 'Prefrontal':
+                                    colour = [113, 189, 174, 1]
+                                elif plot_info['loc_group'] == 'Motor':
+                                    colour = [224, 74, 74, 1]
+                                elif plot_info['loc_group'] == 'Sensory':
+                                    colour = [55, 110, 181, 1]
+                                elif plot_info['loc_group'] == 'Parietal':
+                                    colour = [216, 179, 66, 1]
+
+                                for colour_i, col in enumerate(colour):
+                                    if colour_i < 3:
+                                        colour[colour_i] = (col*col_scaling)/256
+                                """
+                                
+                                if data_info['med'] == 'Off':
+                                    colour = [.2, .2, .2, 1]
+                                elif data_info['med'] == 'On':
+                                    colour = [.6, .6, .6, 1]
                                 
                                 # Plots data
                                 axs[row_i, col_i].plot(data.freqs[:freq_limit_i+1], data.coh[:freq_limit_i+1],
-                                                       label=data_title, linewidth=2, color=colour)
+                                                       label=data_title, linewidth=4, color=colour)
                                 if data_title != None: # if data has been labelled, plot the legend
                                     axs[row_i, col_i].legend(labelspacing=0)
                                 
-                                # Plots std (if applicable)
-                                if plot_std == True and add_avg==[]:
-                                    if 'coh_std' in data.keys():
-                                        std_plus = data.coh[:freq_limit_i+1] + data.coh_std[:freq_limit_i+1]
-                                        std_minus = data.coh[:freq_limit_i+1] - data.coh_std[:freq_limit_i+1]
-                                        axs[row_i, col_i].fill_between(data.freqs[:freq_limit_i+1], std_plus, std_minus,
-                                                                    color=colour, alpha=colour[-1]*.2)
+                                # Plots stat (if applicable)
+                                if stat_present == True and add_avg==[]:
+                                    if key_and_stat in data.keys():
+                                        stat_plus = data.coh[:freq_limit_i+1] + data[key_and_stat][:freq_limit_i+1]
+                                        stat_minus = data.coh[:freq_limit_i+1] - data[key_and_stat][:freq_limit_i+1]
+                                        axs[row_i, col_i].fill_between(data.freqs[:freq_limit_i+1], stat_plus, stat_minus,
+                                                                    color=colour, alpha=colour[-1]*.2, edgecolor='none')
                                 
                                 # Adds the averaged data, if requested
                                 if ch_idx == idc_group_plot[-1] and add_avg != []:
-                                    avg_data = np.mean(coh['coh'][idc_group_plot], axis=0)
+                                    avg_data, std, sem, ci = helpers.average_data(coh['coh'][idc_group_plot], axis=0)
                                     axs[row_i, col_i].plot(data.freqs[:freq_limit_i+1], avg_data[:freq_limit_i+1],
                                                            label=f"avg[{add_avg[0]}]", linewidth=4, color=[0,0,0,1])
-                                    if plot_std == True:
-                                        std_plus = avg_data + np.std(coh['coh'][idc_group_plot].values, axis=0)
-                                        std_minus = avg_data - np.std(coh['coh'][idc_group_plot].values, axis=0)
-                                        axs[row_i, col_i].fill_between(data.freqs[:freq_limit_i+1], std_plus[:freq_limit_i+1], std_minus[:freq_limit_i+1],
+                                    if stat_present == True:
+                                        if plot_stat == 'std':
+                                            stat = std
+                                        elif plot_stat == 'sem':
+                                            stat = sem
+                                        elif plot_stat == 'ci':
+                                            stat = ci
+                                        stat_plus = avg_data + stat
+                                        stat_minus = avg_data - stat
+                                        axs[row_i, col_i].fill_between(data.freqs[:freq_limit_i+1], stat_plus[:freq_limit_i+1], stat_minus[:freq_limit_i+1],
                                                                        color=[0,0,0], alpha=.2)
 
                                 # Demarcates 0 on the y-axis, if requested
@@ -1471,6 +1587,11 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                     upper_ylim = ylim_max[1]
                                 axs[row_i, col_i].set_ylim(lower_ylim, upper_ylim)
 
+                            #TEMP
+                            #axs[row_i, col_i].set_ylim(.066, .17)
+
+                            #axs[row_i, col_i].minorticks_on()
+                            axs[row_i, col_i].grid(which='major', axis='x')
 
                             plotgroup_i += 1 # moves on to the next data to plot
                             if ch_idx == idc_group_fig[-1]: # if there is no more data to plot for this type...
@@ -2117,7 +2238,7 @@ def coh_bandwise_gb(coh, areas, group_master, group_fig=[], group_plot=[], plot_
                             
                         if same_y_groupwise == True:
                             for idc_group_norm in idcs_group_norm:
-                                norm_vals = stats.zscore([item for sublist in 
+                                norm_vals = st.zscore([item for sublist in 
                                                           coh[plot_key].iloc[idc_group_norm].values.flatten()
                                                           for item in sublist]) # gets the normalised values
                                 norm_vals = np.reshape(norm_vals, (len(coh[plot_key].iloc[idc_group_norm]),
@@ -2128,7 +2249,7 @@ def coh_bandwise_gb(coh, areas, group_master, group_fig=[], group_plot=[], plot_
                         elif same_y_bandwise == True:
                             for idc_group_norm in idcs_group_norm:
                                 for fband_i in range(len(fbands)): # gets the normalised values
-                                    norm_vals = stats.zscore([list(item)[fband_i] for item in 
+                                    norm_vals = st.zscore([list(item)[fband_i] for item in 
                                                               coh[plot_key].iloc[idc_group_norm].values.flatten()])
                                     for idx, idx_group_norm in enumerate(idc_group_norm): # assigns the normalised...
                                     #... values

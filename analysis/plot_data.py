@@ -1,5 +1,5 @@
 #### IMPORTS AND SETUP
-import sys 
+import sys
 import os
 from pathlib import Path
 import pandas as pd
@@ -9,7 +9,7 @@ import matplotlib; matplotlib.use('TKAgg')
 
 ### Gets dataset info
 dataset_info = {'Berlin': {'main_path': 'C:\\Users\\tomth\\Data\\BIDS_Berlin_ECOG_LFP\\rawdata',
-                           'project_path': 'C:\\Users\\tomth\\OneDrive\\My Documents\\Work\\Courses\\Berlin\\ECN\\ICN\\Data\\BIDS_Berlin_ECOG_LFP\\projects\\coherence',
+                           'project_path': 'C:\\Users\\tomth\\OneDrive\\My Documents\\Work\\Labs\\ICN\\Data\\BIDS_Berlin_ECOG_LFP\\projects\\coherence',
                            'data': ['Rest-001-MedOff-StimOff', 'Rest-001-MedOn-StimOff',
                                     'Rest-002-MedOff-StimOff',
                                     'Rest-003-MedOff-StimOff', 'Rest-003-MedOn-StimOff',
@@ -65,9 +65,9 @@ singlesubj_avgchann = False # plots data for a single subject, averaged across r
 multiplesubj_allchann = False # plots data for multiple subjects, averaged across runs
 multiplesubj_avgchann = True # plots data for multiple subjects, averaged across runs, channels, and subjects
 
-subtract_med = True # subtracts the MedOn coherence from the MedOff coherence
+subtract_med = False # subtracts the MedOn coherence from the MedOff coherence
 subtract_baseline = False # subtracts the baseline coherence data from the real coherence data
-group_by_region = True # groups channels that are being averaged based on the regions in which they are located
+group_by_region = False # groups channels that are being averaged based on the regions in which they are located
 
 power_keys = ['power', 'power_periodic', 'power_aperiodic']
 coh_keys = ['coh']
@@ -91,7 +91,7 @@ for y_key_append in y_key_appends:
 if singlesubj_allchann == True:
     ### Setup & Processing
     # Loads data
-    datasets = {'Berlin': [0,1]}
+    datasets = 'jeff'
 
     psds = []
     cohs = []
@@ -427,7 +427,8 @@ if multiplesubj_avgchann == True:
                           x_keys=['stim', 'task', 'freqs', 'fbands'],
                           y_keys=[*power_y_keys, 'ch_coords'],
                           data_keys=power_keys,
-                          cat=['fm_info'])
+                          cat=['fm_info'],
+                          recalculate_maxs=True)
 
     coh = average_dataset(data=coh, avg_over='subject',
                           separate=['data_type', 'reref_type_cortical', 'reref_type_deep', 'method', 'med', 'loc_group'],
@@ -440,34 +441,34 @@ if multiplesubj_avgchann == True:
                                  separate=['subject', 'ch_name', 'data_type', 'reref_type', 'ch_type', 'loc_group'],
                                  x_keys=['run', 'stim', 'task', 'freqs', 'fbands'],
                                  y_keys=power_y_keys,
-                                 avg_as_equal=True, recalculate_maxs=False)
+                                 avg_as_equal=True, recalculate_maxs=True)
 
         coh = alter_by_condition(data=coh, cond='med', types=['Off', 'On'], method='subtract',
                                  separate=['subject', 'ch_name_cortical', 'ch_name_deep', 'data_type', 'method', 'data_type', 'reref_type_cortical', 'reref_type_deep', 'loc_group'],
                                  x_keys=['run', 'stim', 'task', 'freqs', 'fbands'],
                                  y_keys=coh_y_keys,
-                                 avg_as_equal=True, recalculate_maxs=False)
+                                 avg_as_equal=True, recalculate_maxs=True)
 
 
     ### Plotting
     # PSD
-    plotting.psd_freqwise(psd, group_master=['ch_type', 'subject'],
-                          group_plot=['reref_type', 'ch_name'],
-                          plot_shuffled=False, plot_std=True, freq_limit=50, ylim_max=[-2.1,2.1],
-                          same_y=True, mark_y0=mark_y0)
-    plotting.psd_bandwise(psd, group_master=['ch_type', 'subject'],
-                          group_fig=['ch_type', 'subject', 'data_type', 'reref_type'],
-                          group_plot=['ch_name', 'loc_group'],
-                          plot_shuffled=False, plot_std=True, same_y=True)
+    #plotting.psd_freqwise(psd, group_master=['ch_type', 'subject', 'reref_type'],
+    #                      group_plot=['ch_name', 'loc_group'],
+    #                      plot_shuffled=False, plot_stat='sem', freq_limit=40, ylim_max=None,
+    #                      same_y=True, mark_y0=mark_y0, plot_layout=[1,1])
+    #plotting.psd_bandwise(psd, group_master=['ch_type', 'subject', 'reref_type'],
+    #                      group_fig=['ch_type', 'subject', 'data_type', 'reref_type'],
+    #                      group_plot=['ch_name'],
+    #                      plot_shuffled=False, plot_std=True, same_y=True)
 
     # Coherence
-    plotting.coh_freqwise(coh, group_master=['method', 'subject'],
-                          group_plot=['reref_type_cortical', 'reref_type_deep', 'ch_name_cortical', 'ch_name_deep'],
-                          plot_shuffled=False, plot_std=True, freq_limit=50, same_y=True,
-                          mark_y0=mark_y0, ylim_max=[-.04,.04])
-    plotting.coh_bandwise(coh, group_master=['method', 'subject'],
-                          group_fig=['subject', 'data_type', 'reref_type_cortical', 'reref_type_deep'],
+    plotting.coh_freqwise(coh, group_master=['method', 'subject', 'reref_type_cortical', 'reref_type_deep'],
                           group_plot=['ch_name_cortical', 'ch_name_deep', 'loc_group'],
-                          plot_shuffled=False, plot_std=True, same_y=True)
+                          plot_shuffled=False, plot_stat='sem', freq_limit=40, same_y=True,
+                          mark_y0=mark_y0, ylim_max=None, plot_layout=[1,1])
+    #plotting.coh_bandwise(coh, group_master=['method', 'subject'],
+    #                      group_fig=['subject', 'data_type', 'reref_type_cortical', 'reref_type_deep'],
+    #                      group_plot=['ch_name_cortical', 'ch_name_deep', 'loc_group'],
+    #                      plot_shuffled=False, plot_std=True, same_y=True)
 
 
