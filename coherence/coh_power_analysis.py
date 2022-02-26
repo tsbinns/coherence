@@ -2,25 +2,33 @@
 
 METHODS
 -------
-power_analysis
+power_morlet_analysis
 -   Takes a coh_signal.Signal object of pre-processed data and performs Morlet
-    wavelet power analysis and FOOOF power analysis.
+    wavelet power analysis.
+
+power_FOOOF_analysis
+-   Takes a coh_signal.Signal object of pre-processed data and performs FOOOF
+    power analysis.
 """
 
 
 
 
-from coh_filepath import SessionwiseFilepath
+import json
+import numpy as np
+
+from coh_filepath import AnalysiswiseFilepath, SessionwiseFilepath
 from coh_power import PowerMorlet
 import coh_signal
 
 
 
 
-def power_analysis(
+def power_morlet_analysis(
     signal: coh_signal.Signal,
     folderpath_extras: str,
     dataset: str,
+    analysis: str,
     subject: str,
     session: str,
     task: str,
@@ -33,15 +41,15 @@ def power_analysis(
     signal : coh_signal.Signal
     -   The pre-processed data to analyse.
 
-    folderpath_data : str
-    -   The folderpath to the location of the datasets.
-
     folderpath_extras : str
     -   The folderpath to the location of the datasets' 'extras', e.g. the
         annotations, processing settings, etc...
 
     dataset : str
     -   The name of the dataset folder found in 'folderpath_data'.
+
+    analysis : str
+    -   The name of the analysis folder within "'folderpath_extras'/settings".
 
     subject : str
     -   The name of the subject whose data will be analysed.
@@ -59,20 +67,37 @@ def power_analysis(
     -   The name of the run for which the data will be analysed.
     """
 
+    ### Analysis setup
+    ## Gets the relevant filepaths
+    analysis_settings_fpath = AnalysiswiseFilepath(
+        folderpath_extras+'\\settings', analysis, '.json'
+    ).path()
     morlet_fpath = SessionwiseFilepath(
         folderpath_extras, dataset, subject, session, task, acquisition, run,
-        'power-morlet', ''
+        'power-morlet', '.pkl'
     ).path()
 
+    ## Loads the analysis settings
+    with open(analysis_settings_fpath, encoding='utf-8') as json_file:
+        analysis_settings = json.load(json_file)
+        morlet_settings = analysis_settings['power_morlet']
+
+
+    ### Data processing
+    ## Morlet wavelet power analysis
     morlet = PowerMorlet(signal)
-    morlet.process()
+    morlet.process(
+        freqs=np.arange(
+            morlet_settings['freqs'][0], morlet_settings['freqs'][1]+1
+            ),
+        n_cycles=morlet_settings['n_cycles'],
+        use_fft=morlet_settings['use_fft'],
+        return_itc=morlet_settings['return_itc'],
+        decim=morlet_settings['decim'],
+        n_jobs=morlet_settings['n_jobs'],
+        picks=morlet_settings['picks'],
+        zero_mean=morlet_settings['zero_mean'],
+        average=morlet_settings['average'],
+        output=morlet_settings['output']
+    )
     morlet.save(morlet_fpath)
-
-    fooof_fpath = SessionwiseFilepath(
-        folderpath_extras, dataset, subject, session, task, acquisition, run,
-        'power-fooof', ''
-    ).path()
-
-    fooof = PowerFOOOF(signal)
-    fooof.process()
-    fooof.save(fooof_fpath)

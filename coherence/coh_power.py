@@ -52,8 +52,6 @@ class PowerMorlet(ProcMethod):
         # Initialises aspects of the Analysis object that will be filled with
         # information as the data is processed.
         self.processing_steps = deepcopy(self.signal.processing_steps)
-        self.processing_steps['analysis'] = {}
-        self._processing_step_number = 1
         self.power = None
         self.itc = None
 
@@ -93,7 +91,7 @@ class PowerMorlet(ProcMethod):
                 "cannot be updated."
             )
 
-        return getattr(attribute)
+        return getattr(self, attribute)
 
 
     def _updateattr(self,
@@ -148,25 +146,19 @@ class PowerMorlet(ProcMethod):
 
 
     def _update_processing_steps(self,
-        step_name: str,
-        step_value: Any
+        step_value: dict
         ) -> None:
-        """Updates the 'preprocessing' entry of the 'processing_steps'
-        dictionary of the Signal object with new information consisting of a
-        key:value pair in which the key is numbered based on the applied steps.
+        """Updates the 'power_morlet' entry of the 'processing_steps'
+        dictionary of the PowerMorlet object with new information.
 
         PARAMETERS
         ----------
-        step_name : str
-        -   The name of the processing step.
-
-        step_value : Any
-        -   A value representing what processing has taken place.
+        step_value : dict
+        -   A dictionary where the keys are the analysis setting names and the
+            values the settings used.
         """
 
-        step_name = f"{self._processing_step_number}.{step_name}"
-        self.processing_steps['analysis'][step_name] = step_value
-        self._processing_step_number += 1
+        self.processing_steps['power_morlet'] = step_value
 
 
     def process(self,
@@ -235,10 +227,18 @@ class PowerMorlet(ProcMethod):
             print("Performing Morlet wavelet power analysis on the data.")
 
         result = time_frequency.tfr_morlet(
-            self.signal, freqs, n_cycles, use_fft=use_fft,
-            return_itc=return_itc, decim=decim, n_jobs=n_jobs, picks=picks,
-            zero_mean=zero_mean, average=average, output=output,
-            verbose=self._verbose,
+            inst=self.signal.data,
+            freqs=freqs,
+            n_cycles=n_cycles,
+            use_fft=use_fft,
+            return_itc=return_itc,
+            decim=decim,
+            n_jobs=n_jobs,
+            picks=picks,
+            zero_mean=zero_mean,
+            average=average,
+            output=output,
+            verbose=self._verbose
         )
         if return_itc is True:
             self.power = result[0]
@@ -247,9 +247,10 @@ class PowerMorlet(ProcMethod):
         else:
             self.power = result
             self._itc_returned = False
+        self._to_DataFrame()
 
         self._updateattr('_processed', True)
-        self._update_processing_steps('power_morlet', {
+        self._update_processing_steps({
             'freqs': freqs, 'n_cycles': n_cycles, 'use_fft': use_fft,
             'return_itc': return_itc, 'decim': decim, 'n_jobs': n_jobs,
             'picks': picks, 'zero_mean': zero_mean, 'average': average,
@@ -291,4 +292,3 @@ class PowerMorlet(ProcMethod):
 
 
 #class PowerFOOOF(ProcMethod):
-
