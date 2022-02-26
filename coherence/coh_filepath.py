@@ -200,8 +200,7 @@ class SessionwiseFilepath(Filepath):
         """Generates the path for the subfolders within 'folderpath'."""
 
         self.subfolders = (
-            f"{self.dataset}\\sub-{self.subject}\\ses-{self.session}\\"
-            f"{self.group_type}"
+            f"{self.dataset}\\sub-{self.subject}\\ses-{self.session}"
         )
 
 
