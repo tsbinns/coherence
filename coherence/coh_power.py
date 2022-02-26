@@ -29,7 +29,7 @@ class PowerMorlet(ProcMethod):
     signal : coh_signal.Signal
     -   A preprocessed Signal object whose data will be processed.
 
-    verbose : bool | Optional, default True
+    verbose : bool; Optional, default True
     -   Whether or not to print information about the information processing.
 
     METHODS
@@ -41,7 +41,7 @@ class PowerMorlet(ProcMethod):
 
     def __init__(self,
         signal: coh_signal.Signal,
-        verbose: bool = True,
+        verbose: bool = True
         ) -> None:
 
         # Initialises inputs of the Analysis object.
@@ -149,7 +149,7 @@ class PowerMorlet(ProcMethod):
 
     def _update_processing_steps(self,
         step_name: str,
-        step_value: Any,
+        step_value: Any
         ) -> None:
         """Updates the 'preprocessing' entry of the 'processing_steps'
         dictionary of the Signal object with new information consisting of a
@@ -179,7 +179,7 @@ class PowerMorlet(ProcMethod):
         picks: Union[list[int], None] = None,
         zero_mean: bool = True,
         average: bool = True,
-        output: str = 'power',
+        output: str = 'power'
         ) -> None:
         """Performs Morlet wavelet power analysis using the implementation in
         mne.time_frequency.tfr_morlet.
@@ -189,38 +189,38 @@ class PowerMorlet(ProcMethod):
         freqs : list[realnum]
         -   The frequencies in Hz to analyse.
 
-        n_cycles : int or list[int]
+        n_cycles : int | list[int]
         -   The number of cycles globally (if int) or for each frequency (if
             list[int]).
 
-        use_fft : bool | default False
+        use_fft : bool; default False
         -   Whether or not to perform the fft based convolution.
 
-        return_itc : bool | default True
+        return_itc : bool; default True
         -   Whether or not to retirn inter-trial coherence in addition to power.
             Must be false for evoked data.
 
-        decim : int or slice | default 1
+        decim : int | slice; default 1
         -   Decimates data following time-frequency decomposition. Returns
             data[..., ::decim] if int. Returns data[..., decim]. Warning: may
             create decimation artefacts.
 
-        n_jobs : int | default 1
+        n_jobs : int; default 1
         -   The number of jobs to run in parallel on the CPU. If -1, it is set
             to the number of CPU cores. Requires the joblib package.
 
-        picks : list[int] or None | default None
+        picks : list[int] | None; default None
         -   The indices of the channels to decompose. If None, all good data
             channels are decomposed.
 
-        zero_mean : bool | default True
+        zero_mean : bool; default True
         -   Gives the wavelet a mean of 0.
 
-        average : bool | default True
+        average : bool; default True
         -   If True, averages the power across epochs. If False, returns
             separate power values for each epoch.
 
-        output : str | default 'power'
+        output : str; default 'power'
         -   Can be 'power' or 'complex'. If 'complex', average must be False.
         """
 
@@ -259,7 +259,7 @@ class PowerMorlet(ProcMethod):
 
     def save(self,
         fpath: str,
-        ask_before_overwrite: bool = self._verbose
+        ask_before_overwrite: Union[bool, None] = None
         ) -> None:
         """Saves the processing results to a specified location.
 
@@ -268,13 +268,16 @@ class PowerMorlet(ProcMethod):
         fpath : str
         -   The filepath where the results will be saved.
 
-        ask_before_overwrite : bool | Optional, default the object's verbosity
+        ask_before_overwrite : bool | None; default the object's verbosity
         -   If True, the user is asked to confirm whether or not to overwrite a
             pre-existing file if one exists. If False, the user is not asked to
             confirm this and it is done automatically. By default, this is set
-            to the value of the verbosity when the PowerMorlet object was
-            instantiated.
+            to None, in which case the value of the verbosity when the
+            PowerMorlet object was instantiated is used.
         """
+
+        if ask_before_overwrite is None:
+            ask_before_overwrite = self._verbose
 
         if self._verbose:
             print(f"Saving the morlet power results to:\n'{fpath}'.")
@@ -287,5 +290,5 @@ class PowerMorlet(ProcMethod):
 
 
 
-class PowerFOOOF(ProcMethod):
+#class PowerFOOOF(ProcMethod):
 

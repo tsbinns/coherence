@@ -26,7 +26,7 @@ class Signal:
 
     PARAMETERS
     ----------
-    verbose : bool | Optional, default True
+    verbose : bool; default True
     -   Whether or not to print information about the information processing.
 
     METHODS
@@ -254,19 +254,19 @@ class Signal:
         -   Names of the channels corresponding to the coordinates in
             'ch_coords'.
 
-        ch_coords : list[empty list or list[int or float]]
+        ch_coords : list[empty list | list[int | float]]
         -   Coordinates of the channels, with each entry consiting of a sublist
             containing the x, y, and z coordinates of the corresponding channel
             specified in 'ch_names', or being empty.
 
         RETURNS
         -------
-        empty list or list[str]
+        empty list | list[str]
         -   Names of the channels corresponding to the coordinates in
             'ch_coords', with those names corresponding to empty sublists (i.e
             missing coordinates) in 'ch_coords' having been removed.
 
-        empty list or list[list[int or float]]
+        empty list  |list[list[int | float]]
         -   Coordinates of the channels corresponding the the channel names in
             'ch_names', with the empty sublists (i.e missing coordinates) having
             been removed.
@@ -292,7 +292,7 @@ class Signal:
         -   The names of the channels corresponding to the coordinates in
             'ch_coords'.
 
-        ch_coords : list[empty list or list[int or float]]
+        ch_coords : list[empty list | list[int | float]]
         -   Coordinates of the channels, with each entry consiting of a sublist
             containing the x, y, and z coordinates of the corresponding channel
             specified in 'ch_names'.
@@ -581,7 +581,7 @@ class Signal:
         RerefMethod : Reref
         -   The rereferencing method to apply.
 
-        ch_names_old : list[str or list[str]]
+        ch_names_old : list[str | list[str]]
         -   The names of the channels in the mne.io.Raw object to rereference.
         -   If bipolar rereferencing, each entry of the list should be a list of
             two channel names (i.e. a cathode and an anode).
@@ -598,7 +598,7 @@ class Signal:
         -   The rereferencing type applied to the channels, corresponding to the
             channels in 'ch_names_new'.
 
-        ch_coords_new : empty list or list[empty list or list[int or float]]
+        ch_coords_new : empty list | list[empty list | list[int | float]]
         -   The coordinates of the newly rereferenced channels, corresponding to
             the channels in 'ch_names_new'. The list should consist of sublists
             containing the x, y, and z coordinates of each channel.
@@ -725,7 +725,7 @@ class Signal:
 
         PARAMETERS
         ----------
-        ch_names_old : list[str or list[str]]
+        ch_names_old : list[str | list[str]]
         -   Names of the channels that were rereferenced.
         -   If bipolar rereferencing, each entry of the list should be a list of
             two channel names (i.e. a cathode and an anode).
@@ -766,24 +766,24 @@ class Signal:
         ch_names_old : list[str]
         -   The names of the channels in the mne.io.Raw object to rereference.
 
-        ch_names_new : list[str or None] or None | default None
+        ch_names_new : list[str | None] | None; default None
         -   The names of the newly rereferenced channels, corresponding to the
             channels used for rerefrencing in ch_names_old.
         -   Missing values (None) will be set based on 'ch_names_old'.
 
-        ch_types_new : list[str or None] or None | default None
+        ch_types_new : list[str | None] | None; default None
         -   The types of the newly rereferenced channels as recognised by MNE,
             corresponding to the channels in 'ch_names_new'.
         -   Missing values (None) will be set based on the types of channels in
             'ch_names_old'.
 
-        reref_types : list[str or None] or None | default None
+        reref_types : list[str | None] | None; default None
         -   The rereferencing type applied to the channels, corresponding to the
             channels in 'ch_names_new'.
         -   Missing values (None) will be set as 'CAR', common-average
             rereferencing.
 
-        ch_coords_new : list[list[int or float] or None] or None | default None
+        ch_coords_new : list[list[int | float] | None] | None; default None
         -   The coordinates of the newly rereferenced channels, corresponding to
             the channels in 'ch_names_new'. The list should consist of sublists
             containing the x, y, and z coordinates of each channel.
@@ -840,24 +840,24 @@ class Signal:
         ch_names_old : list[str]
         -   The names of the channels in the mne.io.Raw object to rereference.
 
-        ch_names_new : list[str or None] or None | default None
+        ch_names_new : list[str | None] | None; default None
         -   The names of the newly rereferenced channels, corresponding to the
             channels used for rerefrencing in ch_names_old.
         -   Missing values (None) will be set based on 'ch_names_old'.
 
-        ch_types_new : list[str or None] or None | default None
+        ch_types_new : list[str | None] | None; default None
         -   The types of the newly rereferenced channels as recognised by MNE,
             corresponding to the channels in 'ch_names_new'.
         -   Missing values (None) will be set based on the types of channels in
             'ch_names_old'.
 
-        reref_types : list[str or None] or None | default None
+        reref_types : list[str | None] | None; default None
         -   The rereferencing type applied to the channels, corresponding to the
             channels in 'ch_names_new'.
         -   Missing values (None) will be set as 'CAR', common-average
             rereferencing.
 
-        ch_coords_new : list[list[int or float] or None] or None | default None
+        ch_coords_new : list[list[int | float] | None] or None; default None
         -   The coordinates of the newly rereferenced channels, corresponding to
             the channels in 'ch_names_new'. The list should consist of sublists
             containing the x, y, and z coordinates of each channel.
@@ -899,24 +899,24 @@ class Signal:
         ch_names_old : list[str]
         -   The names of the channels in the mne.io.Raw object to rereference.
 
-        ch_names_new : list[str or None] or None | default None
+        ch_names_new : list[str | None] | None; default None
         -   The names of the newly rereferenced channels, corresponding to the
             channels used for rerefrencing in ch_names_old.
         -   Missing values (None) will be set based on 'ch_names_old'.
 
-        ch_types_new : list[str or None] or None | default None
+        ch_types_new : list[str | None] | None; default None
         -   The types of the newly rereferenced channels as recognised by MNE,
             corresponding to the channels in 'ch_names_new'.
         -   Missing values (None) will be set based on the types of channels in
             'ch_names_old'.
 
-        reref_types : list[str or None] or None | default None
+        reref_types : list[str | None] | None; default None
         -   The rereferencing type applied to the channels, corresponding to the
             channels in 'ch_names_new'.
         -   Missing values (None) will be set as 'CAR', common-average
             rereferencing.
 
-        ch_coords_new : list[list[int or float] or None] or None | default None
+        ch_coords_new : list[list[int | float] | None] | None; default None
         -   The coordinates of the newly rereferenced channels, corresponding to
             the channels in 'ch_names_new'. The list should consist of sublists
             containing the x, y, and z coordinates of each channel.
@@ -961,12 +961,12 @@ class Signal:
         ch_names_old : list[str]
         -   The names of the channels in the mne.io.Raw object to rereference.
 
-        ch_names_new : list[str or None] or None | default None
+        ch_names_new : list[str | None] | None; default None
         -   The names of the newly rereferenced channels, corresponding to the
             channels used for rerefrencing in ch_names_old.
         -   Missing values (None) will be set based on 'ch_names_old'.
 
-        ch_types_new : list[str or None] or None | default None
+        ch_types_new : list[str | None] | None; default None
         -   The types of the newly rereferenced channels as recognised by MNE,
             corresponding to the channels in 'ch_names_new'.
         -   Missing values (None) will be set based on the types of channels in
@@ -979,7 +979,7 @@ class Signal:
             cannot be determined dynamically from this arbitrary rereferencing
             method.
 
-        ch_coords_new : list[list[int or float] or None] or None | default None
+        ch_coords_new : list[list[int | float] | None] | None; default None
         -   The coordinates of the newly rereferenced channels, corresponding to
             the channels in 'ch_names_new'. The list should consist of sublists
             containing the x, y, and z coordinates of each channel.

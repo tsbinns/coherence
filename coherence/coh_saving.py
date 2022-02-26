@@ -100,7 +100,7 @@ def check_before_overwrite(
     fpath : str
     -   The filepath where the object will be saved.
 
-    ask_before_overwrite : bool | Optional, default True
+    ask_before_overwrite : bool; default True
     -   If True, the user is asked to confirm whether or not to overwrite a
         pre-existing file if one exists. If False, the user is not asked to
         confirm this and it is overwritten automatically.

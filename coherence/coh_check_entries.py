@@ -27,8 +27,6 @@ from typing import Any, Union
 class CheckLengths(ABC):
     """Abstract class for checking the lengths of entries within an input
     object.
-    -   This class should not be called directly. Instead, its subclasses
-        should be called from this file.
 
     METHODS
     -------
@@ -49,9 +47,7 @@ class CheckLengths(ABC):
 
     @abstractmethod
     def _check(self):
-        """Finds the lengths of the entries in the input object.
-        -   Implemented in the subclasses' method.
-        """
+        """Finds the lengths of the entries in the input object."""
 
 
     @abstractmethod
@@ -71,7 +67,7 @@ class CheckLengths(ABC):
         identical : bool
         -   Whether or not the lengths of the entries are identical.
 
-        lengths : int or list[int]
+        lengths : int | list[int]
         -   The length(s) of the entries. If the lengths are identical,
             'lengths' is an int representing the length of all items.
         -   If the lengths are not identical, 'lengths' is a list containing the
@@ -121,19 +117,18 @@ class CheckLengths(ABC):
 
 class CheckLengthsDict(CheckLengths):
     """Checks the lengths of entries within an input dictionary.
-    -   Subclass of the abstract class CheckLengths.
 
     PARAMETERS
     ----------
     to_check : dict[Any, Any]
     -   The dictionary for which the lengths of the entries should be checked.
 
-    ignore_values : list[Any] | optional, default []
+    ignore_values : list[Any]; optional, default []
     -   The values of entries within 'to_check' to ignore when checking the
         lengths of entries.
     -   If [] (default), no entries are ignored.
 
-    ignore_keys : list[Any] | optional, default []
+    ignore_keys : list[Any]; optional, default []
     -   The keys of entries within 'to_check' to ignore when checking the
         lengths of entries.
     -   If [] (default), no entries are ignored.
@@ -177,14 +172,13 @@ class CheckLengthsDict(CheckLengths):
     def identical(self) -> tuple[bool, Union[int, list[int]]]:
         """Checks whether the lengths of entries in the input dictionary are
         identical.
-        -   Partially implemented in the parent class' method.
 
         RETURNS
         -------
         bool
         -   Whether or not the lengths of the entries are identical.
 
-        int or list
+        int | list
         -   The length(s) of the entries. If the lengths are identical,
             'lengths' is an int representing the length of all items.
         -   If the lengths are not identical, 'lengths' is a list containing the
@@ -201,7 +195,6 @@ class CheckLengthsDict(CheckLengths):
         ) -> bool:
         """Checks whether the lengths of entries within the input object are
         equal to a given integer.
-        -   Partially implemented in the parent class' method.
 
         PARAMETERS
         ----------
@@ -223,14 +216,13 @@ class CheckLengthsDict(CheckLengths):
 
 class CheckLengthsList(CheckLengths):
     """Checks the lengths of entries within an input list.
-    -   Subclass of the abstract class CheckLengths.
 
     PARAMETERS
     ----------
     to_check : list[Any]
     -   The list for which the lengths of the entries should be checked.
 
-    ignore_values : list[Any] | optional, default []
+    ignore_values : list[Any]; optional, default []
     -   The values of entries within 'to_check' to ignore when checking the
         lengths of entries.
     -   If [] (default), no entries are ignored.
@@ -272,14 +264,13 @@ class CheckLengthsList(CheckLengths):
     def identical(self) -> tuple[bool, Union[int, list[int]]]:
         """Checks whether the lengths of entries in the input dictionary are
         identical.
-        -   Partially implemented in the parent class' method.
 
         RETURNS
         -------
         bool
         -   Whether or not the lengths of the entries are identical.
 
-        int or list
+        int | list
         -   The length(s) of the entries. If the lengths are identical,
             'lengths' is an int representing the length of all items.
         -   If the lengths are not identical, 'lengths' is a list containing the
@@ -296,7 +287,6 @@ class CheckLengthsList(CheckLengths):
         ) -> bool:
         """Checks whether the lengths of entries within the input object are
         equal to a given integer.
-        -   Partially implemented in the parent class.
 
         PARAMETERS
         ----------

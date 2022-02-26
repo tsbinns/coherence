@@ -90,7 +90,7 @@ def preprocessing(
         data_settings = json.load(json_file)
 
 
-    ### Data Preprocessing
+    ### Data Pre-processing
     signal = Signal()
     signal.load_raw(raw_fpath)
     signal.load_annotations(annotations_fpath)
@@ -109,7 +109,7 @@ def preprocessing(
         else:
             raise Exception(
                 "Error when rereferencing data:\nThe following rereferencing "
-                f"method {key} is not implemented."
+                f"method '{key}' is not implemented."
             )
         reref_method(
             reref_settings['ch_names_old'], reref_settings['ch_names_new'],

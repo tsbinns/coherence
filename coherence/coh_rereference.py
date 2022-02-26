@@ -4,8 +4,6 @@ CLASSES
 -------
 Reref : abstract base class
 -   Abstract class for rereferencing data in an mne.io.Raw object.
--   This class should not be called directly. Instead, its subclasses should be
-    called from their respective files.
 """
 
 
@@ -26,8 +24,6 @@ from coh_exceptions import ChannelTypeError, EntryLengthError
 
 class Reref(ABC):
     """Abstract class for rereferencing data in an mne.io.Raw object.
-    -   This class should not be called directly. Instead, its subclasses should
-        be called from their respective files.
 
     METHODS
     -------
@@ -100,7 +96,6 @@ class Reref(ABC):
         ) -> mne.io.Raw:
         """Drops channels irrelevant to the rereferencing from an mne.io.Raw
         object.
-        -   Partially implemented in the subclasses' method.
 
         PARAMETERS
         ----------
@@ -149,7 +144,6 @@ class Reref(ABC):
     def _sort_inputs(self) -> None:
         """Checks that rereferencing settings are compatible and discards
         rereferencing-irrelevant channels from the data.
-        -   Implemented in the subclasses' method.
         """
 
     @abstractmethod
@@ -208,8 +202,7 @@ class Reref(ABC):
         data_info : mne.Info
         -   Information about the data in 'data'.
 
-        ch_coords : empty list or list[list[int or float]] | optional, default
-        []
+        ch_coords : empty list | list[list[int or float]]; default []
         -   Coordinates of the channels, with each channel's coordinates
             contained in a sublist consisting of the x, y, and z coordinates.
 
@@ -255,23 +248,17 @@ class Reref(ABC):
 
     @abstractmethod
     def _index_old_channels(self) -> None:
-        """Creates an index of channels that are being rereferenced.
-        -   Implemented in the subclasses' method.
-        """
+        """Creates an index of channels that are being rereferenced."""
 
 
     @abstractmethod
     def _set_data(self) -> None:
-        """Rereferences the data.
-        -   Implemented in the subclasses' method.
-        """
+        """Rereferences the data."""
 
 
     @abstractmethod
     def _set_coordinates(self) -> None:
-        """Sets the coordinates of the new, rereferenced channels.
-        -   Implemented in the subclasses.
-        """
+        """Sets the coordinates of the new, rereferenced channels."""
 
 
     @abstractmethod
@@ -315,15 +302,12 @@ class Reref(ABC):
 
     @abstractmethod
     def rereference(self) -> None:
-        """Rereferences the data in an mne.io.Raw object.
-        -   Implemented in the subclasses' method.
-        """
+        """Rereferences the data in an mne.io.Raw object."""
 
 
 
 class RerefBipolar(Reref):
     """Bipolar rereferences data in an mne.io.Raw object.
-    -   Subclass of the abstract class Reref.
 
     PARAMETERS
     ----------
@@ -333,24 +317,24 @@ class RerefBipolar(Reref):
     ch_names_old : list[str]
     -   The names of the channels in the mne.io.Raw object to rereference.
 
-    ch_names_new : list[str or None] or None | default None
+    ch_names_new : list[str | None] | None; default None
     -   The names of the newly rereferenced channels, corresponding to the
         channels used for rerefrencing in ch_names_old.
     -   Missing values (None) will be set based on 'ch_names_old'.
 
-    ch_types_new : list[str or None] or None | default None
+    ch_types_new : list[str | None] | None; default None
     -   The types of the newly rereferenced channels as recognised by MNE,
         corresponding to the channels in 'ch_names_new'.
     -   Missing values (None) will be set based on the types of channels in
         'ch_names_old'.
 
-    reref_types : list[str or None] or None | default None
+    reref_types : list[str | None] | None; default None
     -   The rereferencing type applied to the channels, corresponding to the
         channels in 'ch_names_new'.
     -   Missing values (None) will be set as 'CAR', common-average
         rereferencing.
 
-    ch_coords_new : list[list[int or float] or None] or None | default None
+    ch_coords_new : list[list[int | float] | None] | None; default None
     -   The coordinates of the newly rereferenced channels, corresponding to
         the channels in 'ch_names_new'. The list should consist of sublists
         containing the x, y, and z coordinates of each channel.
@@ -411,7 +395,6 @@ class RerefBipolar(Reref):
     def _sort_raw(self) -> None:
         """Drops channels irrelevant to the rereferencing from an mne.io.Raw
         object.
-        -   Partially implemented in the parent class' method.
         """
 
         chs_to_analyse = np.unique(
@@ -566,7 +549,6 @@ class RerefBipolar(Reref):
 
     def _data_from_raw(self) -> None:
         """Extracts components of an mne.io.Raw object and returns them.
-        -   Implemented in the parent class' method.
         """
 
         self._data, self._data_info, self._ch_names, self._ch_coords = (
@@ -577,7 +559,6 @@ class RerefBipolar(Reref):
     def _raw_from_data(self) -> None:
         """Generates an mne.io.Raw object based on the rereferenced data and its
         associated information.
-        -   Implemented in the parent class' method.
         """
 
         self.raw = super()._raw_from_data(
@@ -588,7 +569,6 @@ class RerefBipolar(Reref):
     def _store_rereference_types(self) -> None:
         """Generates a dictionary of key:value pairs consisting of channel name
         : rereferencing type.
-        -   Implemented in the parent class' method.
         """
 
         self.reref_types = super()._store_rereference_types(
@@ -664,7 +644,6 @@ class RerefBipolar(Reref):
     def _set_data_info(self) -> None:
         """Creates an mne.Info object containing information about the newly
         rereferenced data.
-        -   Implemented in the parent class' method.
         """
 
         self._new_data_info = super()._set_data_info(
@@ -711,24 +690,24 @@ class RerefCAR(Reref):
     ch_names_old : list[str]
     -   The names of the channels in the mne.io.Raw object to rereference.
 
-    ch_names_new : list[str or None] or None | default None
+    ch_names_new : list[str | None] | None; default None
     -   The names of the newly rereferenced channels, corresponding to the
         channels used for rerefrencing in ch_names_old.
     -   Missing values (None) will be set based on 'ch_names_old'.
 
-    ch_types_new : list[str or None] or None | default None
+    ch_types_new : list[str | None] | None; default None
     -   The types of the newly rereferenced channels as recognised by MNE,
         corresponding to the channels in 'ch_names_new'.
     -   Missing values (None) will be set based on the types of channels in
         'ch_names_old'.
 
-    reref_types : list[str or None] or None | default None
+    reref_types : list[str | None] | None; default None
     -   The rereferencing type applied to the channels, corresponding to the
         channels in 'ch_names_new'.
     -   Missing values (None) will be set as 'CAR', common-average
         rereferencing.
 
-    ch_coords_new : list[list[int or float] or None] or None | default None
+    ch_coords_new : list[list[int | float] | None] | None; default None
     -   The coordinates of the newly rereferenced channels, corresponding to
         the channels in 'ch_names_new'. The list should consist of sublists
         containing the x, y, and z coordinates of each channel.
@@ -883,9 +862,7 @@ class RerefCAR(Reref):
 
 
     def _data_from_raw(self) -> None:
-        """Extracts components of an mne.io.Raw object and returns them.
-        -   Implemented in the parent class' method.
-        """
+        """Extracts components of an mne.io.Raw object and returns them."""
 
         self._data, self._data_info, self._ch_names, self._ch_coords = (
             super()._data_from_raw(self.raw)
@@ -895,7 +872,6 @@ class RerefCAR(Reref):
     def _raw_from_data(self) -> None:
         """Generates an mne.io.Raw object based on the rereferenced data and its
         associated information.
-        -   Implemented in the parent class' method.
         """
 
         self.raw = super()._raw_from_data(
@@ -906,7 +882,6 @@ class RerefCAR(Reref):
     def _store_rereference_types(self) -> None:
         """Generates a dictionary of key:value pairs consisting of channel name
         : rereferencing type.
-        -   Implemented in the parent class' method.
         """
 
         self.reref_types = super()._store_rereference_types(
@@ -976,7 +951,6 @@ class RerefCAR(Reref):
     def _set_data_info(self) -> None:
         """Creates an mne.Info object containing information about the newly
         rereferenced data.
-        -   Implemented in the parent class' method.
         """
 
         self._new_data_info = super()._set_data_info(
@@ -1028,12 +1002,12 @@ class RerefPseudo(Reref):
     ch_names_old : list[str]
     -   The names of the channels in the mne.io.Raw object to rereference.
 
-    ch_names_new : list[str or None] or None | default None
+    ch_names_new : list[str | None] | None; default None
     -   The names of the newly rereferenced channels, corresponding to the
         channels used for rerefrencing in ch_names_old.
     -   Missing values (None) will be set based on 'ch_names_old'.
 
-    ch_types_new : list[str or None] or None | default None
+    ch_types_new : list[str | None] | None; default None
     -   The types of the newly rereferenced channels as recognised by MNE,
         corresponding to the channels in 'ch_names_new'.
     -   Missing values (None) will be set based on the types of channels in
@@ -1045,7 +1019,7 @@ class RerefPseudo(Reref):
     -   No missing values (None) can be given, as the rereferencing type cannot
         be determined dynamically from this arbitrary rereferencing method.
 
-    ch_coords_new : list[list[int or float] or None] or None | default None
+    ch_coords_new : list[list[int | float] | None] | None; default None
     -   The coordinates of the newly rereferenced channels, corresponding to
         the channels in 'ch_names_new'. The list should consist of sublists
         containing the x, y, and z coordinates of each channel.
@@ -1094,7 +1068,6 @@ class RerefPseudo(Reref):
         etc...) within a list are of the same length.
         -   This length corresponds to the number of channels in the
             rereferenced data.
-        -   Implemented in the parent class' method.
         """
 
         self._n_channels = super()._check_input_lengths(
@@ -1106,7 +1079,6 @@ class RerefPseudo(Reref):
     def _sort_raw(self) -> None:
         """Drops channels irrelevant to the rereferencing from an mne.io.Raw
         object.
-        -   Partially implemented in the parent class' method.
         """
 
         chs_to_analyse = np.unique(list(self._ch_names_old)).tolist()
@@ -1208,9 +1180,7 @@ class RerefPseudo(Reref):
 
 
     def _data_from_raw(self) -> None:
-        """Extracts components of an mne.io.Raw object and returns them.
-        -   Implemented in the parent class' method.
-        """
+        """Extracts components of an mne.io.Raw object and returns them."""
 
         self._data, self._data_info, self._ch_names, self._ch_coords = (
             super()._data_from_raw(self.raw)
@@ -1219,9 +1189,7 @@ class RerefPseudo(Reref):
 
     def _raw_from_data(self) -> None:
         """Generates an mne.io.Raw object based on the rereferenced data and its
-        associated information.
-        -   Implemented in the parent class' method.
-        """
+        associated information."""
 
         self.raw = super()._raw_from_data(
             self._new_data, self._new_data_info, self._new_ch_coords
@@ -1230,9 +1198,7 @@ class RerefPseudo(Reref):
 
     def _store_rereference_types(self) -> None:
         """Generates a dictionary of key:value pairs consisting of channel name
-        : rereferencing type.
-        -   Implemented in the parent class' method.
-        """
+        : rereferencing type."""
 
         self.reref_types = super()._store_rereference_types(
             self._ch_names_new, self._reref_types
@@ -1301,7 +1267,6 @@ class RerefPseudo(Reref):
     def _set_data_info(self) -> None:
         """Creates an mne.Info object containing information about the newly
         rereferenced data.
-        -   Implemented in the parent class' method.
         """
 
         self._new_data_info = super()._set_data_info(

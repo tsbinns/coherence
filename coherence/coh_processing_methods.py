@@ -21,8 +21,6 @@ from coh_saving import SaveObject, check_before_overwrite
 
 class ProcMethod(ABC):
     """Abstract class for implementing data processing methods.
-    -   This class should not be called directly. Instead, its subclasses should
-        be called from their respective files.
 
     METHODS
     -------
@@ -72,7 +70,7 @@ class ProcMethod(ABC):
         attr_to_save : list[str]
         -   The names of the attributes of the object to save.
 
-        ask_before_overwrite : bool | Optional, default True
+        ask_before_overwrite : bool; default True
         -   If True, the user is asked to confirm whether or not to overwrite a
             pre-existing file if one exists. If False, the user is not asked to
             confirm this and it is done automatically.

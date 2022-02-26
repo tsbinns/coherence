@@ -29,8 +29,6 @@ import mne_bids
 
 class Filepath(ABC):
     """Abstract class for generating filepaths.
-    -   This class should not be called directly. Instead, its subclasses should
-        be called from this file.
 
     METHODS
     -------
@@ -53,9 +51,7 @@ class Filepath(ABC):
 
     @abstractmethod
     def path(self):
-        """Generates the filepath.
-        -   Implemented in the subclasses' method.
-        """
+        """Generates the filepath."""
 
 
 
