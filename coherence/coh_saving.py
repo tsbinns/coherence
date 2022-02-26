@@ -74,7 +74,6 @@ def confirm_overwrite(fpath: str) -> bool:
                 "The only accepted responses are 'y' and 'n'. "
                 "Please input your response again."
             )
-            break
         if response == 'n':
             print(
                 "You have requested that the pre-existing file not "
