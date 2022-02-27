@@ -14,9 +14,12 @@ from typing import Any, Union
 from mne import time_frequency
 
 from coh_dtypes import realnum
-from coh_exceptions import InputTypeError, MissingAttributeError
+from coh_exceptions import (
+    InputTypeError, MissingAttributeError, ProcessingOrderError
+)
 from coh_processing_methods import ProcMethod
 import coh_signal
+from coherence.coh_exceptions import ProcessingOrderError
 
 
 
@@ -161,6 +164,34 @@ class PowerMorlet(ProcMethod):
         self.processing_steps['power_morlet'] = step_value
 
 
+    def _to_dataframe(self) -> None:
+        """Converts the processed data into a pandas DataFrame."""
+
+        dependent_vars = {
+            'power': []
+        }
+        if self._itc_returned:
+            dependent_vars['itc'] = []
+        independent_vars = {
+            'med': [],
+            'stim': [],
+            'task': []
+        }
+        id_vars = {
+            'cohort': [],
+            'sub': [],
+            'run': [],
+            'ch_name': [],
+            'ch_coords': [],
+            'region': []
+        }
+
+        var_order = [
+            'cohort', 'sub', 'med', 'stim', 'task', 'run', 'ch_name',
+            'ch_coords', 'region', *dependent_vars
+        ]
+
+
     def process(self,
         freqs: list[realnum],
         n_cycles: Union[int, list[int]],
@@ -214,10 +245,15 @@ class PowerMorlet(ProcMethod):
 
         output : str; default 'power'
         -   Can be 'power' or 'complex'. If 'complex', average must be False.
+
+        RAISES
+        ------
+        ProcessingOrderError
+        -   Raised if the data in the object has already been processed.
         """
 
         if self._getattr('_processed'):
-            print(
+            ProcessingOrderError(
                 "The data in this object has already been processed. "
                 "Initialise a new instance of the object if you want to "
                 "perform other analyses on the data."
@@ -247,7 +283,7 @@ class PowerMorlet(ProcMethod):
         else:
             self.power = result
             self._itc_returned = False
-        self._to_DataFrame()
+        self._to_dataframe()
 
         self._updateattr('_processed', True)
         self._update_processing_steps({
