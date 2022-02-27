@@ -393,7 +393,7 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[],
                                         upper_ylim = ylim_max[1]
                                     axs[row_i, col_i].set_ylim(lower_ylim, upper_ylim)
                                 # TEMP
-                                #axs[row_i, col_i].set_ylim(-3.69, 11.12)                                
+                                #axs[row_i, col_i].set_ylim(-2, 8)                                
 
                                 #axs[row_i, col_i].minorticks_on()
                                 axs[row_i, col_i].grid(which='major', axis='x')
@@ -1528,12 +1528,13 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                     if colour_i < 3:
                                         colour[colour_i] = (col*col_scaling)/256
                                 """
-                                
+                                """
                                 if data_info['med'] == 'Off':
                                     colour = [.2, .2, .2, 1]
                                 elif data_info['med'] == 'On':
                                     colour = [.6, .6, .6, 1]
-                                
+                                """
+
                                 # Plots data
                                 axs[row_i, col_i].plot(data.freqs[:freq_limit_i+1], data.coh[:freq_limit_i+1],
                                                        label=data_title, linewidth=4, color=colour)
@@ -1588,7 +1589,7 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                 axs[row_i, col_i].set_ylim(lower_ylim, upper_ylim)
 
                             #TEMP
-                            #axs[row_i, col_i].set_ylim(.066, .17)
+                            #axs[row_i, col_i].set_ylim(.066, .135)
 
                             #axs[row_i, col_i].minorticks_on()
                             axs[row_i, col_i].grid(which='major', axis='x')
