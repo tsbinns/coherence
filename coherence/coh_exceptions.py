@@ -6,6 +6,10 @@ ProcessingOrderError : Exception
 -   Class for raising exceptions/errors associated with performing processing
     steps in an incorrect order.
 
+UnavailableProcessingError : Exception
+-   Class for raising exceptions/error associated with trying to perform
+    processing steps that cannot be done.
+
 MissingAttributeError : Exception
 -   Class for raising exceptions/errors associated with attributes of an
     object that have not been instantiated.
@@ -29,6 +33,13 @@ InputTypeError : Exception
 class ProcessingOrderError(Exception):
     """Class for raising exceptions/errors associated with performing processing
     steps in an incorrect order.
+    """
+
+
+
+class UnavailableProcessingError(Exception):
+    """Class for raising exceptions/error associated with trying to perform
+    processing steps that cannot be done.
     """
 
 

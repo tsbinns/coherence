@@ -97,7 +97,9 @@ def power_morlet_analysis(
         n_jobs=morlet_settings['n_jobs'],
         picks=morlet_settings['picks'],
         zero_mean=morlet_settings['zero_mean'],
-        average=morlet_settings['average'],
+        average_epochs=morlet_settings['average_epochs'],
+        average_timepoints_power=morlet_settings['average_timepoints_power'],
+        average_timepoints_itc=morlet_settings['average_timepoints_itc'],
         output=morlet_settings['output']
     )
     morlet.save(morlet_fpath)
