@@ -176,29 +176,16 @@ class PowerMorlet(ProcMethod):
     def _to_dataframe(self) -> None:
         """Converts the processed data into a pandas DataFrame."""
 
-        dependent_vars = {
-            'power': []
-        }
-        if self._itc_returned:
-            dependent_vars['itc'] = []
-        independent_vars = {
-            'med': [],
-            'stim': [],
-            'task': []
-        }
-        id_vars = {
-            'cohort': [],
-            'sub': [],
-            'run': [],
-            'ch_name': [],
-            'ch_coords': [],
-            'region': []
-        }
-
         var_order = [
-            'cohort', 'sub', 'med', 'stim', 'task', 'run', 'ch_name',
-            'ch_coords', 'region', *dependent_vars
+            'cohort', 'sub', 'med', 'stim', 'task', 'ses', 'run', 'ch_name',
+            'ch_coords', 'ch_region', 'power'
         ]
+        if self._itc_returned:
+            var_order.append('itc')
+
+        
+
+
 
 
     def _assign_result(self,
