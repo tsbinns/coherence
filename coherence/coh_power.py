@@ -486,7 +486,7 @@ class PowerMorlet(ProcMethod):
                     output=output,
                     verbose=self._verbose
                 )
-            result = tuple(power, itc)
+                result = (power, itc)
         else:
             result = time_frequency.tfr_morlet(
                 inst=self.signal.data,
