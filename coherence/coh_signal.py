@@ -208,6 +208,21 @@ class Signal:
         step_name = f"{self._processing_step_number}.{step_name}"
         self.processing_steps['preprocessing'][step_name] = step_value
         self._processing_step_number += 1
+    
+
+    def add_metadata(self,
+        metadata : dict
+        ) -> None:
+        """Adds information about the data being preprocessed to the extra_info
+        aspect.
+        
+        PARAMETERS
+        ----------
+        metadata : dict
+        -   Information about the data being preprocessed.
+        """
+
+        self.extra_info['metadata'] = metadata
 
 
     def order_channels(self,

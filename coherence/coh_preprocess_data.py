@@ -12,6 +12,7 @@ preprocessing
 import json
 
 from coh_filepath import SessionwiseFilepath, AnalysiswiseFilepath, RawFilepath
+from coh_settings import ExtractMetadata
 from coh_signal import Signal
 
 
@@ -125,5 +126,9 @@ def preprocessing(
     signal.resample(analysis_settings['resample'])
     signal.epoch(analysis_settings['epoch_length'])
     signal.order_channels(data_settings['post_reref_organisation'])
+
+    ## Adds metadata about the preprocessed data
+    metadata = ExtractMetadata(data_settings).metadata
+    signal.add_metadata(metadata)
 
     return signal
