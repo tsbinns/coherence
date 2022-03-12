@@ -7,15 +7,11 @@ preprocessing
 """
 
 
-
-
 import json
 
 from coh_filepath import SessionwiseFilepath, AnalysiswiseFilepath, RawFilepath
 from coh_settings import ExtractMetadata
 from coh_signal import Signal
-
-
 
 
 def preprocessing(
@@ -27,8 +23,8 @@ def preprocessing(
     session: str,
     task: str,
     acquisition: str,
-    run: str
-    ) -> Signal:
+    run: str,
+) -> Signal:
     """Loads an mne.io.Raw object, preprocesses it, and epochs it.
 
     PARAMETERS
@@ -70,43 +66,57 @@ def preprocessing(
     ### Analysis setup
     ## Gets the relevant filepaths
     analysis_settings_fpath = AnalysiswiseFilepath(
-        folderpath_extras+'\\settings', analysis, '.json'
+        folderpath_extras + "\\settings", analysis, ".json"
     ).path()
     data_settings_fpath = SessionwiseFilepath(
-        folderpath_extras, dataset, subject, session, task, acquisition, run,
-        'settings', '.json'
+        folderpath_extras,
+        dataset,
+        subject,
+        session,
+        task,
+        acquisition,
+        run,
+        "settings",
+        ".json",
     ).path()
     raw_fpath = RawFilepath(
         folderpath_data, dataset, subject, session, task, acquisition, run
     ).path()
     annotations_fpath = SessionwiseFilepath(
-        folderpath_extras, dataset, subject, session, task, acquisition, run,
-        'annotations', '.csv'
+        folderpath_extras,
+        dataset,
+        subject,
+        session,
+        task,
+        acquisition,
+        run,
+        "annotations",
+        ".csv",
     ).path()
 
     ## Loads the analysis settings
-    with open(analysis_settings_fpath, encoding='utf-8') as json_file:
+    with open(analysis_settings_fpath, encoding="utf-8") as json_file:
         analysis_settings = json.load(json_file)
-        analysis_settings = analysis_settings['preprocessing']
-    with open(data_settings_fpath, encoding='utf-8') as json_file:
+        analysis_settings = analysis_settings["preprocessing"]
+    with open(data_settings_fpath, encoding="utf-8") as json_file:
         data_settings = json.load(json_file)
-
 
     ### Data Pre-processing
     signal = Signal()
     signal.load_raw(raw_fpath)
     signal.load_annotations(annotations_fpath)
-    signal.pick_channels(data_settings['ch_names'])
+    signal.pick_channels(data_settings["ch_names"])
     signal.set_coordinates(
-        data_settings['ch_names'], data_settings['ch_coords']
+        data_settings["ch_names"], data_settings["ch_coords"]
     )
-    for key in data_settings['rereferencing'].keys():
-        reref_settings = data_settings['rereferencing'][key]
-        if key == 'pseudo':
+    signal.set_regions(data_settings["ch_names"], data_settings["ch_regions"])
+    for key in data_settings["rereferencing"].keys():
+        reref_settings = data_settings["rereferencing"][key]
+        if key == "pseudo":
             reref_method = signal.rereference_pseudo
-        elif key == 'bipolar':
+        elif key == "bipolar":
             reref_method = signal.rereference_bipolar
-        elif key == 'CAR':
+        elif key == "CAR":
             reref_method = signal.rereference_CAR
         else:
             raise Exception(
@@ -114,18 +124,21 @@ def preprocessing(
                 f"method '{key}' is not implemented."
             )
         reref_method(
-            reref_settings['ch_names_old'], reref_settings['ch_names_new'],
-            reref_settings['ch_types_new'], reref_settings['reref_types'],
-            reref_settings['ch_coords_new']
+            reref_settings["ch_names_old"],
+            reref_settings["ch_names_new"],
+            reref_settings["ch_types_new"],
+            reref_settings["reref_types"],
+            reref_settings["ch_coords_new"],
+            reref_settings["ch_regions_new"],
         )
     signal.drop_unrereferenced_channels()
-    signal.notch_filter(analysis_settings['line_noise'])
+    signal.notch_filter(analysis_settings["line_noise"])
     signal.bandpass_filter(
-        analysis_settings['lowpass'], analysis_settings['highpass']
+        analysis_settings["lowpass"], analysis_settings["highpass"]
     )
-    signal.resample(analysis_settings['resample'])
-    signal.epoch(analysis_settings['epoch_length'])
-    signal.order_channels(data_settings['post_reref_organisation'])
+    signal.resample(analysis_settings["resample"])
+    signal.epoch(analysis_settings["epoch_length"])
+    signal.order_channels(data_settings["post_reref_organisation"])
 
     ## Adds metadata about the preprocessed data
     metadata = ExtractMetadata(data_settings).metadata
