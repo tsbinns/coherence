@@ -7,8 +7,6 @@ PowerMorlet
 """
 
 
-
-
 from copy import deepcopy
 from typing import Any, Union
 from mne import time_frequency
@@ -16,13 +14,13 @@ import numpy as np
 
 from coh_dtypes import realnum
 from coh_exceptions import (
-    InputTypeError, MissingAttributeError, ProcessingOrderError,
-    UnavailableProcessingError
+    InputTypeError,
+    MissingAttributeError,
+    ProcessingOrderError,
+    UnavailableProcessingError,
 )
 from coh_processing_methods import ProcMethod
 import coh_signal
-
-
 
 
 class PowerMorlet(ProcMethod):
@@ -43,10 +41,9 @@ class PowerMorlet(ProcMethod):
         mne.time_frequency.tfr_morlet.
     """
 
-    def __init__(self,
-        signal: coh_signal.Signal,
-        verbose: bool = True
-        ) -> None:
+    def __init__(
+        self, signal: coh_signal.Signal, verbose: bool = True
+    ) -> None:
 
         # Initialises inputs of the Analysis object.
         self.signal = deepcopy(signal)
@@ -71,10 +68,7 @@ class PowerMorlet(ProcMethod):
         self._power_dims_sorted = False
         self._itc_dims_sorted = False
 
-
-    def _getattr(self,
-        attribute: str
-        ) -> Any:
+    def _getattr(self, attribute: str) -> Any:
         """Gets aspects of the input object that indicate which methods have
         been called.
         -   The aspects must have already been instantiated.
@@ -105,11 +99,7 @@ class PowerMorlet(ProcMethod):
 
         return getattr(self, attribute)
 
-
-    def _updateattr(self,
-        attribute: str,
-        value: Any
-        ) -> None:
+    def _updateattr(self, attribute: str, value: Any) -> None:
         """Updates aspects of the object that indicate which methods
         have been called.
         -   The aspects must have already been instantiated.
@@ -138,7 +128,6 @@ class PowerMorlet(ProcMethod):
                 "updated."
             )
 
-
     def _sort_inputs(self) -> None:
         """Checks the inputs to the Analysis object to ensure that they match
         the requirements for processing.
@@ -150,16 +139,13 @@ class PowerMorlet(ProcMethod):
             which is necessary for power and connectivity analyses.
         """
 
-        if self.signal._getattr('_epoched') is False:
+        if self.signal._getattr("_epoched") is False:
             raise InputTypeError(
                 "The provided Signal object does not contain epoched data. "
                 "Epoched data is required for power and connectivity analyses."
             )
 
-
-    def _update_processing_steps(self,
-        step_value: dict
-        ) -> None:
+    def _update_processing_steps(self, step_value: dict) -> None:
         """Updates the 'power_morlet' entry of the 'processing_steps'
         dictionary of the PowerMorlet object with new information.
 
@@ -170,30 +156,34 @@ class PowerMorlet(ProcMethod):
             values the settings used.
         """
 
-        self.processing_steps['power_morlet'] = step_value
-
+        self.processing_steps["power_morlet"] = step_value
 
     def _to_dataframe(self) -> None:
         """Converts the processed data into a pandas DataFrame."""
 
         var_order = [
-            'cohort', 'sub', 'med', 'stim', 'task', 'ses', 'run', 'ch_name',
-            'ch_coords', 'ch_region', 'power'
+            "cohort",
+            "sub",
+            "med",
+            "stim",
+            "task",
+            "ses",
+            "run",
+            "ch_name",
+            "ch_coords",
+            "ch_region",
+            "power",
         ]
         if self._itc_returned:
-            var_order.append('itc')
+            var_order.append("itc")
 
-        
-
-
-
-
-    def _assign_result(self,
+    def _assign_result(
+        self,
         result: Union[
             time_frequency.EpochsTFR, tuple[time_frequency.AverageTFR]
         ],
-        itc_returned: bool
-        ) -> None:
+        itc_returned: bool,
+    ) -> None:
         """Assigns the result(s) of the Morlet power analysis.
 
         PARAMETERS
@@ -213,7 +203,6 @@ class PowerMorlet(ProcMethod):
         else:
             self.power = result
             self._itc_returned = False
-
 
     def _average_timepoints_power(self) -> None:
         """Averages power results of the analysis across timepoints.
@@ -236,8 +225,7 @@ class PowerMorlet(ProcMethod):
 
         self._power_timepoints_averaged = True
         if self._verbose:
-            print(f'Averaging the data over {n_timepoints} timepoints.')
-
+            print(f"Averaging the data over {n_timepoints} timepoints.")
 
     def _average_timepoints_itc(self) -> None:
         """Averages inter-trial coherence results of the analysis across
@@ -274,7 +262,6 @@ class PowerMorlet(ProcMethod):
                 "timepoints."
             )
 
-
     def _sort_power_dims(self) -> None:
         """Sorts the dimensions of the power data.
 
@@ -293,22 +280,24 @@ class PowerMorlet(ProcMethod):
 
         if self._epochs_averaged:
             if self._power_timepoints_averaged:
-                self.power_dims = ['channels', 'frequencies']
+                self.power_dims = ["channels", "frequencies"]
             else:
                 self.power.data = np.transpose(self.power.data, (0, 2, 1))
-                self.power_dims = ['channels', 'timepoints', 'frequencies']
+                self.power_dims = ["channels", "timepoints", "frequencies"]
         else:
             if self._power_timepoints_averaged:
                 self.power.data = np.transpose(self.power.data, (1, 0, 2))
-                self.power_dims = ['channels', 'epochs', 'frequencies']
+                self.power_dims = ["channels", "epochs", "frequencies"]
             else:
                 self.power.data = np.transpose(self.power.data, (1, 0, 3, 2))
                 self.power_dims = [
-                    'channels', 'epochs', 'timepoints', 'frequencies'
+                    "channels",
+                    "epochs",
+                    "timepoints",
+                    "frequencies",
                 ]
 
         self._power_dims_sorted = True
-
 
     def _sort_itc_dims(self) -> None:
         """Sorts the dimensions of the inter-trial coherence data.
@@ -336,15 +325,15 @@ class PowerMorlet(ProcMethod):
             )
 
         if self._itc_timepoints_averaged:
-            self.itc_dims = ['channels', 'frequencies']
+            self.itc_dims = ["channels", "frequencies"]
         else:
             self.itc.data = np.transpose(self.itc.data, (0, 2, 1))
-            self.itc_dims = ['channels', 'timepoints', 'frequencies']
+            self.itc_dims = ["channels", "timepoints", "frequencies"]
 
         self._itc_dims_sorted = True
 
-
-    def _get_result(self,
+    def _get_result(
+        self,
         freqs: list[realnum],
         n_cycles: Union[int, list[int]],
         use_fft: bool = False,
@@ -354,11 +343,12 @@ class PowerMorlet(ProcMethod):
         picks: Union[list[int], None] = None,
         zero_mean: bool = True,
         average_epochs: bool = True,
-        output: str = 'power'
-        ) -> Union[
-            time_frequency.EpochsTFR, tuple[time_frequency.AverageTFR],
-            tuple[time_frequency.EpochsTFR, time_frequency.AverageTFR]
-        ]:
+        output: str = "power",
+    ) -> Union[
+        time_frequency.EpochsTFR,
+        tuple[time_frequency.AverageTFR],
+        tuple[time_frequency.EpochsTFR, time_frequency.AverageTFR],
+    ]:
         """Gets the result of the Morlet power analysis.
         -   Allows the user to calculate inter-trial coherence without having
             power data averaged across epochs, overcoming a limitation in the
@@ -442,7 +432,7 @@ class PowerMorlet(ProcMethod):
                     zero_mean=zero_mean,
                     average=average_epochs,
                     output=output,
-                    verbose=self._verbose
+                    verbose=self._verbose,
                 )
             else:
                 power = time_frequency.tfr_morlet(
@@ -457,7 +447,7 @@ class PowerMorlet(ProcMethod):
                     zero_mean=zero_mean,
                     average=average_epochs,
                     output=output,
-                    verbose=self._verbose
+                    verbose=self._verbose,
                 )
                 _, itc = time_frequency.tfr_morlet(
                     inst=self.signal.data,
@@ -471,7 +461,7 @@ class PowerMorlet(ProcMethod):
                     zero_mean=zero_mean,
                     average=True,
                     output=output,
-                    verbose=self._verbose
+                    verbose=self._verbose,
                 )
                 result = (power, itc)
         else:
@@ -487,13 +477,13 @@ class PowerMorlet(ProcMethod):
                 zero_mean=zero_mean,
                 average=average_epochs,
                 output=output,
-                verbose=self._verbose
+                verbose=self._verbose,
             )
 
         return result
 
-
-    def process(self,
+    def process(
+        self,
         freqs: list[realnum],
         n_cycles: Union[int, list[int]],
         use_fft: bool = False,
@@ -505,8 +495,8 @@ class PowerMorlet(ProcMethod):
         average_epochs: bool = True,
         average_timepoints_power: bool = True,
         average_timepoints_itc: bool = False,
-        output: str = 'power'
-        ) -> None:
+        output: str = "power",
+    ) -> None:
         """Performs Morlet wavelet power analysis using the implementation in
         mne.time_frequency.tfr_morlet.
 
@@ -545,12 +535,12 @@ class PowerMorlet(ProcMethod):
         average_epochs : bool; default True
         -   If True, averages the power across epochs. If False, returns
             separate power values for each epoch.
-        
+
         average_timepoints_power : bool; default True
         -   If True, averages the power across timepoints within each epoch. If
             False, returns separate power values for each timepoint in the
             epoch.
-        
+
         average_timepoints_itc : bool; default False
         -   If True, averages the inter-trial coherence across timepoints. If
             False, returns separate coherence values for each timepoint. If this
@@ -565,7 +555,7 @@ class PowerMorlet(ProcMethod):
         -   Raised if the data in the object has already been processed.
         """
 
-        if self._getattr('_processed'):
+        if self._getattr("_processed"):
             ProcessingOrderError(
                 "The data in this object has already been processed. "
                 "Initialise a new instance of the object if you want to "
@@ -575,9 +565,9 @@ class PowerMorlet(ProcMethod):
         if self._verbose:
             if return_itc:
                 print(
-                "Performing Morlet wavelet power analysis on the data and "
-                "returning the inter-trial coherence."
-            )
+                    "Performing Morlet wavelet power analysis on the data and "
+                    "returning the inter-trial coherence."
+                )
             else:
                 print("Performing Morlet wavelet power analysis on the data.")
 
@@ -608,27 +598,27 @@ class PowerMorlet(ProcMethod):
 
         self._to_dataframe()
 
-        self._updateattr('_processed', True)
-        self._update_processing_steps({
-            'freqs': freqs,
-            'n_cycles': n_cycles,
-            'use_fft': use_fft,
-            'return_itc': return_itc,
-            'decim': decim,
-            'n_jobs': n_jobs,
-            'picks': picks,
-            'zero_mean': zero_mean,
-            'average_epochs': average_epochs,
-            'average_timepoints_power': average_timepoints_power,
-            'average_timepoints_itc': average_timepoints_itc,
-            'output': output,
-        })
+        self._updateattr("_processed", True)
+        self._update_processing_steps(
+            {
+                "freqs": freqs,
+                "n_cycles": n_cycles,
+                "use_fft": use_fft,
+                "return_itc": return_itc,
+                "decim": decim,
+                "n_jobs": n_jobs,
+                "picks": picks,
+                "zero_mean": zero_mean,
+                "average_epochs": average_epochs,
+                "average_timepoints_power": average_timepoints_power,
+                "average_timepoints_itc": average_timepoints_itc,
+                "output": output,
+            }
+        )
 
-
-    def save(self,
-        fpath: str,
-        ask_before_overwrite: Union[bool, None] = None
-        ) -> None:
+    def save(
+        self, fpath: str, ask_before_overwrite: Union[bool, None] = None
+    ) -> None:
         """Saves the processing results to a specified location.
 
         PARAMETERS
@@ -650,12 +640,11 @@ class PowerMorlet(ProcMethod):
         if self._verbose:
             print(f"Saving the morlet power results to:\n'{fpath}'.")
 
-        attr_to_save = ['power', 'processing_steps']
+        attr_to_save = ["power", "processing_steps"]
         if self._itc_returned:
-            attr_to_save.append('itc')
+            attr_to_save.append("itc")
 
         super().save(fpath, self, attr_to_save, ask_before_overwrite)
 
 
-
-#class PowerFOOOF(ProcMethod):
+# class PowerFOOOF(ProcMethod):
