@@ -7,8 +7,6 @@ Reref : abstract base class
 """
 
 
-
-
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from typing import Optional
@@ -18,8 +16,6 @@ import numpy as np
 from coh_check_entries import CheckLengthsList
 from coh_dtypes import realnum
 from coh_exceptions import ChannelTypeError, EntryLengthError
-
-
 
 
 class Reref(ABC):
@@ -47,9 +43,7 @@ class Reref(ABC):
     """
 
     @abstractmethod
-    def _check_input_lengths(self,
-        lengths_to_check : list[list]
-        ) -> int:
+    def _check_input_lengths(self, lengths_to_check: list[list]) -> int:
         """Checks that the lengths of the entries (representing the features of
         channels that will be rereferenced, e.g. channel names, coordinates,
         etc...) within a list are of the same length.
@@ -88,12 +82,10 @@ class Reref(ABC):
 
         return n_channels
 
-
     @abstractmethod
-    def _sort_raw(self,
-        raw: mne.io.Raw,
-        chs_to_analyse : list[str]
-        ) -> mne.io.Raw:
+    def _sort_raw(
+        self, raw: mne.io.Raw, chs_to_analyse: list[str]
+    ) -> mne.io.Raw:
         """Drops channels irrelevant to the rereferencing from an mne.io.Raw
         object.
 
@@ -113,45 +105,43 @@ class Reref(ABC):
         """
 
         raw.drop_channels(
-            [name for name in raw.info['ch_names']
-            if name not in chs_to_analyse]
+            [
+                name
+                for name in raw.info["ch_names"]
+                if name not in chs_to_analyse
+            ]
         )
 
         return raw.reorder_channels(chs_to_analyse)
-
 
     @abstractmethod
     def _sort_ch_names_new(self) -> None:
         pass
 
-
     @abstractmethod
     def _sort_ch_types_new(self) -> None:
         pass
-
 
     @abstractmethod
     def _sort_reref_types(self) -> None:
         pass
 
-
     @abstractmethod
     def _sort_ch_coords_new(self) -> None:
         pass
 
+    @abstractmethod
+    def _sort_ch_regions_new(self) -> None:
+        pass
 
     @abstractmethod
     def _sort_inputs(self) -> None:
-        """Checks that rereferencing settings are compatible and discards
-        rereferencing-irrelevant channels from the data.
-        """
+        pass
 
     @abstractmethod
-    def _data_from_raw(self,
-        raw: mne.io.Raw
-        ) -> tuple[
-            np.ndarray, mne.Info, list[str], list[list[realnum]]
-        ]:
+    def _data_from_raw(
+        self, raw: mne.io.Raw
+    ) -> tuple[np.ndarray, mne.Info, list[str], list[list[realnum]]]:
         """Extracts components of an mne.io.Raw object and returns them.
 
         PARAMETERS
@@ -178,18 +168,20 @@ class Reref(ABC):
             and z coordinates.
         """
 
-        return (raw.get_data(reject_by_annotation='omit').copy(),
-                raw.info.copy(),
-                raw.info['ch_names'].copy(),
-                raw._get_channel_positions().copy().tolist())
-
+        return (
+            raw.get_data(reject_by_annotation="omit").copy(),
+            raw.info.copy(),
+            raw.info["ch_names"].copy(),
+            raw._get_channel_positions().copy().tolist(),
+        )
 
     @abstractmethod
-    def _raw_from_data(self,
+    def _raw_from_data(
+        self,
         data: np.ndarray,
         data_info: mne.Info,
-        ch_coords: list[list[realnum]]
-        ) -> mne.io.Raw:
+        ch_coords: list[list[realnum]],
+    ) -> mne.io.Raw:
         """Generates an mne.io.Raw object based on the rereferenced data and its
         associated information.
 
@@ -214,16 +206,14 @@ class Reref(ABC):
 
         raw = mne.io.RawArray(data, data_info)
         if ch_coords != []:
-            raw._set_channel_positions(ch_coords, data_info['ch_names'])
+            raw._set_channel_positions(ch_coords, data_info["ch_names"])
 
         return raw
 
-
     @abstractmethod
-    def _store_rereference_types(self,
-        ch_names: list[str],
-        reref_types: list[str]
-        ) -> dict[str, str]:
+    def _store_rereference_types(
+        self, ch_names: list[str], reref_types: list[str]
+    ) -> dict[str, str]:
         """Generates a dictionary of key:value pairs consisting of channel name
         : rereferencing type.
 
@@ -245,28 +235,47 @@ class Reref(ABC):
 
         return {ch_names[i]: reref_types[i] for i in range(len(ch_names))}
 
+    @abstractmethod
+    def _store_ch_regions(
+        self, ch_names: list[str], ch_regions: list[str]
+    ) -> dict[str, str]:
+        """Generates a dictionary of key:value pairs consisting of channel name
+        : channel region.
+
+        PARAMETERS
+        ----------
+        ch_names : list[str]
+        -   The names of the channels that will become the dictionary keys.
+
+        ch_regions : list[str]
+        -   The regions of the channels, corresponding to the channels in
+            'ch_names', that will become the dictionary values.
+
+        RETURNS
+        -------
+        dict[str, str]
+        -   Dictionary of key:value pairs consisting of channel name :
+            channel region.
+        """
+
+        return {ch_names[i]: ch_regions[i] for i in range(len(ch_names))}
 
     @abstractmethod
     def _index_old_channels(self) -> None:
         """Creates an index of channels that are being rereferenced."""
 
-
     @abstractmethod
     def _set_data(self) -> None:
         """Rereferences the data."""
-
 
     @abstractmethod
     def _set_coordinates(self) -> None:
         """Sets the coordinates of the new, rereferenced channels."""
 
-
     @abstractmethod
-    def _set_data_info(self,
-        ch_names: list[str],
-        ch_types: list[str],
-        old_info: mne.Info
-        ) -> mne.Info:
+    def _set_data_info(
+        self, ch_names: list[str], ch_types: list[str], old_info: mne.Info
+    ) -> mne.Info:
         """Creates an mne.Info object containing information about the newly
         rereferenced data.
 
@@ -291,19 +300,17 @@ class Reref(ABC):
             data.
         """
 
-        new_info = mne.create_info(ch_names, old_info['sfreq'], ch_types)
-        do_not_overwrite = ['ch_names', 'chs', 'nchan']
+        new_info = mne.create_info(ch_names, old_info["sfreq"], ch_types)
+        do_not_overwrite = ["ch_names", "chs", "nchan"]
         for key, value in old_info.items():
             if key not in do_not_overwrite:
                 new_info[key] = value
 
         return new_info
 
-
     @abstractmethod
     def rereference(self) -> None:
         """Rereferences the data in an mne.io.Raw object."""
-
 
 
 class RerefBipolar(Reref):
@@ -351,14 +358,16 @@ class RerefBipolar(Reref):
     -   Rereferences the data in an mne.io.Raw object.
     """
 
-    def __init__(self,
+    def __init__(
+        self,
         raw: mne.io.Raw,
         ch_names_old: list[str],
         ch_names_new: Optional[list[Optional[str]]] = None,
         ch_types_new: Optional[list[Optional[str]]] = None,
         reref_types: Optional[list[Optional[str]]] = None,
-        ch_coords_new: Optional[list[Optional[list[realnum]]]] = None
-        ) -> None:
+        ch_coords_new: Optional[list[Optional[list[realnum]]]] = None,
+        ch_regions_new: Optional[list[Optional[str]]] = None,
+    ) -> None:
 
         # Initialises inputs of the RerefBipolar object.
         self.raw = raw
@@ -368,6 +377,7 @@ class RerefBipolar(Reref):
         self._ch_names_new = ch_names_new
         self._ch_types_new = ch_types_new
         self._ch_coords_new = ch_coords_new
+        self._ch_regions_new = ch_regions_new
         self._reref_types = reref_types
         self._sort_inputs()
 
@@ -375,7 +385,6 @@ class RerefBipolar(Reref):
         # with information as the data is processed.
         self._new_data = None
         self._new_ch_coords = None
-
 
     def _check_input_lengths(self) -> None:
         """Checks that the lengths of the entries (representing the features of
@@ -387,10 +396,15 @@ class RerefBipolar(Reref):
         """
 
         self._n_channels = super()._check_input_lengths(
-            [self._ch_names_old, self._ch_names_new, self._ch_types_new,
-            self._reref_types, self._ch_coords_new]
+            [
+                self._ch_names_old,
+                self._ch_names_new,
+                self._ch_types_new,
+                self._reref_types,
+                self._ch_coords_new,
+                self._ch_regions_new,
+            ]
         )
-
 
     def _sort_raw(self) -> None:
         """Drops channels irrelevant to the rereferencing from an mne.io.Raw
@@ -402,7 +416,6 @@ class RerefBipolar(Reref):
         ).tolist()
 
         self.raw = super()._sort_raw(self.raw, chs_to_analyse)
-
 
     def _check_ch_names_old(self) -> None:
         """Checks that two channel names (i.e. an anode and a cathode) are given
@@ -423,7 +436,6 @@ class RerefBipolar(Reref):
                 "settings specify otherwise."
             )
 
-
     def _sort_ch_names_new(self) -> None:
         """Resolves any missing entries for the names of the new, rereferenced
         channels, generating names based on the channels being rereferenced.
@@ -431,14 +443,13 @@ class RerefBipolar(Reref):
 
         if self._ch_names_new is None:
             for ch_names in self._ch_names_old:
-                self._ch_names_new.append('-'.join(name for name in ch_names))
+                self._ch_names_new.append("-".join(name for name in ch_names))
         elif any(item is None for item in self._ch_names_new):
             for i, ch_name in enumerate(self._ch_names_new):
                 if ch_name is None:
-                    self._ch_names_new[i] = '-'.join(
+                    self._ch_names_new[i] = "-".join(
                         name for name in self._ch_names_old[i]
                     )
-
 
     def _sort_reref_types(self) -> None:
         """Resolves any missing entries from the rereference types of the new
@@ -446,12 +457,11 @@ class RerefBipolar(Reref):
         """
 
         if self._reref_types is None:
-            self._reref_types = ['bipolar' for i in range(self._n_channels)]
+            self._reref_types = ["bipolar" for i in range(self._n_channels)]
         elif any(item is None for item in self._reref_types):
             for i, reref_type in enumerate(self._reref_types):
                 if reref_type is None:
-                    self._reref_types[i] = 'bipolar'
-
+                    self._reref_types[i] = "bipolar"
 
     def _sort_ch_types_new(self) -> None:
         """Resolves any missing entries from the channels types of the new
@@ -468,8 +478,8 @@ class RerefBipolar(Reref):
         if self._ch_types_new is None:
             self._ch_types_new = []
             for ch_names in self._ch_names_old:
-                ch_types_old = list(np.unique(
-                    self.raw.get_channel_types(ch_names))
+                ch_types_old = list(
+                    np.unique(self.raw.get_channel_types(ch_names))
                 )
                 if len(ch_types_old) == 1:
                     self._ch_types_new.append(ch_types_old[0])
@@ -484,9 +494,11 @@ class RerefBipolar(Reref):
         elif any(item is None for item in self._ch_types_new):
             for i, ch_type in enumerate(self._ch_types_new):
                 if ch_type is None:
-                    ch_types_old = list(np.unique(
-                        self.raw.get_channel_types(self._ch_names_old[i])
-                    ))
+                    ch_types_old = list(
+                        np.unique(
+                            self.raw.get_channel_types(self._ch_names_old[i])
+                        )
+                    )
                     if len(ch_types_old) == 1:
                         self._ch_types_new.append(ch_types_old[0])
                     else:
@@ -497,7 +509,6 @@ class RerefBipolar(Reref):
                             "based on the channels being rereferenced as they "
                             "are of different channel types."
                         )
-
 
     def _sort_ch_coords_new(self) -> None:
         """Resolves any missing entries for the channel coordinates of the new,
@@ -513,18 +524,31 @@ class RerefBipolar(Reref):
 
         if self._ch_coords_new is None:
             self._ch_coords_new = [
-                np.around(np.mean(
-                    [self._ch_coords[self._ch_index[i][0]],
-                    self._ch_coords[self._ch_index[i][1]]], axis=0
-                ), 2) for i in range(self._n_channels)
+                np.around(
+                    np.mean(
+                        [
+                            self._ch_coords[self._ch_index[i][0]],
+                            self._ch_coords[self._ch_index[i][1]],
+                        ],
+                        axis=0,
+                    ),
+                    2,
+                )
+                for i in range(self._n_channels)
             ]
         elif any(item is None for item in self._ch_types_new):
             for i, ch_coords in self._ch_coords_new:
                 if ch_coords is None:
-                    self._ch_coords_new[i] = np.around(np.mean(
-                        [self._ch_coords[self._ch_index[i][0]],
-                        self._ch_coords[self._ch_index[i][1]]], axis=0
-                    ), 2)
+                    self._ch_coords_new[i] = np.around(
+                        np.mean(
+                            [
+                                self._ch_coords[self._ch_index[i][0]],
+                                self._ch_coords[self._ch_index[i][1]],
+                            ],
+                            axis=0,
+                        ),
+                        2,
+                    )
 
         if not CheckLengthsList(self._ch_coords_new).equals_n(3):
             raise EntryLengthError(
@@ -533,6 +557,13 @@ class RerefBipolar(Reref):
                 "present, but the rereferencing settings specify otherwise."
             )
 
+    def _sort_ch_regions_new(self) -> None:
+        """Resolves any missing entries from the channels regions of the new
+        channels, setting missing entries to None.
+        """
+
+        if self._ch_regions_new is None:
+            self._ch_regions_new = [None] * len(self._ch_names_old)
 
     def _sort_inputs(self) -> None:
         """Checks that rereferencing settings are compatible and discards
@@ -545,16 +576,17 @@ class RerefBipolar(Reref):
         self._sort_ch_types_new()
         self._sort_reref_types()
         self._sort_ch_coords_new()
-
+        self._sort_ch_regions_new()
 
     def _data_from_raw(self) -> None:
-        """Extracts components of an mne.io.Raw object and returns them.
-        """
+        """Extracts components of an mne.io.Raw object and returns them."""
 
-        self._data, self._data_info, self._ch_names, self._ch_coords = (
-            super()._data_from_raw(self.raw)
-        )
-
+        (
+            self._data,
+            self._data_info,
+            self._ch_names,
+            self._ch_coords,
+        ) = super()._data_from_raw(self.raw)
 
     def _raw_from_data(self) -> None:
         """Generates an mne.io.Raw object based on the rereferenced data and its
@@ -565,7 +597,6 @@ class RerefBipolar(Reref):
             self._new_data, self._new_data_info, self._new_ch_coords
         )
 
-
     def _store_rereference_types(self) -> None:
         """Generates a dictionary of key:value pairs consisting of channel name
         : rereferencing type.
@@ -575,6 +606,14 @@ class RerefBipolar(Reref):
             self._ch_names_new, self._reref_types
         )
 
+    def _store_ch_regions(self) -> None:
+        """Generates a dictionary of key:value pairs consisting of channel name
+        : channel region.
+        """
+
+        self.ch_regions = super()._store_ch_regions(
+            self._ch_names_new, self._ch_regions_new
+        )
 
     def _index_old_channels(self) -> None:
         """Creates an index of channels that are being rereferenced, matching
@@ -586,7 +625,6 @@ class RerefBipolar(Reref):
             for name_i, name in enumerate(sublist):
                 self._ch_index[sublist_i][name_i] = self._ch_names.index(name)
 
-
     def _set_data(self) -> None:
         """Bipolar rereferences the data, subtracting one channel's data from
         another channel's data.
@@ -597,7 +635,6 @@ class RerefBipolar(Reref):
             - self._data[self._ch_index[ch_i][1]]
             for ch_i in range(self._n_channels)
         ]
-
 
     def _set_coordinates(self) -> None:
         """Sets the coordinates of the new, rereferenced channels.
@@ -634,12 +671,15 @@ class RerefBipolar(Reref):
                 self._new_ch_coords.append(
                     np.around(
                         np.mean(
-                            [self._ch_coords[self._ch_index[ch_i][0]],
-                            self._ch_coords[self._ch_index[ch_i][1]]], axis=0
-                        ), 2
+                            [
+                                self._ch_coords[self._ch_index[ch_i][0]],
+                                self._ch_coords[self._ch_index[ch_i][1]],
+                            ],
+                            axis=0,
+                        ),
+                        2,
                     )
                 )
-
 
     def _set_data_info(self) -> None:
         """Creates an mne.Info object containing information about the newly
@@ -649,7 +689,6 @@ class RerefBipolar(Reref):
         self._new_data_info = super()._set_data_info(
             self._ch_names_new, self._ch_types_new, self._data_info
         )
-
 
     def rereference(self) -> tuple[mne.io.Raw, list[str], dict[str, str]]:
         """Rereferences the data in an mne.io.Raw object.
@@ -673,9 +712,9 @@ class RerefBipolar(Reref):
         self._set_data_info()
         self._raw_from_data()
         self._store_rereference_types()
+        self._store_ch_regions()
 
-        return self.raw, self._ch_names_new, self.reref_types
-
+        return self.raw, self._ch_names_new, self.reref_types, self.ch_regions
 
 
 class RerefCAR(Reref):
@@ -724,14 +763,16 @@ class RerefCAR(Reref):
     -   Rereferences the data in an mne.io.Raw object.
     """
 
-    def __init__(self,
+    def __init__(
+        self,
         raw: mne.io.Raw,
         ch_names_old: list[str],
         ch_names_new: Optional[list[Optional[str]]] = None,
         ch_types_new: Optional[list[Optional[str]]] = None,
         reref_types: Optional[list[Optional[str]]] = None,
-        ch_coords_new: Optional[list[Optional[list[realnum]]]] = None
-        ) -> None:
+        ch_coords_new: Optional[list[Optional[list[realnum]]]] = None,
+        ch_regions_new: Optional[list[Optional[str]]] = None,
+    ) -> None:
 
         # Initialises inputs of the RerefCAR object.
         self.raw = raw
@@ -741,6 +782,7 @@ class RerefCAR(Reref):
         self._ch_names_new = ch_names_new
         self._ch_types_new = ch_types_new
         self._ch_coords_new = ch_coords_new
+        self._ch_regions_new = ch_regions_new
         self._reref_types = reref_types
         self._sort_inputs()
 
@@ -748,7 +790,6 @@ class RerefCAR(Reref):
         # with information as the data is processed.
         self._new_data = None
         self._new_ch_coords = None
-
 
     def _check_input_lengths(self) -> None:
         """Checks that the lengths of the entries (representing the features of
@@ -760,10 +801,15 @@ class RerefCAR(Reref):
         """
 
         self._n_channels = super()._check_input_lengths(
-            [self._ch_names_old, self._ch_names_new, self._ch_types_new,
-            self._reref_types, self._ch_coords_new]
+            [
+                self._ch_names_old,
+                self._ch_names_new,
+                self._ch_types_new,
+                self._reref_types,
+                self._ch_coords_new,
+                self._ch_regions_new,
+            ]
         )
-
 
     def _sort_raw(self) -> None:
         """Drops channels irrelevant to the rereferencing from an mne.io.Raw
@@ -774,7 +820,6 @@ class RerefCAR(Reref):
         chs_to_analyse = np.unique(list(self._ch_names_old)).tolist()
 
         self.raw = super()._sort_raw(self.raw, chs_to_analyse)
-
 
     def _sort_ch_names_new(self) -> None:
         """Resolves any missing entries for the names of the new, rereferenced
@@ -794,12 +839,11 @@ class RerefCAR(Reref):
         """
 
         if self._reref_types is None:
-            self._reref_types = ['CAR' for i in range(self._n_channels)]
+            self._reref_types = ["CAR" for i in range(self._n_channels)]
         elif any(item is None for item in self._reref_types):
             for i, reref_type in enumerate(self._reref_types):
                 if reref_type is None:
-                    self._reref_types[i] = 'CAR'
-
+                    self._reref_types[i] = "CAR"
 
     def _sort_ch_types_new(self) -> None:
         """Resolves any missing entries from the channels types of the new
@@ -816,7 +860,6 @@ class RerefCAR(Reref):
                     self._ch_types_new[i] = list(
                         self.raw.get_channel_types(self._ch_names_old[i])
                     )
-
 
     def _sort_ch_coords_new(self) -> None:
         """Resolves any missing entries for the channel coordinates of the new,
@@ -847,6 +890,13 @@ class RerefCAR(Reref):
                 "present, but the rereferencing settings specify otherwise."
             )
 
+    def _sort_ch_regions_new(self) -> None:
+        """Resolves any missing entries from the channels regions of the new
+        channels, setting them to None.
+        """
+
+        if self._ch_regions_new is None:
+            self._ch_regions_new = [None] * len(self._ch_names_old)
 
     def _sort_inputs(self) -> None:
         """Checks that rereferencing settings are compatible and discards
@@ -859,15 +909,17 @@ class RerefCAR(Reref):
         self._sort_ch_types_new()
         self._sort_reref_types()
         self._sort_ch_coords_new()
-
+        self._sort_ch_regions_new()
 
     def _data_from_raw(self) -> None:
         """Extracts components of an mne.io.Raw object and returns them."""
 
-        self._data, self._data_info, self._ch_names, self._ch_coords = (
-            super()._data_from_raw(self.raw)
-        )
-
+        (
+            self._data,
+            self._data_info,
+            self._ch_names,
+            self._ch_coords,
+        ) = super()._data_from_raw(self.raw)
 
     def _raw_from_data(self) -> None:
         """Generates an mne.io.Raw object based on the rereferenced data and its
@@ -878,7 +930,6 @@ class RerefCAR(Reref):
             self._new_data, self._new_data_info, self._new_ch_coords
         )
 
-
     def _store_rereference_types(self) -> None:
         """Generates a dictionary of key:value pairs consisting of channel name
         : rereferencing type.
@@ -888,16 +939,23 @@ class RerefCAR(Reref):
             self._ch_names_new, self._reref_types
         )
 
+    def _store_ch_regions(self) -> None:
+        """Generates a dictionary of key:value pairs consisting of channel name
+        : channel region.
+        """
+
+        self.ch_regions = super()._store_ch_regions(
+            self._ch_names_new, self._ch_regions_new
+        )
 
     def _index_old_channels(self) -> None:
         """Creates an index of channels that are being rereferenced, matching
         the format of the channel names used for rereferencing.
         """
 
-        self._ch_index = (
-            [self._ch_names.index(name) for name in self._ch_names_old]
-        )
-
+        self._ch_index = [
+            self._ch_names.index(name) for name in self._ch_names_old
+        ]
 
     def _set_data(self) -> None:
         """Common-average rereferences the data, subtracting the average of all
@@ -905,11 +963,10 @@ class RerefCAR(Reref):
         """
 
         avg_data = self._data[list(self._ch_index)].mean(axis=0)
-        self._new_data = (
-            [self._data[self._ch_index[ch_i]] - avg_data
-            for ch_i in range(self._n_channels)]
-        )
-
+        self._new_data = [
+            self._data[self._ch_index[ch_i]] - avg_data
+            for ch_i in range(self._n_channels)
+        ]
 
     def _set_coordinates(self) -> None:
         """Sets the coordinates of the new, rereferenced channels.
@@ -947,7 +1004,6 @@ class RerefCAR(Reref):
                     self._ch_coords[self._ch_index[ch_i]]
                 )
 
-
     def _set_data_info(self) -> None:
         """Creates an mne.Info object containing information about the newly
         rereferenced data.
@@ -956,7 +1012,6 @@ class RerefCAR(Reref):
         self._new_data_info = super()._set_data_info(
             self._ch_names_new, self._ch_types_new, self._data_info
         )
-
 
     def rereference(self) -> tuple[mne.io.Raw, list[str], dict[str, str]]:
         """Rereferences the data in an mne.io.Raw object.
@@ -981,9 +1036,9 @@ class RerefCAR(Reref):
         self._set_data_info()
         self._raw_from_data()
         self._store_rereference_types()
+        self._store_ch_regions()
 
-        return self.raw, self._ch_names_new, self.reref_types
-
+        return self.raw, self._ch_names_new, self.reref_types, self.ch_regions
 
 
 class RerefPseudo(Reref):
@@ -1036,14 +1091,16 @@ class RerefPseudo(Reref):
     -   Rereferences the data in an mne.io.Raw object.
     """
 
-    def __init__(self,
+    def __init__(
+        self,
         raw: mne.io.Raw,
         ch_names_old: list[str],
         ch_names_new: Optional[list[Optional[str]]] = None,
         ch_types_new: Optional[list[Optional[str]]] = None,
         reref_types: Optional[list[Optional[str]]] = None,
-        ch_coords_new: Optional[list[Optional[list[realnum]]]] = None
-        ) -> None:
+        ch_coords_new: Optional[list[Optional[list[realnum]]]] = None,
+        ch_regions_new: Optional[list[Optional[str]]] = None,
+    ) -> None:
 
         # Iniialises inputs of the RerefPseudo object.
         self.raw = raw
@@ -1053,6 +1110,7 @@ class RerefPseudo(Reref):
         self._ch_names_new = ch_names_new
         self._ch_types_new = ch_types_new
         self._ch_coords_new = ch_coords_new
+        self._ch_regions_new = ch_regions_new
         self._reref_types = reref_types
         self._sort_inputs()
 
@@ -1060,7 +1118,6 @@ class RerefPseudo(Reref):
         # with information as the data is processed.
         self._new_data = None
         self._new_ch_coords = None
-
 
     def _check_input_lengths(self) -> None:
         """Checks that the lengths of the entries (representing the features of
@@ -1071,10 +1128,15 @@ class RerefPseudo(Reref):
         """
 
         self._n_channels = super()._check_input_lengths(
-            [self._ch_names_old, self._ch_names_new, self._ch_types_new,
-            self._reref_types, self._ch_coords_new]
+            [
+                self._ch_names_old,
+                self._ch_names_new,
+                self._ch_types_new,
+                self._reref_types,
+                self._ch_coords_new,
+                self._ch_regions_new,
+            ]
         )
-
 
     def _sort_raw(self) -> None:
         """Drops channels irrelevant to the rereferencing from an mne.io.Raw
@@ -1084,7 +1146,6 @@ class RerefPseudo(Reref):
         chs_to_analyse = np.unique(list(self._ch_names_old)).tolist()
 
         self.raw = super()._sort_raw(self.raw, chs_to_analyse)
-
 
     def _sort_ch_names_new(self) -> None:
         """Resolves any missing entries for the names of the new, rereferenced
@@ -1097,7 +1158,6 @@ class RerefPseudo(Reref):
             for i, ch_name in enumerate(self._ch_names_new):
                 if ch_name is None:
                     self._ch_names_new[i] = list(self._ch_names_old[i])
-
 
     def _sort_reref_types(self) -> None:
         """Checks that all rereferencing types have been specified for the new
@@ -1118,7 +1178,6 @@ class RerefPseudo(Reref):
                 "."
             )
 
-
     def _sort_ch_types_new(self) -> None:
         """Resolves any missing entries from the channels types of the new
         channels, based on the types of channels they will be rereferenced from.
@@ -1134,7 +1193,6 @@ class RerefPseudo(Reref):
                     self._ch_types_new[i] = list(
                         self.raw.get_channel_types(self._ch_names_old[i])
                     )
-
 
     def _sort_ch_coords_new(self) -> None:
         """Resolves any missing entries for the channel coordinates of the new,
@@ -1165,6 +1223,22 @@ class RerefPseudo(Reref):
                 "present, but the rereferencing settings specify otherwise."
             )
 
+    def _sort_ch_regions_new(self) -> None:
+        """Resolves any missing entries from the channels regions of the new
+        channels, based on the regions of channels they will be rereferenced
+        from.
+        """
+
+        if self._ch_regions_new is None:
+            self._ch_regions_new = [
+                self.raw.ch_regions[ch_name] for ch_name in self._ch_names_old
+            ]
+        elif any(item is None for item in self._ch_regions_new):
+            for i, ch_region in enumerate(self._ch_regions_new):
+                if ch_region is None:
+                    self._ch_regions_new[i] = list(
+                        self.raw.ch_regions[self._ch_names_old[i]]
+                    )
 
     def _sort_inputs(self) -> None:
         """Checks that rereferencing settings are compatible and discards
@@ -1177,15 +1251,17 @@ class RerefPseudo(Reref):
         self._sort_ch_types_new()
         self._sort_reref_types()
         self._sort_ch_coords_new()
-
+        self._sort_ch_regions_new()
 
     def _data_from_raw(self) -> None:
         """Extracts components of an mne.io.Raw object and returns them."""
 
-        self._data, self._data_info, self._ch_names, self._ch_coords = (
-            super()._data_from_raw(self.raw)
-        )
-
+        (
+            self._data,
+            self._data_info,
+            self._ch_names,
+            self._ch_coords,
+        ) = super()._data_from_raw(self.raw)
 
     def _raw_from_data(self) -> None:
         """Generates an mne.io.Raw object based on the rereferenced data and its
@@ -1195,7 +1271,6 @@ class RerefPseudo(Reref):
             self._new_data, self._new_data_info, self._new_ch_coords
         )
 
-
     def _store_rereference_types(self) -> None:
         """Generates a dictionary of key:value pairs consisting of channel name
         : rereferencing type."""
@@ -1204,16 +1279,23 @@ class RerefPseudo(Reref):
             self._ch_names_new, self._reref_types
         )
 
+    def _store_ch_regions(self) -> None:
+        """Generates a dictionary of key:value pairs consisting of channel name
+        : channel region.
+        """
+
+        self.ch_regions = super()._store_ch_regions(
+            self._ch_names_new, self._ch_regions_new
+        )
 
     def _index_old_channels(self) -> None:
         """Creates an index of channels that are being rereferenced, matching
         the format of the channel names used for rereferencing.
         """
 
-        self._ch_index = (
-            [self._ch_names.index(name) for name in self._ch_names_old]
-        )
-
+        self._ch_index = [
+            self._ch_names.index(name) for name in self._ch_names_old
+        ]
 
     def _set_data(self) -> None:
         """Pseudo rereferences the data, setting the data for each new,
@@ -1221,11 +1303,10 @@ class RerefPseudo(Reref):
         original data.
         """
 
-        self._new_data = (
-            [self._data[self._ch_index[ch_i]]
-            for ch_i in range(self._n_channels)]
-        )
-
+        self._new_data = [
+            self._data[self._ch_index[ch_i]]
+            for ch_i in range(self._n_channels)
+        ]
 
     def _set_coordinates(self) -> None:
         """Sets the coordinates of the new, rereferenced channels.
@@ -1263,7 +1344,6 @@ class RerefPseudo(Reref):
                     np.around(self._ch_coords[self._ch_index[ch_i]], 2)
                 )
 
-
     def _set_data_info(self) -> None:
         """Creates an mne.Info object containing information about the newly
         rereferenced data.
@@ -1272,7 +1352,6 @@ class RerefPseudo(Reref):
         self._new_data_info = super()._set_data_info(
             self._ch_names_new, self._ch_types_new, self._data_info
         )
-
 
     def rereference(self) -> tuple[mne.io.Raw, list[str], dict[str, str]]:
         """Rereferences the data in an mne.io.Raw object.
@@ -1297,5 +1376,6 @@ class RerefPseudo(Reref):
         self._set_data_info()
         self._raw_from_data()
         self._store_rereference_types()
+        self._store_ch_regions()
 
-        return self.raw, self._ch_names_new, self.reref_types
+        return self.raw, self._ch_names_new, self.reref_types, self.ch_regions
