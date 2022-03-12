@@ -320,8 +320,8 @@ class Signal:
                 f"({len(ch_names)} and {len(ch_regions)}, respectively)."
             )
 
-        for i in range(len(ch_names)):
-            self.extra_info["ch_regions"][ch_names[i]] = ch_regions[i]
+        for i, ch_name in enumerate(ch_names):
+            self.extra_info["ch_regions"][ch_name] = ch_regions[i]
         self.data.ch_regions = self.extra_info["ch_regions"]
 
         self._updateattr("_regions_set", True)
