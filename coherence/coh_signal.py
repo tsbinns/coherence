@@ -7,18 +7,18 @@ Signal
 """
 
 
-
-
 from typing import Any, Optional, Union
 import mne
 import mne_bids
 import numpy as np
 
 from coh_dtypes import realnum
-from coh_exceptions import ProcessingOrderError, MissingAttributeError
+from coh_exceptions import (
+    ProcessingOrderError,
+    MissingAttributeError,
+    EntryLengthError,
+)
 from coh_rereference import Reref, RerefBipolar, RerefCAR, RerefPseudo
-
-
 
 
 class Signal:
@@ -89,19 +89,16 @@ class Signal:
     -   Divides the mne.io.Raw object into epochs of a specified duration.
     """
 
-    def __init__(self,
-        verbose: bool = True
-        ) -> None:
+    def __init__(self, verbose: bool = True) -> None:
 
         # Initialises inputs of the Signal object.
         self._verbose = verbose
 
         # Initialises aspects of the Signal object that will be filled with
         # information as the data is processed.
-        self.processing_steps = {'preprocessing':{}}
+        self.processing_steps = {"preprocessing": {}}
         self._processing_step_number = 1
         self.extra_info = {}
-        self.extra_info['rereferencing_types'] = {}
         self.data = None
         self._path_raw = None
 
@@ -111,6 +108,7 @@ class Signal:
         self._annotations_loaded = False
         self._channels_picked = False
         self._coordinates_set = False
+        self._regions_set = False
         self._bandpass_filtered = False
         self._notch_filtered = False
         self._resampled = False
@@ -120,11 +118,7 @@ class Signal:
         self._rereferenced_pseudo = False
         self._epoched = False
 
-
-    def _updateattr(self,
-        attribute: str,
-        value: Any
-        ) -> None:
+    def _updateattr(self, attribute: str, value: Any) -> None:
         """Updates aspects of the Signal object that indicate which methods
         have been called.
         -   The aspects must have already been instantiated.
@@ -153,10 +147,7 @@ class Signal:
                 "updated."
             )
 
-
-    def _getattr(self,
-        attribute: str
-        ) -> Any:
+    def _getattr(self, attribute: str) -> Any:
         """Gets aspects of the Signal object that indicate which methods have
         been called.
         -   The aspects must have already been instantiated.
@@ -187,11 +178,9 @@ class Signal:
 
         return getattr(self, attribute)
 
-
-    def _update_processing_steps(self,
-        step_name: str,
-        step_value: Any
-        ) -> None:
+    def _update_processing_steps(
+        self, step_name: str, step_value: Any
+    ) -> None:
         """Updates the 'preprocessing' entry of the 'processing_steps'
         dictionary of the Signal object with new information consisting of a
         key:value pair in which the key is numbered based on the applied steps.
@@ -206,28 +195,22 @@ class Signal:
         """
 
         step_name = f"{self._processing_step_number}.{step_name}"
-        self.processing_steps['preprocessing'][step_name] = step_value
+        self.processing_steps["preprocessing"][step_name] = step_value
         self._processing_step_number += 1
-    
 
-    def add_metadata(self,
-        metadata : dict
-        ) -> None:
+    def add_metadata(self, metadata: dict) -> None:
         """Adds information about the data being preprocessed to the extra_info
         aspect.
-        
+
         PARAMETERS
         ----------
         metadata : dict
         -   Information about the data being preprocessed.
         """
 
-        self.extra_info['metadata'] = metadata
+        self.extra_info["metadata"] = metadata
 
-
-    def order_channels(self,
-        ch_names: list[str]
-        ) -> None:
+    def order_channels(self, ch_names: list[str]) -> None:
         """Orders channels in the mne.io.Raw or mne.Epochs object based on a
         given order.
 
@@ -239,7 +222,6 @@ class Signal:
         """
 
         self.data.reorder_channels(ch_names)
-
 
     def get_coordinates(self) -> list[list[realnum]]:
         """Extracts coordinates of the channels from the mne.io.Raw or
@@ -254,11 +236,9 @@ class Signal:
 
         return self.data._get_channel_positions().copy().tolist()
 
-
-    def _discard_missing_coordinates(self,
-        ch_names: list[str],
-        ch_coords: list[list[realnum]]
-        ) -> tuple[list, list]:
+    def _discard_missing_coordinates(
+        self, ch_names: list[str], ch_coords: list[list[realnum]]
+    ) -> tuple[list, list]:
         """Removes empty sublists from a parent list of channel coordinates
         (also removes them from the corresponding entries of channel names)
         before applying the coordinates to the mne.io.Raw or mne.Epochs object.
@@ -290,14 +270,12 @@ class Signal:
         keep_i = [i for i, coords in enumerate(ch_coords) if coords != []]
         return (
             [name for i, name in enumerate(ch_names) if i in keep_i],
-            [coords for i, coords in enumerate(ch_coords) if i in keep_i]
+            [coords for i, coords in enumerate(ch_coords) if i in keep_i],
         )
 
-
-    def set_coordinates(self,
-        ch_names: list[str],
-        ch_coords: list[list[realnum]]
-        ) -> None:
+    def set_coordinates(
+        self, ch_names: list[str], ch_coords: list[list[realnum]]
+    ) -> None:
         """Assigns coordinates to the channels in the mne.io.Raw or mne.Epochs
         object.
 
@@ -318,10 +296,37 @@ class Signal:
         )
         self.data._set_channel_positions(ch_coords, ch_names)
 
-        self._updateattr('_coordinates_set', True)
-        if self._getattr('_verbose'):
+        self._updateattr("_coordinates_set", True)
+        if self._getattr("_verbose"):
             print(f"Setting channel coordinates to:\n{ch_coords}.")
 
+    def set_regions(self, ch_names: list[str], ch_regions: list[str]) -> None:
+        """Adds channel regions to the extra_info dictionary.
+
+        PARAMETERS
+        ----------
+        ch_names : list[str]
+        -   The names of the channels corresponding to the regions in
+            'ch_regions'.
+
+        ch_regions : list[str]
+        -   Regions of the channels, with each entry consiting of a region name
+            of the corresponding channel specified in 'ch_names'.
+        """
+
+        if len(ch_names) != len(ch_regions):
+            raise EntryLengthError(
+                "The channel names and regions do not have the same length "
+                f"({len(ch_names)} and {len(ch_regions)}, respectively)."
+            )
+
+        for i in range(len(ch_names)):
+            self.extra_info["ch_regions"][ch_names[i]] = ch_regions[i]
+        self.data.ch_regions = self.extra_info["ch_regions"]
+
+        self._updateattr("_regions_set", True)
+        if self._getattr("_verbose"):
+            print(f"Setting channel regions to:\n{ch_regions}.")
 
     def get_data(self) -> np.array:
         """Extracts the data array from the mne.io.Raw or mne.Epochs object,
@@ -333,12 +338,22 @@ class Signal:
         -   Array of the data.
         """
 
-        return self.data.get_data(reject_by_annotation='omit').copy()
+        return self.data.get_data(reject_by_annotation="omit").copy()
 
+    def _initialise_extra_info(self) -> None:
+        """Fills the extra_info dictionary with placeholder information. This
+        should only be called when the data is initiallz loaded.
+        """
 
-    def load_raw(self,
-        path_raw: mne_bids.BIDSPath
-        ) -> None:
+        self.extra_info["rereferencing_types"] = {
+            ch_name: "none" for ch_name in self.data.info["ch_names"]
+        }
+        self.extra_info["ch_regions"] = {
+            ch_name: "none" for ch_name in self.data.info["ch_names"]
+        }
+        self.data.ch_regions = self.extra_info["ch_regions"]
+
+    def load_raw(self, path_raw: mne_bids.BIDSPath) -> None:
         """Loads an mne.io.Raw object, loads it into memory, and sets it as the
         data, also assigning rereferencing types in 'extra_info' for the
         channels present in the mne.io.Raw object to 'none'.
@@ -356,7 +371,7 @@ class Signal:
         -   A new Signal object should be instantiated and used instead.
         """
 
-        if self._getattr('_data_loaded'):
+        if self._getattr("_data_loaded"):
             raise ProcessingOrderError(
                 "Error when trying to load raw data:\nRaw data has already "
                 "been loaded into the object."
@@ -367,18 +382,13 @@ class Signal:
             bids_path=self._path_raw, verbose=False
         )
         self.data.load_data()
+        self._initialise_extra_info()
 
-        self._updateattr('_data_loaded', True)
-        self.extra_info['rereferencing_types'].update(
-            {ch_name: 'none' for ch_name in self.data.info['ch_names']}
-        )
+        self._updateattr("_data_loaded", True)
         if self._verbose:
             print(f"Loading the data from the filepath:\n{path_raw}.")
 
-
-    def load_annotations(self,
-        path_annots: str
-        ) -> None:
+    def load_annotations(self, path_annots: str) -> None:
         """Loads annotations corresponding to the mne.io.Raw object.
 
         PARAMETERS
@@ -414,13 +424,10 @@ class Signal:
         except:
             print("There are no events to read from the annotations file.")
 
-        self._updateattr('_annotations_loaded', True)
-        self._update_processing_steps('annotations_added', True)
+        self._updateattr("_annotations_loaded", True)
+        self._update_processing_steps("annotations_added", True)
 
-
-    def _pick_extra_info(self,
-        ch_names: list[str]
-        ) -> None:
+    def _pick_extra_info(self, ch_names: list[str]) -> None:
         """Retains entries for selected channels in 'extra_info', discarding
         those for the remaining channels.
 
@@ -436,10 +443,7 @@ class Signal:
             }
             self.extra_info[key] = new_entry
 
-
-    def _drop_extra_info(self,
-        ch_names: list[str]
-        ) -> None:
+    def _drop_extra_info(self, ch_names: list[str]) -> None:
         """Removes entries for selected channels in 'extra_info', retaining
         those for the remaining channels.
 
@@ -452,10 +456,7 @@ class Signal:
         for key in self.extra_info.keys():
             [self.extra_info[key].pop(name) for name in ch_names]
 
-
-    def _drop_channels(self,
-        ch_names: list[str]
-        ) -> None:
+    def _drop_channels(self, ch_names: list[str]) -> None:
         """Removes channels from the mne.io.Raw or mne.Epochs object, as well as
         from entries in 'extra_info'.
 
@@ -467,11 +468,9 @@ class Signal:
 
         self.data.drop_channels(ch_names)
         self._drop_extra_info(ch_names)
+        self.data.ch_regions = self.extra_info["ch_regions"]
 
-
-    def pick_channels(self,
-        ch_names: list[str]
-        ) -> None:
+    def pick_channels(self, ch_names: list[str]) -> None:
         """Retains only certain channels in the mne.io.Raw or mne.Epochs object,
         also retaining only entries for these channels from the 'extra_info'.
 
@@ -483,20 +482,17 @@ class Signal:
 
         self.data.pick_channels(ch_names)
         self._pick_extra_info(ch_names)
+        self.data.ch_regions = self.extra_info["ch_regions"]
 
-        self._updateattr('_channels_picked', True)
-        self._update_processing_steps('channel_picks', ch_names)
+        self._updateattr("_channels_picked", True)
+        self._update_processing_steps("channel_picks", ch_names)
         if self._verbose:
             print(
                 "Picking specified channels from the data.\nChannels: "
                 f"{ch_names}."
             )
 
-
-    def bandpass_filter(self,
-        lowpass_freq: int,
-        highpass_freq: int
-        ) -> None:
+    def bandpass_filter(self, lowpass_freq: int, highpass_freq: int) -> None:
         """Bandpass filters the mne.io.Raw or mne.Epochs object.
 
         PARAMETERS
@@ -510,9 +506,9 @@ class Signal:
 
         self.data.filter(highpass_freq, lowpass_freq)
 
-        self._updateattr('_bandpass_filtered', True)
+        self._updateattr("_bandpass_filtered", True)
         self._update_processing_steps(
-            'bandpass_filter', [lowpass_freq, highpass_freq]
+            "bandpass_filter", [lowpass_freq, highpass_freq]
         )
         if self._verbose:
             print(
@@ -520,10 +516,7 @@ class Signal:
                 f"Hz. High frequency: {lowpass_freq} Hz."
             )
 
-
-    def notch_filter(self,
-        line_noise_freq: int
-        ) -> None:
+    def notch_filter(self, line_noise_freq: int) -> None:
         """Notch filters the mne.io.Raw or mne.Epochs object.
 
         PARAMETERS
@@ -534,13 +527,15 @@ class Signal:
         """
 
         freqs = np.arange(
-            line_noise_freq, self.data.info['lowpass'], line_noise_freq,
-            dtype=int
+            line_noise_freq,
+            self.data.info["lowpass"],
+            line_noise_freq,
+            dtype=int,
         ).tolist()
         self.data.notch_filter(freqs)
 
-        self._updateattr('_notch_filtered', True)
-        self._update_processing_steps('notch_filter', freqs)
+        self._updateattr("_notch_filtered", True)
+        self._update_processing_steps("notch_filter", freqs)
         if self._verbose:
             print(
                 "Notch filtering the data with line noise frequency "
@@ -548,10 +543,7 @@ class Signal:
                 f"{freqs}."
             )
 
-
-    def resample(self,
-        resample_freq: int
-        ) -> None:
+    def resample(self, resample_freq: int) -> None:
         """Resamples the mne.io.Raw or mne.Epochs object.
 
         PARAMETERS
@@ -562,11 +554,10 @@ class Signal:
 
         self.data.resample(resample_freq)
 
-        self._updateattr('_resampled', True)
-        self._update_processing_steps('resample', resample_freq)
+        self._updateattr("_resampled", True)
+        self._update_processing_steps("resample", resample_freq)
         if self._verbose:
             print(f"Resampling the data at {resample_freq} Hz.")
-
 
     def drop_unrereferenced_channels(self) -> None:
         """Drops channels that have not been rereferenced from the mne.io.Raw or
@@ -575,20 +566,23 @@ class Signal:
         """
 
         self._drop_channels(
-            [ch_name for ch_name in
-            self.extra_info['rereferencing_types'].keys()
-            if self.extra_info['rereferencing_types'][ch_name] == 'none']
+            [
+                ch_name
+                for ch_name in self.extra_info["rereferencing_types"].keys()
+                if self.extra_info["rereferencing_types"][ch_name] == "none"
+            ]
         )
 
-
-    def _apply_rereference(self,
+    def _apply_rereference(
+        self,
         RerefMethod: Reref,
         ch_names_old: Union[list[str], list[list[str]]],
         ch_names_new: Optional[list[Optional[str]]],
         ch_types_new: Optional[list[Optional[str]]],
         reref_types: Optional[list[Optional[str]]],
-        ch_coords_new: Optional[list[Optional[list[realnum]]]]
-        ) -> tuple[mne.io.Raw, list[str], dict[str, str]]:
+        ch_coords_new: Optional[list[Optional[list[realnum]]]],
+        ch_regions_new: Optional[list[Optional[str]]],
+    ) -> tuple[mne.io.Raw, list[str], dict[str, str]]:
         """Applies a rereferencing method to the mne.io.Raw object.
 
         PARAMETERS
@@ -638,17 +632,20 @@ class Signal:
         """
 
         RerefObject = RerefMethod(
-            self.data.copy(), ch_names_old, ch_names_new, ch_types_new,
-            reref_types, ch_coords_new
+            self.data.copy(),
+            ch_names_old,
+            ch_names_new,
+            ch_types_new,
+            reref_types,
+            ch_coords_new,
+            ch_regions_new,
         )
 
         return RerefObject.rereference()
 
-
-    def _check_conflicting_channels(self,
-        ch_names_1: list[str],
-        ch_names_2: list[str]
-        ) -> list:
+    def _check_conflicting_channels(
+        self, ch_names_1: list[str], ch_names_2: list[str]
+    ) -> list:
         """Checks whether there are any of the same channel names in two lists.
         -   Useful to perform before appending an external mne.io.Raw or
             mne.Epochs object.
@@ -669,10 +666,7 @@ class Signal:
 
         return [name for name in ch_names_1 if name in ch_names_2]
 
-
-    def _remove_conflicting_channels(self,
-        ch_names: list[str]
-        ) -> None:
+    def _remove_conflicting_channels(self, ch_names: list[str]) -> None:
         """Removes channels from the self mne.io.Raw or mne.Epochs object.
         -   Designed for use alongside '_append_rereferenced_raw'.
         -   Useful to perform before appending an external mne.io.Raw or
@@ -692,14 +686,11 @@ class Signal:
             "Removing the channels from the raw data."
         )
 
-
-    def _append_rereferenced_raw(self,
-        rerefed_raw: mne.io.Raw
-        ) -> None:
+    def _append_rereferenced_raw(self, rerefed_raw: mne.io.Raw) -> None:
         """Appends a rereferenced mne.io.Raw object to the self mne.io.Raw
         object, first discarding channels in the self mne.io.Raw object which
         have the same names as those in the mne.io.Raw object to append.
-  
+
         PARAMETERS
         ----------
         rerefed_raw : mne.io.Raw
@@ -708,17 +699,14 @@ class Signal:
         """
 
         ch_names = self._check_conflicting_channels(
-            self.data.info['ch_names'], rerefed_raw.info['ch_names']
+            self.data.info["ch_names"], rerefed_raw.info["ch_names"]
         )
         if ch_names != []:
             self._remove_conflicting_channels(ch_names)
 
         self.data.add_channels([rerefed_raw])
 
-
-    def _add_rereferencing_info(self,
-        reref_types: dict[str, str]
-        ) -> None:
+    def _add_rereferencing_info(self, reref_types: dict[str, str]) -> None:
         """Adds channel rereferencing information to 'extra_info'.
 
         PARAETERS
@@ -728,13 +716,25 @@ class Signal:
             type.
         """
 
-        self.extra_info['rereferencing_types'].update(reref_types)
+        self.extra_info["rereferencing_types"].update(reref_types)
 
+    def _add_ch_region_info(self, ch_regions: dict[str, str]) -> None:
+        """Adds channel region information to 'extra_info'.
 
-    def _get_channel_rereferencing_pairs(self,
+        PARAETERS
+        ---------
+        ch_regions : dict[str, str]
+        -   Dictionary with key:value pairs of channel name : channel region.
+        """
+
+        for ch_info in ch_regions.items():
+            self.extra_info["ch_regions"][ch_info[0]] = ch_info[1]
+
+    def _get_channel_rereferencing_pairs(
+        self,
         ch_names_old: Union[list[str], list[list[str]]],
-        ch_names_new: list[str]
-        ) -> list:
+        ch_names_new: list[str],
+    ) -> list:
         """Collects the names of the channels that were referenced and the newly
         generated channels together.
 
@@ -757,18 +757,20 @@ class Signal:
         """
 
         return [
-            [ch_names_old[i], ch_names_new[i]] for i in range(len(ch_names_old))
+            [ch_names_old[i], ch_names_new[i]]
+            for i in range(len(ch_names_old))
         ]
 
-
-    def _rereference(self,
+    def _rereference(
+        self,
         RerefMethod: Reref,
         ch_names_old: Union[list[str], list[list[str]]],
         ch_names_new: Optional[list[Optional[str]]],
         ch_types_new: Optional[list[Optional[str]]],
         reref_types: Optional[list[Optional[str]]],
-        ch_coords_new: Optional[list[Optional[list[realnum]]]]
-        ) -> list[str]:
+        ch_coords_new: Optional[list[Optional[list[realnum]]]],
+        ch_regions_new: Optional[list[Optional[str]]],
+    ) -> list[str]:
         """Parent method for calling on other methods to rereference the data,
         add it to the self mne.io.Raw object, and add the rereferecing
         information to 'extra_info'.
@@ -829,25 +831,37 @@ class Signal:
                 "should be raw, but it has been epoched."
             )
 
-        rerefed_raw, ch_names_new, reref_types_dict = self._apply_rereference(
-            RerefMethod, ch_names_old, ch_names_new, ch_types_new, reref_types,
-            ch_coords_new
+        (
+            rerefed_raw,
+            ch_names_new,
+            reref_types_dict,
+            ch_regions_new,
+        ) = self._apply_rereference(
+            RerefMethod,
+            ch_names_old,
+            ch_names_new,
+            ch_types_new,
+            reref_types,
+            ch_coords_new,
+            ch_regions_new,
         )
         self._append_rereferenced_raw(rerefed_raw)
         self._add_rereferencing_info(reref_types_dict)
+        self._add_ch_region_info(ch_regions_new)
 
-        self._updateattr('_rereferenced', True)
+        self._updateattr("_rereferenced", True)
 
         return ch_names_new
 
-
-    def rereference_bipolar(self,
+    def rereference_bipolar(
+        self,
         ch_names_old: list[list[str]],
         ch_names_new: list[str],
         ch_types_new: list[str],
         reref_types: list[str],
-        ch_coords_new: Optional[list[Optional[list[realnum]]]]
-        ) -> None:
+        ch_coords_new: Optional[list[Optional[list[realnum]]]],
+        ch_regions_new: list[str],
+    ) -> None:
         """Bipolar rereferences channels in the mne.io.Raw object.
 
         PARAMETERS
@@ -885,28 +899,36 @@ class Signal:
         """
 
         ch_names_new = self._rereference(
-            RerefBipolar, ch_names_old, ch_names_new, ch_types_new, reref_types,
-            ch_coords_new
+            RerefBipolar,
+            ch_names_old,
+            ch_names_new,
+            ch_types_new,
+            reref_types,
+            ch_coords_new,
+            ch_regions_new,
         )
 
-        self._updateattr('_rereferenced_bipolar', True)
+        self._updateattr("_rereferenced_bipolar", True)
         ch_reref_pairs = self._get_channel_rereferencing_pairs(
             ch_names_old, ch_names_new
         )
-        self._update_processing_steps('rereferencing_bipolar', ch_reref_pairs)
+        self._update_processing_steps("rereferencing_bipolar", ch_reref_pairs)
         if self._verbose:
             print("The following channels have been bipolar rereferenced:")
-            [print(f"{old[0]} - {old[1]} -> {new}") for [old, new] in
-            ch_reref_pairs]
+            [
+                print(f"{old[0]} - {old[1]} -> {new}")
+                for [old, new] in ch_reref_pairs
+            ]
 
-
-    def rereference_CAR(self,
+    def rereference_CAR(
+        self,
         ch_names_old: list[list[str]],
         ch_names_new: list[str],
         ch_types_new: list[str],
         reref_types: list[str],
-        ch_coords_new: Optional[list[Optional[list[realnum]]]]
-        ) -> None:
+        ch_coords_new: Optional[list[Optional[list[realnum]]]],
+        ch_regions_new: list[str],
+    ) -> None:
         """Common-average rereferences channels in the mne.io.Raw object.
 
         PARAMETERS
@@ -944,27 +966,33 @@ class Signal:
         """
 
         ch_names_new = self._rereference(
-            RerefCAR, ch_names_old, ch_names_new, ch_types_new, reref_types,
+            RerefCAR,
+            ch_names_old,
+            ch_names_new,
+            ch_types_new,
+            reref_types,
             ch_coords_new,
+            ch_regions_new,
         )
 
-        self._updateattr('_rereferenced_CAR', True)
+        self._updateattr("_rereferenced_CAR", True)
         ch_reref_pairs = self._get_channel_rereferencing_pairs(
             ch_names_old, ch_names_new
         )
-        self._update_processing_steps('rereferencing_CAR', ch_reref_pairs)
+        self._update_processing_steps("rereferencing_CAR", ch_reref_pairs)
         if self._verbose:
             print("The following channels have been CAR rereferenced:")
             [print(f"{old} -> {new}") for [old, new] in ch_reref_pairs]
-    
 
-    def rereference_pseudo(self,
+    def rereference_pseudo(
+        self,
         ch_names_old: list[list[str]],
         ch_names_new: list[str],
         ch_types_new: list[str],
         reref_types: list[str],
-        ch_coords_new: Optional[list[Optional[list[realnum]]]]
-        ) -> None:
+        ch_coords_new: Optional[list[Optional[list[realnum]]]],
+        ch_regions_new: list[str],
+    ) -> None:
         """Pseudo rereferences channels in the mne.io.Raw object.
         -   This allows e.g. rereferencing types, channel coordinates, etc... to
             be assigned to the channels without any rereferencing occuring.
@@ -1007,23 +1035,25 @@ class Signal:
         """
 
         ch_names_new = self._rereference(
-            RerefPseudo, ch_names_old, ch_names_new, ch_types_new, reref_types,
-            ch_coords_new
+            RerefPseudo,
+            ch_names_old,
+            ch_names_new,
+            ch_types_new,
+            reref_types,
+            ch_coords_new,
+            ch_regions_new,
         )
 
-        self._updateattr('_rereferenced_pseudo', True)
+        self._updateattr("_rereferenced_pseudo", True)
         ch_reref_pairs = self._get_channel_rereferencing_pairs(
             ch_names_old, ch_names_new
         )
-        self._update_processing_steps('rereferencing_pseudo', ch_reref_pairs)
+        self._update_processing_steps("rereferencing_pseudo", ch_reref_pairs)
         if self._verbose:
             print("The following channels have been pseudo rereferenced:")
             [print(f"{old} -> {new}") for [old, new] in ch_reref_pairs]
 
-
-    def epoch(self,
-        epoch_length: int
-        ) -> None:
+    def epoch(self, epoch_length: int) -> None:
         """Divides the mne.io.Raw object into epochs of a specified duration.
 
         PARAMETERS
@@ -1048,10 +1078,10 @@ class Signal:
         self.data = mne.make_fixed_length_epochs(self.data, epoch_length)
         self.data.load_data()
 
-        self._updateattr('_epoched', True)
-        self._update_processing_steps('epoch_data', epoch_length)
+        self._updateattr("_epoched", True)
+        self._update_processing_steps("epoch_data", epoch_length)
         if self._verbose:
             print(
-                f"Epoching the data with epoch lengths of {epoch_length}"
+                f"Epoching the data with epoch lengths of {epoch_length} "
                 "seconds."
             )
