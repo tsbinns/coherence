@@ -136,8 +136,8 @@ class PowerMorlet(ProcMethod):
             )
 
     def _sort_inputs(self) -> None:
-        """Checks the inputs to the Analysis object to ensure that they match
-        the requirements for processing.
+        """Checks the inputs to the processing method object to ensure that they
+        match the requirements for processing.
 
         RAISES
         ------
@@ -200,6 +200,20 @@ class PowerMorlet(ProcMethod):
     def _check_vars_present(
         self, master_list: list[str], sublists: list[list[str]]
     ) -> None:
+        """Checks to make sure the variables in the variable order list are all
+        present in the identical and unique variable lists and that the
+        identical and unique variable lists are specified in the variable
+        order list.
+
+        PARAMETERS
+        ----------
+        master_list : list[Any]
+        -   A master list of values. Here the variable order list.
+
+        sublists : list[list[Any]]
+        -   A list of sublists of values. Here the identical and unique
+            variable lists.
+        """
 
         entry_checking = CheckEntriesPresent(master_list, sublists)
 
@@ -220,35 +234,6 @@ class PowerMorlet(ProcMethod):
                 "the columns of the DataFrame."
             )
 
-    def _get_df_var_order(self) -> list[str]:
-        """Gets the order of variables for how they will appear in the
-        DataFrame.
-
-        RETURNS
-        -------
-        var_order : list[str]
-        -   The names of the variables in order.
-        """
-
-        var_order = [
-            "cohort",
-            "sub",
-            "med",
-            "stim",
-            "task",
-            "ses",
-            "run",
-            "ch_name",
-            "reref_type",
-            "ch_coords",
-            "ch_region",
-            "power",
-        ]
-        if self._itc_returned:
-            var_order.append("itc")
-
-        return var_order
-
     def _set_df_identical_vars(
         self, var_names: list[str], var_values: dict[Any]
     ) -> dict:
@@ -266,7 +251,7 @@ class PowerMorlet(ProcMethod):
 
         RETURNS
         -------
-        identical_vars : dict
+        dict[Any]
         -   Dictionary of key:value pairs where the keys are the variable names
             and the values a list of identical entries for the corresponding
             key.
@@ -274,11 +259,7 @@ class PowerMorlet(ProcMethod):
 
         n_entries = len(self.signal.data.ch_names)
 
-        identical_vars = {
-            name: [var_values[name]] * n_entries for name in var_names
-        }
-
-        return identical_vars
+        return {name: [var_values[name]] * n_entries for name in var_names}
 
     def _set_df_unique_vars(self, var_names: list[str]) -> dict:
         """Sets the variables which have unique values depending on the
@@ -330,12 +311,38 @@ class PowerMorlet(ProcMethod):
         return unique_vars
 
     def _combine_df_vars(
-        self, metadata_vars: dict[Any], unique_vars: dict[Any]
+        self, identical_vars: dict[Any], unique_vars: dict[Any]
     ) -> dict:
+        """Combines identical and unique variables together into a single
+        dictionary.
 
-        combined_vars = metadata_vars | unique_vars
+        PARAMETERS
+        ----------
+        identical_vars : dict[Any]
+        -   Dictionary in which the keys are the names of the variables whose
+            values are identical across channels, and the values the variables'
+            corresponding values.
 
-        duplicates, duplicate_values = CheckDuplicatesList(combined_vars)
+        unique_vars : dict[Any]
+        -   Dictionary in which the keys are the names of the variables whose
+            values are different across channels, and the values the variables'
+            corresponding values.
+
+        RETURNS
+        -------
+        combined_vars : dict[Any]
+        -   Dictionary containing the identical and unique variables.
+
+        RAISES
+        ------
+        DuplicateEntryError
+        -   Raised if a variable is listed multiple times within the identical
+            and/or unique variables.
+        """
+
+        combined_vars = identical_vars | unique_vars
+
+        duplicates, duplicate_values = CheckDuplicatesList(combined_vars.keys())
         if duplicates:
             raise DuplicateEntryError(
                 "Error when converting the Morlet power analysis results into "
@@ -345,13 +352,26 @@ class PowerMorlet(ProcMethod):
 
         return combined_vars
 
-    def _any_to_dataframe(
+    def _to_dataframe(
         self,
         var_order: list[str],
-        identical_var_names: dict[Any],
-        unique_var_names: dict[Any],
-    ) -> None:
-        """Converts the processed data into a pandas DataFrame."""
+        identical_var_names: list[str],
+        unique_var_names: list[str],
+    ) -> pd.DataFrame:
+        """Converts the processed data into a pandas DataFrame.
+
+        PARAMETERS
+        ----------
+        var_order : list[str]
+        -   The order the variables should take in the DataFrame.
+
+        identical_var_names : dict[Any]
+        -   The names of the variables whose values do not depend on the
+            channel.
+
+        unique_var_names : dict[Any]
+        -   The names of the variables whose values depend on the channel.
+        """
 
         identical_vars = self._set_df_identical_vars(
             identical_var_names, self.signal.extra_info["metadata"]
@@ -411,7 +431,7 @@ class PowerMorlet(ProcMethod):
             var_order, [identical_var_names, unique_var_names]
         )
 
-        self.power = self._any_to_dataframe(
+        self.power = self._to_dataframe(
             var_order, identical_var_names, unique_var_names
         )
 
@@ -465,7 +485,7 @@ class PowerMorlet(ProcMethod):
             var_order, [identical_var_names, unique_var_names]
         )
 
-        self.itc = self._any_to_dataframe(
+        self.itc = self._to_dataframe(
             var_order, identical_var_names, unique_var_names
         )
 

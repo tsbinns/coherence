@@ -42,6 +42,47 @@ class ProcMethod(ABC):
     """
 
     @abstractmethod
+    def _sort_inputs(self):
+        """Checks the inputs to the processing method object to ensure that they
+        match the requirements for processing."""
+
+    @abstractmethod
+    def _update_processing_steps(self):
+        """Updates the 'processing_steps' dictionary of the processing method
+        object."""
+
+    @abstractmethod
+    def _check_identical_ch_orders(self):
+        """Checks to make sure that the order of the channels (and thus, the
+        data) in the preprocessed data and power data is identical."""
+
+    @abstractmethod
+    def _check_vars_present(self):
+        """Checks to make sure the variables in the variable order list are all
+        present in the identical and unique variable lists and that the
+        identical and unique variable lists are specified in the variable
+        order list."""
+
+    @abstractmethod
+    def _set_df_identical_vars(self):
+        """Sets the variables which have identical values regardless of the
+        channel from which the data is coming."""
+
+    @abstractmethod
+    def _set_df_unique_vars(self):
+        """Sets the variables which have unique values depending on the
+        channel from which the data is coming."""
+
+    @abstractmethod
+    def _combine_df_vars(self):
+        """Combines identical and unique variables together into a single
+        dictionary."""
+
+    @abstractmethod
+    def _to_dataframe(self):
+        """Converts the processed data into a pandas DataFrame."""
+
+    @abstractmethod
     def process(self) -> None:
         """Performs the processing on the data."""
 
