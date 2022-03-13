@@ -656,9 +656,9 @@ class RerefBipolar(Reref):
             coords_set = False
             if self._ch_coords_new != []:
                 if self._ch_coords_new[ch_i] != []:
-                    if not CheckLengthsList(
-                        self._ch_coords_new, [[]]
-                    ).equals_n(3):
+                    if not CheckLengthsList(self._ch_coords_new, [[]]).equals_n(
+                        3
+                    ):
                         raise EntryLengthError(
                             "Error when setting coordinates for the "
                             "rereferenced data:\nThree, and only three "
@@ -988,9 +988,9 @@ class RerefCAR(Reref):
             coords_set = False
             if self._ch_coords_new != []:
                 if self._ch_coords_new[ch_i] != []:
-                    if not CheckLengthsList(
-                        self._ch_coords_new, [[]]
-                    ).equals_n(3):
+                    if not CheckLengthsList(self._ch_coords_new, [[]]).equals_n(
+                        3
+                    ):
                         raise Exception(
                             "Error when setting coordinates for the "
                             "rereferenced data.\nThree, and only three "
@@ -1304,8 +1304,7 @@ class RerefPseudo(Reref):
         """
 
         self._new_data = [
-            self._data[self._ch_index[ch_i]]
-            for ch_i in range(self._n_channels)
+            self._data[self._ch_index[ch_i]] for ch_i in range(self._n_channels)
         ]
 
     def _set_coordinates(self) -> None:
@@ -1328,9 +1327,9 @@ class RerefPseudo(Reref):
             coords_set = False
             if self._ch_coords_new != []:
                 if self._ch_coords_new[ch_i] != []:
-                    if not CheckLengthsList(
-                        self._ch_coords_new, [[]]
-                    ).equals_n(3):
+                    if not CheckLengthsList(self._ch_coords_new, [[]]).equals_n(
+                        3
+                    ):
                         raise Exception(
                             "Error when setting coordinates for the "
                             "rereferenced data:\nThree, and only three "

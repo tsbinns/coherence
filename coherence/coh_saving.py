@@ -15,16 +15,12 @@ check_before_overwrite
 """
 
 
-
-
 from copy import deepcopy
 from os.path import exists
 from typing import Any
 
 
-
-
-class SaveObject():
+class SaveObject:
     """A class for inheriting specified attributes from another object.
 
     PARAMETERS
@@ -36,14 +32,10 @@ class SaveObject():
     -   The names of the attributes to extract from the object.
     """
 
-    def __init__(self,
-        obj: Any,
-        attr_to_save: list[str]
-        ) -> None:
+    def __init__(self, obj: Any, attr_to_save: list[str]) -> None:
 
         for attr_name in attr_to_save:
             setattr(self, attr_name, deepcopy(getattr(obj, attr_name)))
-
 
 
 def confirm_overwrite(fpath: str) -> bool:
@@ -69,29 +61,27 @@ def confirm_overwrite(fpath: str) -> bool:
             f"The file '{fpath}' already exists.\nDo you want to "
             "overwrite it? y/n: "
         )
-        if response not in ['y', 'n']:
+        if response not in ["y", "n"]:
             print(
                 "The only accepted responses are 'y' and 'n'. "
                 "Please input your response again."
             )
-        if response == 'n':
+        if response == "n":
             print(
                 "You have requested that the pre-existing file not "
                 "be overwritten. The new file has not been saved."
             )
             valid_response = True
-        if response == 'y':
+        if response == "y":
             write = True
             valid_response = True
 
     return write
 
 
-
 def check_before_overwrite(
-    fpath: str,
-    ask_before_overwrite: bool = True
-    ) -> bool:
+    fpath: str, ask_before_overwrite: bool = True
+) -> bool:
     """Checks whether a file exists at a specified filepath.
 
     PARAMETERS

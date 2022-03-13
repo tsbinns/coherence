@@ -12,16 +12,12 @@ power_FOOOF_analysis
 """
 
 
-
-
 import json
 import numpy as np
 
 from coh_filepath import AnalysiswiseFilepath, SessionwiseFilepath
 from coh_power import PowerMorlet
 import coh_signal
-
-
 
 
 def power_morlet_analysis(
@@ -33,8 +29,8 @@ def power_morlet_analysis(
     session: str,
     task: str,
     acquisition: str,
-    run: str
-    ) -> None:
+    run: str,
+) -> None:
     """
     PARAMETERS
     ----------
@@ -70,36 +66,42 @@ def power_morlet_analysis(
     ### Analysis setup
     ## Gets the relevant filepaths
     analysis_settings_fpath = AnalysiswiseFilepath(
-        folderpath_extras+'\\settings', analysis, '.json'
+        folderpath_extras + "\\settings", analysis, ".json"
     ).path()
     morlet_fpath = SessionwiseFilepath(
-        folderpath_extras, dataset, subject, session, task, acquisition, run,
-        'power-morlet', '.pkl'
+        folderpath_extras,
+        dataset,
+        subject,
+        session,
+        task,
+        acquisition,
+        run,
+        "power-morlet",
+        ".pkl",
     ).path()
 
     ## Loads the analysis settings
-    with open(analysis_settings_fpath, encoding='utf-8') as json_file:
+    with open(analysis_settings_fpath, encoding="utf-8") as json_file:
         analysis_settings = json.load(json_file)
-        morlet_settings = analysis_settings['power_morlet']
-
+        morlet_settings = analysis_settings["power_morlet"]
 
     ### Data processing
     ## Morlet wavelet power analysis
     morlet = PowerMorlet(signal)
     morlet.process(
         freqs=np.arange(
-            morlet_settings['freqs'][0], morlet_settings['freqs'][1]+1
-            ),
-        n_cycles=morlet_settings['n_cycles'],
-        use_fft=morlet_settings['use_fft'],
-        return_itc=morlet_settings['return_itc'],
-        decim=morlet_settings['decim'],
-        n_jobs=morlet_settings['n_jobs'],
-        picks=morlet_settings['picks'],
-        zero_mean=morlet_settings['zero_mean'],
-        average_epochs=morlet_settings['average_epochs'],
-        average_timepoints_power=morlet_settings['average_timepoints_power'],
-        average_timepoints_itc=morlet_settings['average_timepoints_itc'],
-        output=morlet_settings['output']
+            morlet_settings["freqs"][0], morlet_settings["freqs"][1] + 1
+        ),
+        n_cycles=morlet_settings["n_cycles"],
+        use_fft=morlet_settings["use_fft"],
+        return_itc=morlet_settings["return_itc"],
+        decim=morlet_settings["decim"],
+        n_jobs=morlet_settings["n_jobs"],
+        picks=morlet_settings["picks"],
+        zero_mean=morlet_settings["zero_mean"],
+        average_epochs=morlet_settings["average_epochs"],
+        average_timepoints_power=morlet_settings["average_timepoints_power"],
+        average_timepoints_itc=morlet_settings["average_timepoints_itc"],
+        output=morlet_settings["output"],
     )
     morlet.save(morlet_fpath)

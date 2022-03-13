@@ -7,14 +7,10 @@ ExtractMetadata
 """
 
 
-
-
 from coh_exceptions import MissingAttributeError
 
 
-
-
-class ExtractMetadata():
+class ExtractMetadata:
     """
     PARAMETERS
     ----------
@@ -32,13 +28,20 @@ class ExtractMetadata():
         given as the value of that key in the metadata information dictionary.
     """
 
-    def __init__(self,
+    def __init__(
+        self,
         settings: dict,
         info_keys: list[str] = [
-            'cohort', 'sub', 'med', 'stim', 'ses', 'task', 'run'
+            "cohort",
+            "sub",
+            "med",
+            "stim",
+            "ses",
+            "task",
+            "run",
         ],
-        missing_key_error: bool = True
-        ) -> None:
+        missing_key_error: bool = True,
+    ) -> None:
 
         self.settings = settings
         self.info_keys = info_keys
@@ -48,9 +51,7 @@ class ExtractMetadata():
 
         self._extract_metadata()
 
-
-    def _extract_metadata(self
-        ) -> None:
+    def _extract_metadata(self) -> None:
         """Extracts metadata information from a settings dictionary into a
         dictionary of key:value pairs corresponding to the various metadata
         aspects of the data.

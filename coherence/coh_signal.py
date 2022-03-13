@@ -178,9 +178,7 @@ class Signal:
 
         return getattr(self, attribute)
 
-    def _update_processing_steps(
-        self, step_name: str, step_value: Any
-    ) -> None:
+    def _update_processing_steps(self, step_name: str, step_value: Any) -> None:
         """Updates the 'preprocessing' entry of the 'processing_steps'
         dictionary of the Signal object with new information consisting of a
         key:value pair in which the key is numbered based on the applied steps.
@@ -757,8 +755,7 @@ class Signal:
         """
 
         return [
-            [ch_names_old[i], ch_names_new[i]]
-            for i in range(len(ch_names_old))
+            [ch_names_old[i], ch_names_new[i]] for i in range(len(ch_names_old))
         ]
 
     def _rereference(

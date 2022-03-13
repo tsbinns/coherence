@@ -18,13 +18,9 @@ AnalysiswiseFilepath : subclass of the abstract base class Filepath
 """
 
 
-
-
 import os
 from abc import ABC, abstractmethod
 import mne_bids
-
-
 
 
 class Filepath(ABC):
@@ -52,7 +48,6 @@ class Filepath(ABC):
     @abstractmethod
     def path(self):
         """Generates the filepath."""
-
 
 
 class RawFilepath(Filepath):
@@ -92,15 +87,16 @@ class RawFilepath(Filepath):
     -   Generates the mne_bids.BIDSPath object.
     """
 
-    def __init__(self,
+    def __init__(
+        self,
         folderpath: str,
         dataset: str,
         subject: str,
         session: str,
         task: str,
         acquisition: str,
-        run: str
-        ) -> None:
+        run: str,
+    ) -> None:
 
         self.folderpath = folderpath
         self.dataset = dataset
@@ -109,7 +105,6 @@ class RawFilepath(Filepath):
         self.task = task
         self.acquisition = acquisition
         self.run = run
-
 
     def path(self) -> mne_bids.BIDSPath:
         """Generates an mne_bids.BIDSPath object for loading an mne.io.Raw
@@ -122,11 +117,13 @@ class RawFilepath(Filepath):
         """
 
         return mne_bids.BIDSPath(
-            subject=self.subject, session=self.session, task=self.task,
-            acquisition=self.acquisition, run=self.run,
-            root=os.path.join(self.folderpath, self.dataset, 'rawdata')
+            subject=self.subject,
+            session=self.session,
+            task=self.task,
+            acquisition=self.acquisition,
+            run=self.run,
+            root=os.path.join(self.folderpath, self.dataset, "rawdata"),
         )
-
 
 
 class SessionwiseFilepath(Filepath):
@@ -170,7 +167,8 @@ class SessionwiseFilepath(Filepath):
     -   Generates the filepath.
     """
 
-    def __init__(self,
+    def __init__(
+        self,
         folderpath: str,
         dataset: str,
         subject: str,
@@ -179,8 +177,8 @@ class SessionwiseFilepath(Filepath):
         acquisition: str,
         run: str,
         group_type: str,
-        filetype: str
-        ) -> None:
+        filetype: str,
+    ) -> None:
 
         self.folderpath = folderpath
         self.dataset = dataset
@@ -195,14 +193,12 @@ class SessionwiseFilepath(Filepath):
         self._subfolders()
         self._filename()
 
-
     def _subfolders(self) -> str:
         """Generates the path for the subfolders within 'folderpath'."""
 
         self.subfolders = (
             f"{self.dataset}\\sub-{self.subject}\\ses-{self.session}"
         )
-
 
     def _filename(self) -> None:
         """Generates the name of the file located within 'folderpath' and
@@ -214,7 +210,6 @@ class SessionwiseFilepath(Filepath):
             f"acq-{self.acquisition}_run-{self.run}_{self.group_type}"
             f"{self.filetype}"
         )
-
 
     def path(self) -> str:
         """Generates the filepath for an object that corresponds to an
@@ -228,7 +223,6 @@ class SessionwiseFilepath(Filepath):
         """
 
         return os.path.join(self.folderpath, self.subfolders, self.filename)
-
 
 
 class AnalysiswiseFilepath(Filepath):
@@ -253,16 +247,13 @@ class AnalysiswiseFilepath(Filepath):
     -   Generates the filepath.
     """
 
-    def __init__(self,
-        folderpath: str,
-        analysis_name: str,
-        filetype: str
-        ) -> None:
+    def __init__(
+        self, folderpath: str, analysis_name: str, filetype: str
+    ) -> None:
 
         self.folderpath = folderpath
         self.analysis_name = analysis_name
         self.filetype = filetype
-
 
     def path(self) -> str:
         """Generates a filepath for an object that corresponds to a particular
@@ -274,4 +265,4 @@ class AnalysiswiseFilepath(Filepath):
         -   The filepath of the object.
         """
 
-        return os.path.join(self.folderpath, self.analysis_name+self.filetype)
+        return os.path.join(self.folderpath, self.analysis_name + self.filetype)

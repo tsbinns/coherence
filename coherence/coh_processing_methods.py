@@ -7,16 +7,12 @@ ProcMethod
 """
 
 
-
-
 import pickle
 
 from abc import ABC, abstractmethod
 from typing import Any
 
 from coh_saving import SaveObject, check_before_overwrite
-
-
 
 
 class ProcMethod(ABC):
@@ -49,14 +45,14 @@ class ProcMethod(ABC):
     def process(self) -> None:
         """Performs the processing on the data."""
 
-
     @abstractmethod
-    def save(self,
+    def save(
+        self,
         fpath: str,
         obj: Any,
         attr_to_save: list[str],
-        ask_before_overwrite: bool = True
-        ) -> None:
+        ask_before_overwrite: bool = True,
+    ) -> None:
         """Saves the processed data to a specified location.
 
         PARAMETERS
@@ -82,5 +78,5 @@ class ProcMethod(ABC):
             write = True
 
         if write:
-            with open(fpath, 'wb') as file:
+            with open(fpath, "wb") as file:
                 pickle.dump(SaveObject(obj, attr_to_save), file)
