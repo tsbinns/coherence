@@ -11,11 +11,20 @@ from copy import deepcopy
 from typing import Any, Union
 from mne import time_frequency
 import numpy as np
+import pandas as pd
 
 from coh_dtypes import realnum
+from coh_check_entries import (
+    CheckEntriesPresent,
+    CheckDuplicatesList,
+    CheckMatchingEntries,
+)
 from coh_exceptions import (
+    ChannelOrderError,
+    DuplicateEntryError,
     InputTypeError,
     MissingAttributeError,
+    MissingEntryError,
     ProcessingOrderError,
     UnavailableProcessingError,
 )
@@ -41,9 +50,7 @@ class PowerMorlet(ProcMethod):
         mne.time_frequency.tfr_morlet.
     """
 
-    def __init__(
-        self, signal: coh_signal.Signal, verbose: bool = True
-    ) -> None:
+    def __init__(self, signal: coh_signal.Signal, verbose: bool = True) -> None:
 
         # Initialises inputs of the Analysis object.
         self.signal = deepcopy(signal)
@@ -158,8 +165,70 @@ class PowerMorlet(ProcMethod):
 
         self.processing_steps["power_morlet"] = step_value
 
-    def _to_dataframe(self) -> None:
-        """Converts the processed data into a pandas DataFrame."""
+    def _check_identical_ch_orders(self) -> None:
+        """Checks to make sure that the order of the channels (and thus, the
+        data) in the preprocessed data, power data, and (optionally) inter-
+        trial coherence data is identical.
+
+        RAISES
+        ------
+        ChannelOrderError
+        -   Raised if the order of the names of the channels does not match.
+        """
+
+        if not CheckMatchingEntries(
+            self.signal.data.ch_names, self.power.ch_names
+        ):
+            raise ChannelOrderError(
+                "The order of channel names in the preprocessed data and in "
+                "the Morlet power data do not match.\nThis should only have "
+                "occurred if you re-ordered the channels of these datasets "
+                "separately of one another."
+            )
+
+        if self._itc_returned:
+            if not CheckMatchingEntries(
+                self.signal.data.ch_names, self.itc.ch_names
+            ):
+                raise ChannelOrderError(
+                    "The order of channel names in the preprocessed data and "
+                    "in the inter-trial coherence data do not match.\nThis "
+                    "should only have occurred if you re-ordered the channels "
+                    "of these datasets separately of one another."
+                )
+
+    def _check_vars_present(
+        self, master_list: list[str], sublists: list[list[str]]
+    ) -> None:
+
+        entry_checking = CheckEntriesPresent(master_list, sublists)
+
+        all_present, absent_entries = entry_checking.master_in_subs()
+        if not all_present:
+            raise MissingEntryError(
+                "Error when trying to convert the results of the Morlet power "
+                "analysis into a DataFrame:\nThe following columns "
+                f"{absent_entries} do not have any data."
+            )
+
+        all_present, absent_entries = entry_checking.subs_in_master()
+        if not all_present:
+            raise MissingEntryError(
+                "Error when trying to convert the results of the Morlet power "
+                "analysis into a DataFrame:\nThe following columns "
+                f"{absent_entries} have not been accounted for when ordering "
+                "the columns of the DataFrame."
+            )
+
+    def _get_df_var_order(self) -> list[str]:
+        """Gets the order of variables for how they will appear in the
+        DataFrame.
+
+        RETURNS
+        -------
+        var_order : list[str]
+        -   The names of the variables in order.
+        """
 
         var_order = [
             "cohort",
@@ -170,12 +239,235 @@ class PowerMorlet(ProcMethod):
             "ses",
             "run",
             "ch_name",
+            "reref_type",
             "ch_coords",
             "ch_region",
             "power",
         ]
         if self._itc_returned:
             var_order.append("itc")
+
+        return var_order
+
+    def _set_df_identical_vars(
+        self, var_names: list[str], var_values: dict[Any]
+    ) -> dict:
+        """Sets the variables which have identical values regardless of the
+        channel from which the data is coming.
+
+        PARAMETERS
+        ----------
+        var_names : list[str]
+        -   Names of the variables with identical values.
+
+        var_values : dict[Any]
+        -   Dictionary where the keys are the variable names and the values are
+            the values of the variables which are identical across channels.
+
+        RETURNS
+        -------
+        identical_vars : dict
+        -   Dictionary of key:value pairs where the keys are the variable names
+            and the values a list of identical entries for the corresponding
+            key.
+        """
+
+        n_entries = len(self.signal.data.ch_names)
+
+        identical_vars = {
+            name: [var_values[name]] * n_entries for name in var_names
+        }
+
+        return identical_vars
+
+    def _set_df_unique_vars(self, var_names: list[str]) -> dict:
+        """Sets the variables which have unique values depending on the
+        channel from which the data is coming.
+
+        PARAMETERS
+        ----------
+        var_names : list[str]
+        -   The names of the variables whose values should be collected.
+
+        RETURNS
+        -------
+        unique_vars : dict
+        -   Dictionary of key:value pairs where the keys are the variable names
+            and the values a list of entries for the corresponding key ordered
+            based on the channels in the processed data.
+        """
+
+        unique_vars = {}
+        ch_names = self.power.ch_names
+
+        for name in var_names:
+            if name == "ch_name":
+                unique_vars[name] = ch_names
+            elif name == "reref_type":
+                unique_vars[name] = [
+                    self.signal.extra_info["rereferencing_types"][ch_name]
+                    for ch_name in ch_names
+                ]
+            elif name == "ch_region":
+                unique_vars[name] = [
+                    self.signal.extra_info["ch_regions"][ch_name]
+                    for ch_name in ch_names
+                ]
+            elif name == "ch_coords":
+                unique_vars[name] = self.signal.get_coordinates()
+            elif name == "freqs":
+                unique_vars[name] = list(self.power.freqs) * len(ch_names)
+            elif name == "power":
+                unique_vars[name] = self.power.data
+            elif name == "itc":
+                unique_vars[name] = self.itc.data
+            else:
+                raise UnavailableProcessingError(
+                    "Error when converting the Morlet power data to a "
+                    f"DataFrame:\nThe variable '{name}' is not recognised."
+                )
+
+        return unique_vars
+
+    def _combine_df_vars(
+        self, metadata_vars: dict[Any], unique_vars: dict[Any]
+    ) -> dict:
+
+        combined_vars = metadata_vars | unique_vars
+
+        duplicates, duplicate_values = CheckDuplicatesList(combined_vars)
+        if duplicates:
+            raise DuplicateEntryError(
+                "Error when converting the Morlet power analysis results into "
+                f"a DataFrame:\nThe DataFrame column(s) {duplicate_values} are "
+                "repeated."
+            )
+
+        return combined_vars
+
+    def _any_to_dataframe(
+        self,
+        var_order: list[str],
+        identical_var_names: dict[Any],
+        unique_var_names: dict[Any],
+    ) -> None:
+        """Converts the processed data into a pandas DataFrame."""
+
+        identical_vars = self._set_df_identical_vars(
+            identical_var_names, self.signal.extra_info["metadata"]
+        )
+        unique_vars = self._set_df_unique_vars(unique_var_names)
+        combined_vars = self._combine_df_vars(identical_vars, unique_vars)
+
+        return pd.DataFrame.from_dict(combined_vars, columns=var_order)
+
+    def _power_to_dataframe(self) -> None:
+        """Converts the results of the Morlet wavelet power analysis into a
+        pandas DataFrame.
+        """
+
+        if not CheckMatchingEntries(
+            self.signal.data.ch_names, self.power.ch_names
+        ):
+            raise ChannelOrderError(
+                "The order of channel names in the preprocessed data and in "
+                "the Morlet power data do not match.\nThis should only have "
+                "occurred if you re-ordered the channels of these datasets "
+                "separately of one another."
+            )
+
+        var_order = [
+            "cohort",
+            "sub",
+            "med",
+            "stim",
+            "task",
+            "ses",
+            "run",
+            "ch_name",
+            "reref_type",
+            "ch_coords",
+            "ch_region",
+            "power",
+        ]
+        identical_var_names = [
+            "cohort",
+            "sub",
+            "med",
+            "stim",
+            "task",
+            "ses",
+            "run",
+        ]
+        unique_var_names = [
+            "ch_name",
+            "reref_type",
+            "ch_coords",
+            "ch_region",
+            "freqs",
+            "power",
+        ]
+        self._check_vars_present(
+            var_order, [identical_var_names, unique_var_names]
+        )
+
+        self.power = self._any_to_dataframe(
+            var_order, identical_var_names, unique_var_names
+        )
+
+    def _itc_to_dataframe(self) -> None:
+        """Converts the results of the inter-trial coherence analysis into a
+        pandas DataFrame.
+        """
+
+        if not CheckMatchingEntries(
+            self.signal.data.ch_names, self.itc.ch_names
+        ):
+            raise ChannelOrderError(
+                "The order of channel names in the preprocessed data and in "
+                "the inter-trial coherence data do not match.\nThis should "
+                "only have occurred if you re-ordered the channels of these "
+                "datasets separately of one another."
+            )
+
+        var_order = [
+            "cohort",
+            "sub",
+            "med",
+            "stim",
+            "task",
+            "ses",
+            "run",
+            "ch_name",
+            "reref_type",
+            "ch_coords",
+            "ch_region",
+            "power",
+        ]
+        identical_var_names = [
+            "cohort",
+            "sub",
+            "med",
+            "stim",
+            "task",
+            "ses",
+            "run",
+        ]
+        unique_var_names = [
+            "ch_name",
+            "reref_type",
+            "ch_coords",
+            "ch_region",
+            "freqs",
+            "itc",
+        ]
+        self._check_vars_present(
+            var_order, [identical_var_names, unique_var_names]
+        )
+
+        self.itc = self._any_to_dataframe(
+            var_order, identical_var_names, unique_var_names
+        )
 
     def _assign_result(
         self,
@@ -596,7 +888,7 @@ class PowerMorlet(ProcMethod):
         if return_itc:
             self._sort_itc_dims()
 
-        self._to_dataframe()
+        self._power_to_dataframe()
 
         self._updateattr("_processed", True)
         self._update_processing_steps(
@@ -617,7 +909,10 @@ class PowerMorlet(ProcMethod):
         )
 
     def save(
-        self, fpath: str, ask_before_overwrite: Union[bool, None] = None
+        self,
+        fpath: str,
+        convert_to_dataframe: bool = False,
+        ask_before_overwrite: Union[bool, None] = None,
     ) -> None:
         """Saves the processing results to a specified location.
 
@@ -625,6 +920,10 @@ class PowerMorlet(ProcMethod):
         ----------
         fpath : str
         -   The filepath where the results will be saved.
+
+        convert_to_dataframe : bool; default False
+        -   Whether or not to convert the processed data into a dataframe before
+            saving.
 
         ask_before_overwrite : bool | None; default the object's verbosity
         -   If True, the user is asked to confirm whether or not to overwrite a
@@ -643,6 +942,11 @@ class PowerMorlet(ProcMethod):
         attr_to_save = ["power", "processing_steps"]
         if self._itc_returned:
             attr_to_save.append("itc")
+
+        if convert_to_dataframe:
+            self._power_to_dataframe()
+            if self._itc_returned:
+                self._itc_to_dataframe()
 
         super().save(fpath, self, attr_to_save, ask_before_overwrite)
 

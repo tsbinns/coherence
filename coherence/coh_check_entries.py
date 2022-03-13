@@ -5,23 +5,34 @@ CLASSES
 CheckLengths : abstract base class
 -   Abstract class for checking the lengths of entries within an input
     object.
--   This class should not be called directly. Instead, its subclasses
-    should be called from this file.
 
 CheckLengthsDict : subclass of the abstract base class CheckLengths
 -   Checks the lengths of entries within an input dictionary.
 
 CheckLengthsList : subclass of the abstract base class CheckLengths
 -   Checks the lengths of entries within an input list.
+
+CheckDuplicates : abstract base class
+-   Abstract class for checking whether duplicate entries exist within an input
+    object.
+
+CheckDuplicatesList : subclass of the abstract base class CheckDuplicates
+-   Checks whether duplicates exist within an input list.
+
+CheckMatchingEntries
+-   Checks whether entries within two objects match.
+
+CheckEntriesPresent
+-   Checks whether entries of a sublist(s) are present within a master list and
+    vice versa.
 """
 
 
-
-
 from abc import ABC, abstractmethod
-from typing import Any, Union
+from itertools import chain
+from typing import Any, Optional, Union
 
-
+from coh_exceptions import DuplicateEntryError, EntryLengthError
 
 
 class CheckLengths(ABC):
@@ -49,11 +60,10 @@ class CheckLengths(ABC):
     def _check(self):
         """Finds the lengths of the entries in the input object."""
 
-
     @abstractmethod
-    def identical(self,
-        entry_lengths: list[int]
-        ) -> tuple[bool, Union[int, list[int]]]:
+    def identical(
+        self, entry_lengths: list[int]
+    ) -> tuple[bool, Union[int, list[int]]]:
         """Checks whether the lengths of entries in the input object are
         identical.
 
@@ -83,12 +93,8 @@ class CheckLengths(ABC):
 
         return identical, lengths
 
-
     @abstractmethod
-    def equals_n(self,
-        entry_lengths: list[int],
-        n: int
-        ) -> bool:
+    def equals_n(self, entry_lengths: list[int], n: int) -> bool:
         """Checks whether the lengths of entries within the input object are
         equal to a given integer.
 
@@ -112,7 +118,6 @@ class CheckLengths(ABC):
             all_n = False
 
         return all_n
-
 
 
 class CheckLengthsDict(CheckLengths):
@@ -142,11 +147,12 @@ class CheckLengthsDict(CheckLengths):
     -   Checks whether the lengths of the entries are equal to a given integer.
     """
 
-    def __init__(self,
+    def __init__(
+        self,
         to_check: dict[Any, Any],
         ignore_values: list[Any] = [],
-        ignore_keys: list[Any] = []
-        ) -> None:
+        ignore_keys: list[Any] = [],
+    ) -> None:
 
         # Initialises inputs of the object.
         self.to_check = to_check
@@ -157,7 +163,6 @@ class CheckLengthsDict(CheckLengths):
         self.entry_lengths = None
         self.n = None
 
-
     def _check(self) -> None:
         """Finds the lengths of the values of the entries within the input
         dictionary.
@@ -167,7 +172,6 @@ class CheckLengthsDict(CheckLengths):
         for key, value in self.to_check.items():
             if key not in self.ignore_keys or value not in self.ignore_values:
                 self.entry_lengths.append(len(value))
-
 
     def identical(self) -> tuple[bool, Union[int, list[int]]]:
         """Checks whether the lengths of entries in the input dictionary are
@@ -189,10 +193,7 @@ class CheckLengthsDict(CheckLengths):
 
         return super().identical(self.entry_lengths)
 
-
-    def check_equals_n(self,
-        n: int
-        ) -> bool:
+    def check_equals_n(self, n: int) -> bool:
         """Checks whether the lengths of entries within the input object are
         equal to a given integer.
 
@@ -211,7 +212,6 @@ class CheckLengthsDict(CheckLengths):
         self._check()
 
         return super().equals_n(self.entry_lengths, self.n)
-
 
 
 class CheckLengthsList(CheckLengths):
@@ -236,10 +236,9 @@ class CheckLengthsList(CheckLengths):
     -   Checks whether the lengths of the entries are equal to a given integer.
     """
 
-    def __init__(self,
-        to_check: list[Any],
-        ignore_values: list[Any] = []
-        ) -> None:
+    def __init__(
+        self, to_check: list[Any], ignore_values: list[Any] = []
+    ) -> None:
 
         # Initialises inputs of the object.
         self.to_check = to_check
@@ -248,7 +247,6 @@ class CheckLengthsList(CheckLengths):
         # Initialises aspects of the object that will later be filled.
         self.entry_lengths = None
         self.n = None
-
 
     def _check(self) -> None:
         """Finds the lengths of the values of the entries within the input
@@ -259,7 +257,6 @@ class CheckLengthsList(CheckLengths):
         for value in self.to_check:
             if value not in self.ignore_values:
                 self.entry_lengths.append(len(value))
-
 
     def identical(self) -> tuple[bool, Union[int, list[int]]]:
         """Checks whether the lengths of entries in the input dictionary are
@@ -281,10 +278,7 @@ class CheckLengthsList(CheckLengths):
 
         return super().identical(self.entry_lengths)
 
-
-    def equals_n(self,
-        n: int
-        ) -> bool:
+    def equals_n(self, n: int) -> bool:
         """Checks whether the lengths of entries within the input object are
         equal to a given integer.
 
@@ -303,3 +297,262 @@ class CheckLengthsList(CheckLengths):
         self._check()
 
         return super().equals_n(self.entry_lengths, self.n)
+
+
+class CheckDuplicates(ABC):
+    """Abstract class for checking whether duplicate entries exist within an
+    input object.
+
+    METHODS
+    -------
+    check (abstract)
+    -   Checks whether duplicates are present in the object.
+
+    SUBCLASSES
+    ----------
+    CheckDuplicatesList
+    -   Checks whether duplicates exist within an input list.
+    """
+
+    @abstractmethod
+    def check(self):
+        """Finds and returns duplicates within an input object."""
+
+
+class CheckDuplicatesList(CheckDuplicates):
+    """Checks whether duplicates exist within an input list.
+
+    PARAMETERS
+    ----------
+    values : list[Any]
+    -   The list of values whose entries should be checked for duplicates.
+
+    METHODS
+    -------
+    check
+    -   Checks whether duplicates are present in the list.
+    """
+
+    def __init__(self, values: list[Any]) -> None:
+
+        self.values = values
+
+        self.check()
+
+    def check(self) -> tuple[bool, Optional[list[Any]]]:
+        """Checks to see if there are any duplicate values present in a list of
+        values.
+
+        RETURNS
+        -------
+        duplicates : bool
+        -   Whether or not duplicates are present.
+
+        duplicate_values : list[Any] | None
+        -   The list of duplicates values, or None if no duplicates are present.
+        """
+
+        duplicates = False
+        seen = set()
+        seen_add = seen.add
+        duplicate_values = list(
+            set(
+                value
+                for value in self.values
+                if value in seen or seen_add(value)
+            )
+        )
+        if not duplicate_values:
+            duplicate_values = None
+        else:
+            duplicates = True
+
+        return duplicates, duplicate_values
+
+
+class CheckMatchingEntries:
+    """Checks whether the entries of two objects match one another.
+    PARAMETERS
+    ----------
+    object_1 : Any
+    -   The object whose entries should be checked.
+
+    object_2 : Any
+    -   The object whose entries object_1 should be compared against.
+
+    RETURNS
+    -------
+    matching : bool
+    -   If True, the entries of the objects match. If False, the entries do
+        not match.
+    """
+
+    def __init__(self, object_1: Any, object_2: Any) -> bool:
+
+        self.object_1 = object_1
+        self.object_2 = object_2
+
+        self._sort_inputs()
+        self._check()
+
+    def _sort_inputs(self) -> None:
+        """Checks to make sure that the objects whose entries are being
+        compared have equal length.
+
+        RAISES
+        ------
+        EntryLengthError
+        -   Raised if the two objects do not have equal lengths.
+        """
+
+        equal, length = CheckLengthsList(
+            [self.object_1, self.object_2]
+        ).identical()
+        if not equal:
+            raise EntryLengthError(
+                "Error when checking whether the entries of two objects are "
+                f"identical:\nThe lengths of the objects ({length}) do not "
+                "match."
+            )
+
+    def _check(self) -> bool:
+        """Checks whether the entries of the two input objects are identical.
+
+        RETURNS
+        -------
+        matching : bool
+        -   If True, the entries of the objects match. If False, the entries do
+            not match.
+        """
+
+        matching = True
+
+        while matching:
+            for i, value in enumerate(self.object_1):
+                if value != self.object_2[i]:
+                    matching = False
+
+        return matching
+
+
+class CheckEntriesPresent:
+    """Checks whether entries of a sublist(s) are present within a master list
+    and vice versa.
+
+    PARAMETERS
+    ----------
+    master_list : list[Any]
+    -   A master list of values.
+
+    sublists : list[list[Any]]
+    -   A list of sublists of values.
+
+    METHODS
+    -------
+    master_in_subs
+    -   Checks whether all values in a master list are present in a set of
+        sublists.
+
+    subs_in_master
+    -   Checks whether all values within a set of sublists are present in a
+        master list.
+    """
+
+    def __init__(
+        self, master_list: list[Any], sublists: list[list[Any]]
+    ) -> None:
+
+        self._master_list = master_list
+        self._combined_sublists = list(chain(*sublists))
+
+    def _check_for_duplicates(self) -> None:
+        """Checks whether duplicate values are present within the sublists.
+
+        RAISES
+        ------
+        DuplicateEntryError
+        -   Raised if duplicate values are present within the sublists.
+        """
+
+        duplicates, duplicate_entries = CheckDuplicatesList(
+            self._combined_sublists
+        ).check()
+        if duplicates:
+            raise DuplicateEntryError(
+                "Error when checking the presence of master list entries "
+                f"within a sublist:\nThe entries {duplicate_entries} are "
+                "repeated within the sublists.\nTo ignore this error, set "
+                "'allow_duplicates' to True."
+            )
+
+    def master_in_subs(
+        self, allow_duplicates: bool = True
+    ) -> tuple[bool, Optional[list[Any]]]:
+        """Checks whether all values in a master list are present in a set of
+        sublists.
+
+        PARAMETERS
+        ----------
+        allow_duplicates : bool, default True
+        -   Whether or not to allow duplicate values to be present within the
+            sublists.
+
+        RETURNS
+        -------
+        all_present : bool
+        -   Whether all values in the master list were present in the sublists.
+
+        absent_entries : list[Any] | None
+        -   The entry/ies of the master list missing from the sublists. If no
+            entries are missing, this is None.
+        """
+
+        if not allow_duplicates:
+            self._check_for_duplicates()
+
+        all_present = True
+        absent_entries = []
+        for entry in self._master_list:
+            if entry not in self._combined_sublists:
+                all_present = False
+                absent_entries.append(entry)
+        if not absent_entries:
+            absent_entries = None
+
+        return all_present, absent_entries
+
+    def subs_in_master(
+        self, allow_duplicates: bool = True
+    ) -> tuple[bool, Optional[list[Any]]]:
+        """Checks whether all values in the sublists list are present in a set
+        the master list.
+
+        PARAMETERS
+        ----------
+        allow_duplicates : bool, default True
+        -   Whether or not to allow duplicate values to be present within the
+            sublists.
+
+        RETURNS
+        -------
+        all_present : bool
+        -   Whether all values in the sublists were present in the master list.
+
+        absent_entries : list[Any] | None
+        -   The entry/ies of the sublists missing from the master list. If no
+            entries are missing, this is None.
+        """
+
+        if not allow_duplicates:
+            self._check_for_duplicates()
+
+        all_present = True
+        absent_entries = []
+        for entry in self._combined_sublists:
+            if entry not in self._master_list:
+                all_present = False
+                absent_entries.append(entry)
+        if not absent_entries:
+            absent_entries = None
+
+        return all_present, absent_entries
