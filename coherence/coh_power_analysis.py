@@ -103,5 +103,6 @@ def power_morlet_analysis(
         average_timepoints_power=morlet_settings["average_timepoints_power"],
         average_timepoints_itc=morlet_settings["average_timepoints_itc"],
         output=morlet_settings["output"],
+        convert_to_dataframe=True,
     )
     morlet.save(morlet_fpath)

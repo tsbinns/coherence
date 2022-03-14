@@ -60,6 +60,7 @@ class PowerMorlet(ProcMethod):
         # Initialises aspects of the Analysis object that will be filled with
         # information as the data is processed.
         self.processing_steps = deepcopy(self.signal.processing_steps)
+        self.extra_info = deepcopy(self.signal.extra_info)
         self.power = None
         self.itc = None
         self.power_dims = None
@@ -74,6 +75,8 @@ class PowerMorlet(ProcMethod):
         self._itc_timepoints_averaged = False
         self._power_dims_sorted = False
         self._itc_dims_sorted = False
+        self._power_in_dataframe = False
+        self._itc_in_dataframe = False
 
     def _getattr(self, attribute: str) -> Any:
         """Gets aspects of the input object that indicate which methods have
@@ -100,8 +103,8 @@ class PowerMorlet(ProcMethod):
         if not hasattr(self, attribute):
             raise MissingAttributeError(
                 f"Error when attempting to get an attribute of {self}:\nThe "
-                f"attribute {attribute} does not exist, and so its value "
-                "cannot be updated."
+                f"attribute '{attribute}' does not exist, and so its value "
+                "cannot be obtained."
             )
 
         return getattr(self, attribute)
@@ -131,7 +134,7 @@ class PowerMorlet(ProcMethod):
         else:
             raise MissingAttributeError(
                 f"Error when attempting to update an attribute of {self}:\nThe "
-                f"attribute {attribute} does not exist, and so cannot be "
+                f"attribute '{attribute}' does not exist, and so cannot be "
                 "updated."
             )
 
@@ -217,7 +220,9 @@ class PowerMorlet(ProcMethod):
 
         entry_checking = CheckEntriesPresent(master_list, sublists)
 
-        all_present, absent_entries = entry_checking.master_in_subs()
+        all_present, absent_entries = entry_checking.master_in_subs(
+            allow_duplicates=False
+        )
         if not all_present:
             raise MissingEntryError(
                 "Error when trying to convert the results of the Morlet power "
@@ -225,7 +230,9 @@ class PowerMorlet(ProcMethod):
                 f"{absent_entries} do not have any data."
             )
 
-        all_present, absent_entries = entry_checking.subs_in_master()
+        all_present, absent_entries = entry_checking.subs_in_master(
+            allow_duplicates=False
+        )
         if not all_present:
             raise MissingEntryError(
                 "Error when trying to convert the results of the Morlet power "
@@ -286,22 +293,22 @@ class PowerMorlet(ProcMethod):
                 unique_vars[name] = ch_names
             elif name == "reref_type":
                 unique_vars[name] = [
-                    self.signal.extra_info["rereferencing_types"][ch_name]
+                    self.extra_info["rereferencing_types"][ch_name]
                     for ch_name in ch_names
                 ]
             elif name == "ch_region":
                 unique_vars[name] = [
-                    self.signal.extra_info["ch_regions"][ch_name]
+                    self.extra_info["ch_regions"][ch_name]
                     for ch_name in ch_names
                 ]
             elif name == "ch_coords":
                 unique_vars[name] = self.signal.get_coordinates()
             elif name == "freqs":
-                unique_vars[name] = list(self.power.freqs) * len(ch_names)
+                unique_vars[name] = [list(self.power.freqs)] * len(ch_names)
             elif name == "power":
-                unique_vars[name] = self.power.data
+                unique_vars[name] = list(self.power.data)
             elif name == "itc":
-                unique_vars[name] = self.itc.data
+                unique_vars[name] = list(self.itc.data)
             else:
                 raise UnavailableProcessingError(
                     "Error when converting the Morlet power data to a "
@@ -342,7 +349,9 @@ class PowerMorlet(ProcMethod):
 
         combined_vars = identical_vars | unique_vars
 
-        duplicates, duplicate_values = CheckDuplicatesList(combined_vars.keys())
+        duplicates, duplicate_values = CheckDuplicatesList(
+            combined_vars.keys()
+        ).check()
         if duplicates:
             raise DuplicateEntryError(
                 "Error when converting the Morlet power analysis results into "
@@ -374,17 +383,26 @@ class PowerMorlet(ProcMethod):
         """
 
         identical_vars = self._set_df_identical_vars(
-            identical_var_names, self.signal.extra_info["metadata"]
+            identical_var_names, self.extra_info["metadata"]
         )
         unique_vars = self._set_df_unique_vars(unique_var_names)
         combined_vars = self._combine_df_vars(identical_vars, unique_vars)
 
-        return pd.DataFrame.from_dict(combined_vars, columns=var_order)
+        return pd.DataFrame.from_dict(combined_vars, orient="columns").reindex(
+            columns=var_order
+        )
 
     def _power_to_dataframe(self) -> None:
         """Converts the results of the Morlet wavelet power analysis into a
         pandas DataFrame.
         """
+
+        if self._power_in_dataframe:
+            raise ProcessingOrderError(
+                "Error when converting the power results of the Morlet wavelet "
+                "analysis to a DataFrame:\nThese results have already been "
+                "converted to a DataFrame."
+            )
 
         if not CheckMatchingEntries(
             self.signal.data.ch_names, self.power.ch_names
@@ -395,6 +413,9 @@ class PowerMorlet(ProcMethod):
                 "occurred if you re-ordered the channels of these datasets "
                 "separately of one another."
             )
+
+        if self._verbose:
+            print("Converting the power results into a DataFrame.")
 
         var_order = [
             "cohort",
@@ -408,6 +429,7 @@ class PowerMorlet(ProcMethod):
             "reref_type",
             "ch_coords",
             "ch_region",
+            "freqs",
             "power",
         ]
         identical_var_names = [
@@ -435,10 +457,19 @@ class PowerMorlet(ProcMethod):
             var_order, identical_var_names, unique_var_names
         )
 
+        self._updateattr("_power_in_dataframe", True)
+
     def _itc_to_dataframe(self) -> None:
         """Converts the results of the inter-trial coherence analysis into a
         pandas DataFrame.
         """
+
+        if self._itc_in_dataframe:
+            raise ProcessingOrderError(
+                "Error when converting the inter-trial coherence results of "
+                "the Morlet wavelet analysis to a DataFrame:\nThese results "
+                "have already been converted to a DataFrame."
+            )
 
         if not CheckMatchingEntries(
             self.signal.data.ch_names, self.itc.ch_names
@@ -449,6 +480,9 @@ class PowerMorlet(ProcMethod):
                 "only have occurred if you re-ordered the channels of these "
                 "datasets separately of one another."
             )
+
+        if self._verbose():
+            print("Converting the power results into a DataFrame.")
 
         var_order = [
             "cohort",
@@ -489,6 +523,8 @@ class PowerMorlet(ProcMethod):
             var_order, identical_var_names, unique_var_names
         )
 
+        self._updateattr("_itc_in_dataframe", True)
+
     def _assign_result(
         self,
         result: Union[
@@ -511,10 +547,10 @@ class PowerMorlet(ProcMethod):
         if itc_returned:
             self.power = result[0]
             self.itc = result[1]
-            self._itc_returned = True
+            self._updateattr("_itc_returned", True)
         else:
             self.power = result
-            self._itc_returned = False
+            self._updateattr("_itc_returned", False)
 
     def _average_timepoints_power(self) -> None:
         """Averages power results of the analysis across timepoints.
@@ -808,6 +844,7 @@ class PowerMorlet(ProcMethod):
         average_timepoints_power: bool = True,
         average_timepoints_itc: bool = False,
         output: str = "power",
+        convert_to_dataframe: bool = True,
     ) -> None:
         """Performs Morlet wavelet power analysis using the implementation in
         mne.time_frequency.tfr_morlet.
@@ -861,6 +898,10 @@ class PowerMorlet(ProcMethod):
         output : str; default 'power'
         -   Can be 'power' or 'complex'. If 'complex', average must be False.
 
+        convert_to_dataframe : bool; default False
+        -   Whether or not to convert the processed data into a dataframe before
+            saving.
+
         RAISES
         ------
         ProcessingOrderError
@@ -908,7 +949,10 @@ class PowerMorlet(ProcMethod):
         if return_itc:
             self._sort_itc_dims()
 
-        self._power_to_dataframe()
+        if convert_to_dataframe:
+            self._power_to_dataframe()
+            if return_itc:
+                self._itc_to_dataframe()
 
         self._updateattr("_processed", True)
         self._update_processing_steps(
@@ -931,7 +975,6 @@ class PowerMorlet(ProcMethod):
     def save(
         self,
         fpath: str,
-        convert_to_dataframe: bool = False,
         ask_before_overwrite: Union[bool, None] = None,
     ) -> None:
         """Saves the processing results to a specified location.
@@ -940,10 +983,6 @@ class PowerMorlet(ProcMethod):
         ----------
         fpath : str
         -   The filepath where the results will be saved.
-
-        convert_to_dataframe : bool; default False
-        -   Whether or not to convert the processed data into a dataframe before
-            saving.
 
         ask_before_overwrite : bool | None; default the object's verbosity
         -   If True, the user is asked to confirm whether or not to overwrite a
@@ -962,11 +1001,6 @@ class PowerMorlet(ProcMethod):
         attr_to_save = ["power", "processing_steps"]
         if self._itc_returned:
             attr_to_save.append("itc")
-
-        if convert_to_dataframe:
-            self._power_to_dataframe()
-            if self._itc_returned:
-                self._itc_to_dataframe()
 
         super().save(fpath, self, attr_to_save, ask_before_overwrite)
 
