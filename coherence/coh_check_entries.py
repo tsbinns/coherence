@@ -352,7 +352,6 @@ class CheckDuplicatesList(CheckDuplicates):
         -   The list of duplicates values, or None if no duplicates are present.
         """
 
-        duplicates = False
         seen = set()
         seen_add = seen.add
         duplicate_values = list(
@@ -363,6 +362,7 @@ class CheckDuplicatesList(CheckDuplicates):
             )
         )
         if not duplicate_values:
+            duplicates = False
             duplicate_values = None
         else:
             duplicates = True
@@ -427,10 +427,10 @@ class CheckMatchingEntries:
 
         matching = True
 
-        while matching:
-            for i, value in enumerate(self.object_1):
-                if value != self.object_2[i]:
-                    matching = False
+        for i, value in enumerate(self.object_1):
+            if value != self.object_2[i]:
+                matching = False
+                break
 
         return matching
 
