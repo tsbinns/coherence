@@ -1636,6 +1636,8 @@ def check_fm_fit(fm, report=True):
     axs[1].plot(fm._ap_fit, linestyle='--', linewidth=1.5, label='Aperiodic component model fit')
     axs[1].legend()
 
+    plt.show()
+
     ## Asks the user to choose whether the fit is acceptable, if requested
     if report == True:
         answered = False
