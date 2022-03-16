@@ -190,10 +190,11 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[],
                 colours[add_avg[0]][i][:3] = [0, 0, 0]
 
     # Pyplot params
-    plt.rc('axes', labelsize=30)    # fontsize of the x and y labels
-    plt.rc('xtick', labelsize=28)    # fontsize of the tick labels
-    plt.rc('ytick', labelsize=28)    # fontsize of the tick labels
-    plt.rc('legend', fontsize=28)    # legend fontsize
+    plt.rc('axes', labelsize=14)    # fontsize of the x and y labels
+    plt.rc('xtick', labelsize=14)    # fontsize of the tick labels
+    plt.rc('ytick', labelsize=14)    # fontsize of the tick labels
+    plt.rc('legend', fontsize=14)    # legend fontsize
+    plt.rc('axes', titlesize=14)
 
 
     ### Plotting
@@ -252,7 +253,7 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[],
                         axs = np.reshape(axs, [n_rows, 1])
                         fill = np.reshape([0]*n_rows, (n_rows, 1))
                         axs = np.hstack((axs, fill)) # adds and extra column for later indexing
-                    plt.tight_layout(rect = [0, 0, 1, .95])
+                    #plt.tight_layout(rect = [0, 0, 1, .95])
                     fig.suptitle(wind_title)
 
                     for row_i in range(n_rows): # fill up each row from top to down...
@@ -309,31 +310,31 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[],
                                         colour = [0, 0, 0, 1]
 
                                     ###TEMP
-                                    """
-                                    if data_info['med'] == 'Off':
-                                        col_scaling = .65
-                                    elif data_info['med'] == 'On':
-                                        col_scaling = 1.1
+                                    if 'loc_group' in plot_info.keys():
+                                        if data_info['med'] == 'Off':
+                                            col_scaling = .65
+                                        elif data_info['med'] == 'On':
+                                            col_scaling = 1.1
 
-                                    if plot_info['loc_group'] == 'Prefrontal':
-                                        colour = [113, 189, 174, 1]
-                                    elif plot_info['loc_group'] == 'Motor':
-                                        colour = [224, 74, 74, 1]
-                                    elif plot_info['loc_group'] == 'Sensory':
-                                        colour = [55, 110, 181, 1]
-                                    elif plot_info['loc_group'] == 'Parietal':
-                                        colour = [216, 179, 66, 1]
+                                        if plot_info['loc_group'] == 'Prefrontal':
+                                            colour = [113, 189, 174, 1]
+                                        elif plot_info['loc_group'] == 'Motor':
+                                            colour = [224, 74, 74, 1]
+                                        elif plot_info['loc_group'] == 'Sensory':
+                                            colour = [55, 110, 181, 1]
+                                        elif plot_info['loc_group'] == 'Parietal':
+                                            colour = [216, 179, 66, 1]
+                                        elif plot_info['loc_group'] == 'STN':
+                                            colour = [191, 64, 191, 1]
 
-                                    for colour_i, col in enumerate(colour):
-                                        if colour_i < 3:
-                                            colour[colour_i] = (col*col_scaling)/256
-                                    """
-                                    """
-                                    if data_info['med'] == 'Off':
-                                        colour = [.2, .2, .2, 1]
-                                    elif data_info['med'] == 'On':
-                                        colour = [.6, .6, .6, 1]
-                                    """
+                                        for colour_i, col in enumerate(colour):
+                                            if colour_i < 3:
+                                                colour[colour_i] = (col*col_scaling)/256
+                                    else:
+                                        if data_info['med'] == 'Off':
+                                            colour = [.2, .2, .2, 1]
+                                        elif data_info['med'] == 'On':
+                                            colour = [.6, .6, .6, 1]
 
                                     
                                     # Plots data
@@ -397,6 +398,7 @@ def psd_freqwise(psd, group_master, group_fig=[], group_plot=[],
 
                                 #axs[row_i, col_i].minorticks_on()
                                 axs[row_i, col_i].grid(which='major', axis='x')
+                                axs[row_i, col_i].set_aspect(.9/axs[row_i, col_i].get_data_ratio())
 
 
                                 plotgroup_i += 1
@@ -1390,10 +1392,11 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
     foldername = 'coh_freqwise-'+''.join([str(x) for x in datetime.datetime.now().timetuple()[:-3]])
 
     # Pyplot params
-    plt.rc('axes', labelsize=30)    # fontsize of the x and y labels
-    plt.rc('xtick', labelsize=28)    # fontsize of the tick labels
-    plt.rc('ytick', labelsize=28)    # fontsize of the tick labels
-    plt.rc('legend', fontsize=28)    # legend fontsize
+    plt.rc('axes', labelsize=14)    # fontsize of the x and y labels
+    plt.rc('axes', titlesize=14)
+    plt.rc('xtick', labelsize=14)    # fontsize of the tick labels
+    plt.rc('ytick', labelsize=14)    # fontsize of the tick labels
+    plt.rc('legend', fontsize=14)    # legend fontsize
 
 
     ### Plotting
@@ -1452,7 +1455,7 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                     axs = np.reshape(axs, [n_rows, 1])
                     fill = np.reshape([0]*n_rows, (n_rows, 1))
                     axs = np.hstack((axs, fill)) # adds and extra column for later indexing
-                plt.tight_layout(rect = [0, 0, 1, .95])
+                #plt.tight_layout(rect = [0, 0, 1, .95])
                 fig.suptitle(wind_title)
 
                 for row_i in range(n_rows): # fill up each row from top to down...
@@ -1509,31 +1512,31 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
                                     colour = [0, 0, 0, 1]
 
                                 # TEMP
-                                """
-                                if data_info['med'] == 'Off':
-                                    col_scaling = .65
-                                elif data_info['med'] == 'On':
-                                    col_scaling = 1.1
+                                if 'loc_group' in plot_info.keys():
+                                    if data_info['med'] == 'Off':
+                                        col_scaling = .65
+                                    elif data_info['med'] == 'On':
+                                        col_scaling = 1.1
 
-                                if plot_info['loc_group'] == 'Prefrontal':
-                                    colour = [113, 189, 174, 1]
-                                elif plot_info['loc_group'] == 'Motor':
-                                    colour = [224, 74, 74, 1]
-                                elif plot_info['loc_group'] == 'Sensory':
-                                    colour = [55, 110, 181, 1]
-                                elif plot_info['loc_group'] == 'Parietal':
-                                    colour = [216, 179, 66, 1]
+                                    if plot_info['loc_group'] == 'Prefrontal':
+                                        colour = [113, 189, 174, 1]
+                                    elif plot_info['loc_group'] == 'Motor':
+                                        colour = [224, 74, 74, 1]
+                                    elif plot_info['loc_group'] == 'Sensory':
+                                        colour = [55, 110, 181, 1]
+                                    elif plot_info['loc_group'] == 'Parietal':
+                                        colour = [216, 179, 66, 1]
+                                    elif plot_info['loc_group'] == 'STN':
+                                        colour = [191, 64, 191, 1]
 
-                                for colour_i, col in enumerate(colour):
-                                    if colour_i < 3:
-                                        colour[colour_i] = (col*col_scaling)/256
-                                """
-                                """
-                                if data_info['med'] == 'Off':
-                                    colour = [.2, .2, .2, 1]
-                                elif data_info['med'] == 'On':
-                                    colour = [.6, .6, .6, 1]
-                                """
+                                    for colour_i, col in enumerate(colour):
+                                        if colour_i < 3:
+                                            colour[colour_i] = (col*col_scaling)/256
+                                else:
+                                    if data_info['med'] == 'Off':
+                                        colour = [.2, .2, .2, 1]
+                                    elif data_info['med'] == 'On':
+                                        colour = [.6, .6, .6, 1]
 
                                 # Plots data
                                 axs[row_i, col_i].plot(data.freqs[:freq_limit_i+1], data.coh[:freq_limit_i+1],
@@ -1593,6 +1596,7 @@ def coh_freqwise(coh, group_master, group_fig=[], group_plot=[], plot_shuffled=F
 
                             #axs[row_i, col_i].minorticks_on()
                             axs[row_i, col_i].grid(which='major', axis='x')
+                            axs[row_i, col_i].set_aspect(.9/axs[row_i, col_i].get_data_ratio())
 
                             plotgroup_i += 1 # moves on to the next data to plot
                             if ch_idx == idc_group_fig[-1]: # if there is no more data to plot for this type...
