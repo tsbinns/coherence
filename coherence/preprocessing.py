@@ -155,7 +155,8 @@ def reref_data(data, info, rereferencing, ch_coords):
                     new_name = reref['new'][chann_i] # name of the new channel to create
                     new_channs.append(new_name)
                     ## Checks if data from multiple contacts should be added
-                    ch_data = []
+                    ch_data_new = []
+                    ch_coords_new = []
                     for name_i, old_name in enumerate(old_names):
                         split_idc = [i for i, char in enumerate(old_name) if char == '+']
                         if split_idc != []: # if channels should be added, denoted by '+'
@@ -171,19 +172,23 @@ def reref_data(data, info, rereferencing, ch_coords):
                                     ch_split_names.append(old_name[split_idc[split_i-1]+1:split_idx])
                             for split_i, ch_split_name in enumerate(ch_split_names): # adds the data of those channels together
                                 if split_i == 0:
-                                    ch_data.append(data[channels.index(ch_split_name)])
+                                    ch_data_new.append(data[channels.index(ch_split_name)])
+                                    ch_coords_new.append([ch_coords[channels.index(ch_split_name)]])
                                 else:
-                                    ch_data[-1] += data[channels.index(ch_split_name)]
+                                    ch_data_new[-1] += data[channels.index(ch_split_name)]
+                                    ch_coords_new[-1].append(ch_coords[channels.index(ch_split_name)])
+                                if split_i+1 == len(ch_split_names):
+                                    ch_coords_new[-1] = list(np.mean(ch_coords_new[-1], axis=0))
                         else: # if channels do not need to be added, just take the single channel's data
-                            ch_data.append(data[channels.index(old_names[name_i])])
+                            ch_data_new.append(data[channels.index(old_names[name_i])])
+                            ch_coords_new.append(ch_coords[channels.index(old_names[name_i])])
 
-                    reref_data.append(ch_data[0] - ch_data[1]) # anode - cathode => bipolar reref.
+                    reref_data.append(ch_data_new[0] - ch_data_new[1]) # anode - cathode => bipolar reref.
                     reref_type.append('bipolar')
                     channs_type.append(reref['chann_type'][chann_i])
                     if reref['coords'] == []: # if no coordinates are specified,...
                         #... calculate the new coordinates based on the original channel coordinates
-                        new_coords.append(np.mean([ch_coords[channels.index(old_names[0])],
-                                                   ch_coords[channels.index(old_names[1])]], axis=0).tolist())
+                        new_coords.append(np.mean([ch_coords_new[0], ch_coords_new[1]], axis=0).tolist())
                     else: # if coordinates are specified,...
                         if len(reref['coords']) != len(reref['new']): #... check they are the correct format,
                             raise ValueError(f"There is a mismatch between channels ({len(reref['new'])}) and coordinates ({len(reref['coords'])}).")
