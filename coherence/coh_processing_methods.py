@@ -30,15 +30,17 @@ class ProcMethod(ABC):
     SUBCLASSES
     ----------
     PowerMorlet
-    -   Performs power analysis on the data using Morlet wavelets.
+    -   Performs power analysis on data using Morlet wavelets.
+
+    PowerFOOOF
+    -   Performs power analysis on data using FOOOF.
 
     ConnectivityCoh
-    -   Performs connectivity analysis on the data using coherence as the
-        measure.
+    -   Performs connectivity analysis on data with coherence.
 
     ConnectivityiCoh
-    -   Performs connectivity analysis on the data using the imaginary part of
-        coherence as the measure.
+    -   Performs connectivity analysis on data with the imaginary part of
+        coherence.
     """
 
     @abstractmethod
@@ -114,7 +116,7 @@ class ProcMethod(ABC):
         """
 
         if ask_before_overwrite:
-            write = check_before_overwrite(fpath, ask_before_overwrite)
+            write = check_before_overwrite(fpath)
         else:
             write = True
 

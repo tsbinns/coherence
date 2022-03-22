@@ -73,5 +73,4 @@ class ExtractMetadata:
                         f"The metadata information '{key}' is not present in "
                         "the settings file, and thus cannot be extracted."
                     )
-                else:
-                    self.metadata[key] = None
+                self.metadata[key] = None

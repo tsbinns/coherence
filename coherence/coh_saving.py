@@ -79,20 +79,14 @@ def confirm_overwrite(fpath: str) -> bool:
     return write
 
 
-def check_before_overwrite(
-    fpath: str, ask_before_overwrite: bool = True
-) -> bool:
-    """Checks whether a file exists at a specified filepath.
+def check_before_overwrite(fpath: str) -> bool:
+    """Checks whether a file exists at a specified filepath. If so, the user is
+    given the option of choosing whether to overwrite the file or not.
 
     PARAMETERS
     ----------
     fpath : str
     -   The filepath where the object will be saved.
-
-    ask_before_overwrite : bool; default True
-    -   If True, the user is asked to confirm whether or not to overwrite a
-        pre-existing file if one exists. If False, the user is not asked to
-        confirm this and it is overwritten automatically.
 
     RETURNS
     -------
@@ -101,10 +95,7 @@ def check_before_overwrite(
     """
 
     if exists(fpath):
-        if ask_before_overwrite:
-            write = confirm_overwrite(fpath)
-        else:
-            write = True
+        write = confirm_overwrite(fpath)
     else:
         write = True
 
