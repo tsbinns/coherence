@@ -15,7 +15,10 @@ power_FOOOF_analysis
 import json
 import numpy as np
 
-from coh_filepath import AnalysiswiseFilepath, SessionwiseFilepath
+from coh_handle_files import (
+    generate_analysiswise_fpath,
+    generate_sessionwise_fpath,
+)
 from coh_power import PowerMorlet
 import coh_signal
 
@@ -65,10 +68,10 @@ def power_morlet_analysis(
 
     ### Analysis setup
     ## Gets the relevant filepaths
-    analysis_settings_fpath = AnalysiswiseFilepath(
+    analysis_settings_fpath = generate_analysiswise_fpath(
         folderpath_extras + "\\settings", analysis, ".json"
-    ).path()
-    morlet_fpath = SessionwiseFilepath(
+    )
+    morlet_fpath = generate_sessionwise_fpath(
         folderpath_extras,
         dataset,
         subject,
@@ -77,13 +80,13 @@ def power_morlet_analysis(
         acquisition,
         run,
         "power-morlet",
-        ".pkl",
-    ).path()
+        ".json",
+    )
 
     ## Loads the analysis settings
-    with open(analysis_settings_fpath, encoding="utf-8") as json_file:
-        analysis_settings = json.load(json_file)
-        morlet_settings = analysis_settings["power_morlet"]
+    with open(analysis_settings_fpath, encoding="utf-8") as file:
+        analysis_settings = json.load(file)
+    morlet_settings = analysis_settings["power_morlet"]
 
     ### Data processing
     ## Morlet wavelet power analysis
@@ -103,6 +106,5 @@ def power_morlet_analysis(
         average_timepoints_power=morlet_settings["average_timepoints_power"],
         average_timepoints_itc=morlet_settings["average_timepoints_itc"],
         output=morlet_settings["output"],
-        convert_to_dataframe=True,
     )
-    morlet.save(morlet_fpath)
+    morlet.save_results(morlet_fpath)

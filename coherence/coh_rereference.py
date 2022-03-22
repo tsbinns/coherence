@@ -10,12 +10,16 @@ Reref : abstract base class
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from typing import Optional
+
 import mne
 import numpy as np
 
-from coh_check_entries import CheckLengthsList
 from coh_dtypes import realnum
 from coh_exceptions import ChannelTypeError, EntryLengthError
+from coh_handle_entries import (
+    check_lengths_list_identical,
+    check_lengths_list_equals_n,
+)
 
 
 class Reref(ABC):
@@ -69,9 +73,9 @@ class Reref(ABC):
         -   Raised if the lengths of the list's entries are nonidentical.
         """
 
-        equal_lengths, n_channels = CheckLengthsList(
-            lengths_to_check, [None]
-        ).identical()
+        equal_lengths, n_channels = check_lengths_list_identical(
+            to_check=lengths_to_check
+        )
 
         if not equal_lengths:
             raise EntryLengthError(
@@ -429,7 +433,7 @@ class RerefBipolar(Reref):
             channel being produced.
         """
 
-        if not CheckLengthsList(self._ch_names_old).equals_n(2):
+        if not check_lengths_list_equals_n(to_check=self._ch_names_old, n=2):
             raise EntryLengthError(
                 "Error when bipolar rereferencing data:\nThis must involve "
                 "two, and only two channels of data, but the rereferencing "
@@ -550,7 +554,7 @@ class RerefBipolar(Reref):
                         2,
                     )
 
-        if not CheckLengthsList(self._ch_coords_new).equals_n(3):
+        if not check_lengths_list_equals_n(to_check=self._ch_coords_new, n=3):
             raise EntryLengthError(
                 "Error when setting coordinates for the rereferenced data:\n"
                 "Three, and only three coordinates (x, y, and z) must be "
@@ -656,8 +660,8 @@ class RerefBipolar(Reref):
             coords_set = False
             if self._ch_coords_new != []:
                 if self._ch_coords_new[ch_i] != []:
-                    if not CheckLengthsList(self._ch_coords_new, [[]]).equals_n(
-                        3
+                    if not check_lengths_list_equals_n(
+                        to_check=self._ch_coords_new, n=3, ignore_values=[[]]
                     ):
                         raise EntryLengthError(
                             "Error when setting coordinates for the "
@@ -883,7 +887,7 @@ class RerefCAR(Reref):
                 if ch_coords is None:
                     self._ch_coords_new[i] = self._ch_coords[self._ch_index[i]]
 
-        if not CheckLengthsList(self._ch_coords_new).equals_n(3):
+        if not check_lengths_list_equals_n(to_check=self._ch_coords_new, n=3):
             raise EntryLengthError(
                 "Error when setting coordinates for the rereferenced data:\n"
                 "Three, and only three coordinates (x, y, and z) must be "
@@ -988,8 +992,8 @@ class RerefCAR(Reref):
             coords_set = False
             if self._ch_coords_new != []:
                 if self._ch_coords_new[ch_i] != []:
-                    if not CheckLengthsList(self._ch_coords_new, [[]]).equals_n(
-                        3
+                    if not check_lengths_list_equals_n(
+                        to_check=self._ch_coords_new, n=3, ignore_values=[[]]
                     ):
                         raise Exception(
                             "Error when setting coordinates for the "
@@ -1216,7 +1220,7 @@ class RerefPseudo(Reref):
                 if ch_coords is None:
                     self._ch_coords_new[i] = self._ch_coords[self._ch_index[i]]
 
-        if not CheckLengthsList(self._ch_coords_new).equals_n(3):
+        if not check_lengths_list_equals_n(to_check=self._ch_coords_new, n=3):
             raise EntryLengthError(
                 "Error when setting coordinates for the rereferenced data:\n"
                 "Three, and only three coordinates (x, y, and z) must be "
@@ -1327,8 +1331,8 @@ class RerefPseudo(Reref):
             coords_set = False
             if self._ch_coords_new != []:
                 if self._ch_coords_new[ch_i] != []:
-                    if not CheckLengthsList(self._ch_coords_new, [[]]).equals_n(
-                        3
+                    if not check_lengths_list_equals_n(
+                        to_check=self._ch_coords_new, n=3, ignore_values=[[]]
                     ):
                         raise Exception(
                             "Error when setting coordinates for the "
