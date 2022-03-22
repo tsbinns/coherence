@@ -8,32 +8,41 @@ PowerMorlet
 
 
 from copy import deepcopy
-from typing import Any, Union
+from typing import Any, Optional, Union
+
+import csv
+import json
+import pickle
+
 from mne import time_frequency
+
 import numpy as np
 import pandas as pd
 
 from coh_dtypes import realnum
-from coh_check_entries import (
-    CheckEntriesPresent,
-    CheckDuplicatesList,
-    CheckMatchingEntries,
-)
 from coh_exceptions import (
     ChannelOrderError,
     DuplicateEntryError,
     InputTypeError,
-    MissingAttributeError,
     MissingEntryError,
     ProcessingOrderError,
     UnavailableProcessingError,
 )
+from coh_handle_entries import (
+    check_master_entries_in_sublists,
+    check_sublist_entries_in_master,
+    check_duplicates_list,
+    check_matching_entries,
+    ordered_list_from_dict,
+)
+from coh_handle_files import check_ftype_present
 from coh_processing_methods import ProcMethod
+from coh_saving import check_before_overwrite
 import coh_signal
 
 
 class PowerMorlet(ProcMethod):
-    """Performs power analysis on preprocessed data using Morlet wavelets.
+    """Performs power analysis on data using Morlet wavelets.
 
     PARAMETERS
     ----------
@@ -64,7 +73,9 @@ class PowerMorlet(ProcMethod):
         self.power = None
         self.itc = None
         self.power_dims = None
+        self._power_dims_sorted = None
         self.itc_dims = None
+        self._itc_dims_sorted = None
 
         # Initialises aspects of the Analysis object that indicate which methods
         # have been called (starting as 'False'), which can later be updated.
@@ -73,70 +84,8 @@ class PowerMorlet(ProcMethod):
         self._epochs_averaged = False
         self._power_timepoints_averaged = False
         self._itc_timepoints_averaged = False
-        self._power_dims_sorted = False
-        self._itc_dims_sorted = False
         self._power_in_dataframe = False
         self._itc_in_dataframe = False
-
-    def _getattr(self, attribute: str) -> Any:
-        """Gets aspects of the input object that indicate which methods have
-        been called.
-        -   The aspects must have already been instantiated.
-
-        PARAMETERS
-        ----------
-        attribute : str
-        -   The name of the aspect whose value should be returned.
-
-        RETURNS
-        -------
-        Any
-        -   The value of the aspect.
-
-        RAISES
-        ------
-        MissingAttributeError
-        -   Raised if the user attempts to access an attribute that has not been
-            instantiated.
-        """
-
-        if not hasattr(self, attribute):
-            raise MissingAttributeError(
-                f"Error when attempting to get an attribute of {self}:\nThe "
-                f"attribute '{attribute}' does not exist, and so its value "
-                "cannot be obtained."
-            )
-
-        return getattr(self, attribute)
-
-    def _updateattr(self, attribute: str, value: Any) -> None:
-        """Updates aspects of the object that indicate which methods
-        have been called.
-        -   The aspects must have already been instantiated.
-
-        PARAMETERS
-        ----------
-        attribute : str
-        -   The name of the aspect to update.
-
-        value : Any
-        -   The value to update the attribute with.
-
-        RAISES
-        ------
-        MissingAttributeError
-        -   Raised if the user attempts to update an attribute that has not been
-            instantiated in '_instantiate_attributes'.
-        """
-
-        if hasattr(self, attribute):
-            setattr(self, attribute, value)
-        else:
-            raise MissingAttributeError(
-                f"Error when attempting to update an attribute of {self}:\nThe "
-                f"attribute '{attribute}' does not exist, and so cannot be "
-                "updated."
-            )
 
     def _sort_inputs(self) -> None:
         """Checks the inputs to the processing method object to ensure that they
@@ -179,8 +128,8 @@ class PowerMorlet(ProcMethod):
         -   Raised if the order of the names of the channels does not match.
         """
 
-        if not CheckMatchingEntries(
-            self.signal.data.ch_names, self.power.ch_names
+        if not check_matching_entries(
+            objects=[self.signal.data.ch_names, self.power.ch_names]
         ):
             raise ChannelOrderError(
                 "The order of channel names in the preprocessed data and in "
@@ -190,8 +139,8 @@ class PowerMorlet(ProcMethod):
             )
 
         if self._itc_returned:
-            if not CheckMatchingEntries(
-                self.signal.data.ch_names, self.itc.ch_names
+            if not check_matching_entries(
+                objects=[self.signal.data.ch_names, self.itc.ch_names]
             ):
                 raise ChannelOrderError(
                     "The order of channel names in the preprocessed data and "
@@ -218,10 +167,8 @@ class PowerMorlet(ProcMethod):
             variable lists.
         """
 
-        entry_checking = CheckEntriesPresent(master_list, sublists)
-
-        all_present, absent_entries = entry_checking.master_in_subs(
-            allow_duplicates=False
+        all_present, absent_entries = check_master_entries_in_sublists(
+            master_list=master_list, sublists=sublists, allow_duplicates=False
         )
         if not all_present:
             raise MissingEntryError(
@@ -230,8 +177,8 @@ class PowerMorlet(ProcMethod):
                 f"{absent_entries} do not have any data."
             )
 
-        all_present, absent_entries = entry_checking.subs_in_master(
-            allow_duplicates=False
+        all_present, absent_entries = check_sublist_entries_in_master(
+            master_list=master_list, sublists=sublists, allow_duplicates=False
         )
         if not all_present:
             raise MissingEntryError(
@@ -349,9 +296,9 @@ class PowerMorlet(ProcMethod):
 
         combined_vars = identical_vars | unique_vars
 
-        duplicates, duplicate_values = CheckDuplicatesList(
-            combined_vars.keys()
-        ).check()
+        duplicates, duplicate_values = check_duplicates_list(
+            values=combined_vars.keys()
+        )
         if duplicates:
             raise DuplicateEntryError(
                 "Error when converting the Morlet power analysis results into "
@@ -360,6 +307,15 @@ class PowerMorlet(ProcMethod):
             )
 
         return combined_vars
+
+    def results_to_dataframe(self) -> None:
+        """Converts the results of the processing (power and if applicable,
+        inter-trial coherence) into DataFrames.
+        """
+
+        self._power_to_dataframe()
+        if self._itc_returned:
+            self._itc_to_dataframe()
 
     def _to_dataframe(
         self,
@@ -395,6 +351,15 @@ class PowerMorlet(ProcMethod):
     def _power_to_dataframe(self) -> None:
         """Converts the results of the Morlet wavelet power analysis into a
         pandas DataFrame.
+
+        RAISES
+        ------
+        ProcessingOrderError
+        -   Raised if the results are already in a DataFrame.
+
+        ChannelOrderError
+        -   Raised if the order of the channel names in the preprocessed data
+            and analysis results do not match.
         """
 
         if self._power_in_dataframe:
@@ -404,8 +369,8 @@ class PowerMorlet(ProcMethod):
                 "converted to a DataFrame."
             )
 
-        if not CheckMatchingEntries(
-            self.signal.data.ch_names, self.power.ch_names
+        if not check_matching_entries(
+            objects=[self.signal.data.ch_names, self.power.ch_names]
         ):
             raise ChannelOrderError(
                 "The order of channel names in the preprocessed data and in "
@@ -457,11 +422,20 @@ class PowerMorlet(ProcMethod):
             var_order, identical_var_names, unique_var_names
         )
 
-        self._updateattr("_power_in_dataframe", True)
+        self._power_in_dataframe = True
 
     def _itc_to_dataframe(self) -> None:
         """Converts the results of the inter-trial coherence analysis into a
         pandas DataFrame.
+
+        RAISES
+        ------
+        ProcessingOrderError
+        -   Raised if the results are already in a DataFrame.
+
+        ChannelOrderError
+        -   Raised if the order of the channel names in the preprocessed data
+            and analysis results do not match.
         """
 
         if self._itc_in_dataframe:
@@ -471,8 +445,8 @@ class PowerMorlet(ProcMethod):
                 "have already been converted to a DataFrame."
             )
 
-        if not CheckMatchingEntries(
-            self.signal.data.ch_names, self.itc.ch_names
+        if not check_matching_entries(
+            objects=[self.signal.data.ch_names, self.itc.ch_names]
         ):
             raise ChannelOrderError(
                 "The order of channel names in the preprocessed data and in "
@@ -523,7 +497,7 @@ class PowerMorlet(ProcMethod):
             var_order, identical_var_names, unique_var_names
         )
 
-        self._updateattr("_itc_in_dataframe", True)
+        self._itc_in_dataframe = True
 
     def _assign_result(
         self,
@@ -547,10 +521,10 @@ class PowerMorlet(ProcMethod):
         if itc_returned:
             self.power = result[0]
             self.itc = result[1]
-            self._updateattr("_itc_returned", True)
+            self._itc_returned = True
         else:
             self.power = result
-            self._updateattr("_itc_returned", False)
+            self._itc_returned = False
 
     def _average_timepoints_power(self) -> None:
         """Averages power results of the analysis across timepoints.
@@ -610,54 +584,48 @@ class PowerMorlet(ProcMethod):
                 "timepoints."
             )
 
-    def _sort_power_dims(self) -> None:
-        """Sorts the dimensions of the power data.
-
-        RAISES
-        ------
-        ProcessingOrderError
-        -   Raised if the dimensions of the power data have already been
-            re-ordered.
-        """
-
-        if self._power_dims_sorted:
-            raise ProcessingOrderError(
-                "Trying to re-order the dimensions of the power data, but this "
-                "has already been done."
-            )
+    def _establish_power_dims(self) -> None:
+        """Establishes the dimensions of the power data and notes how they
+        should be rearranged before saving."""
 
         if self._epochs_averaged:
             if self._power_timepoints_averaged:
                 self.power_dims = ["channels", "frequencies"]
+                self._power_dims_sorted = self.power_dims
             else:
-                self.power.data = np.transpose(self.power.data, (0, 2, 1))
-                self.power_dims = ["channels", "timepoints", "frequencies"]
+                self.power_dims = ["channels", "frequencies", "timepoints"]
+                self._power_dims_sorted = [
+                    "channels",
+                    "timepoints",
+                    "frequencies",
+                ]
         else:
             if self._power_timepoints_averaged:
-                self.power.data = np.transpose(self.power.data, (1, 0, 2))
-                self.power_dims = ["channels", "epochs", "frequencies"]
+                self.power_dims = ["epochs", "channels", "frequencies"]
+                self._power_dims_sorted = ["channels", "epochs", "frequencies"]
             else:
-                self.power.data = np.transpose(self.power.data, (1, 0, 3, 2))
                 self.power_dims = [
+                    "epochs",
+                    "channels",
+                    "frequencies",
+                    "timepoints",
+                ]
+                self._power_dims_sorted = [
                     "channels",
                     "epochs",
                     "timepoints",
                     "frequencies",
                 ]
 
-        self._power_dims_sorted = True
-
-    def _sort_itc_dims(self) -> None:
-        """Sorts the dimensions of the inter-trial coherence data.
+    def _establish_itc_dims(self) -> None:
+        """Establishes the dimensions of the inter-trial coherence data and
+        notes how they should be rearranged before saving.
 
         RAISES
         ------
         UnavailableProcessingError
-        -   Raised if coherence data was not returned from the analysis.
-
-        ProcessingOrderError
-        -   Raised if the dimensions of the power data have already been
-            re-ordered.
+        -   Raised if inter-trial coherence data was not returned from the
+            analysis.
         """
 
         if not self._itc_returned:
@@ -666,19 +634,13 @@ class PowerMorlet(ProcMethod):
                 "coherence data, but this data was not returned from the "
                 "analysis."
             )
-        if self._itc_dims_sorted:
-            raise ProcessingOrderError(
-                "Trying to re-order the dimensions of the inter-trial "
-                "coherence data, but this has already been done."
-            )
 
         if self._itc_timepoints_averaged:
             self.itc_dims = ["channels", "frequencies"]
+            self._itc_dims_sorted = self.itc_dims
         else:
-            self.itc.data = np.transpose(self.itc.data, (0, 2, 1))
-            self.itc_dims = ["channels", "timepoints", "frequencies"]
-
-        self._itc_dims_sorted = True
+            self.itc_dims = ["channels", "frequencies", "timepoints"]
+            self._itc_dims_sorted = ["channels", "timepoints", "frequencies"]
 
     def _get_result(
         self,
@@ -844,7 +806,6 @@ class PowerMorlet(ProcMethod):
         average_timepoints_power: bool = True,
         average_timepoints_itc: bool = False,
         output: str = "power",
-        convert_to_dataframe: bool = True,
     ) -> None:
         """Performs Morlet wavelet power analysis using the implementation in
         mne.time_frequency.tfr_morlet.
@@ -898,17 +859,13 @@ class PowerMorlet(ProcMethod):
         output : str; default 'power'
         -   Can be 'power' or 'complex'. If 'complex', average must be False.
 
-        convert_to_dataframe : bool; default False
-        -   Whether or not to convert the processed data into a dataframe before
-            saving.
-
         RAISES
         ------
         ProcessingOrderError
         -   Raised if the data in the object has already been processed.
         """
 
-        if self._getattr("_processed"):
+        if self._processed:
             ProcessingOrderError(
                 "The data in this object has already been processed. "
                 "Initialise a new instance of the object if you want to "
@@ -945,16 +902,12 @@ class PowerMorlet(ProcMethod):
         if average_timepoints_itc:
             self._average_timepoints_itc()
 
-        self._sort_power_dims()
+        self._establish_power_dims()
         if return_itc:
-            self._sort_itc_dims()
+            self._establish_itc_dims()
+            self._itc_returned = True
 
-        if convert_to_dataframe:
-            self._power_to_dataframe()
-            if return_itc:
-                self._itc_to_dataframe()
-
-        self._updateattr("_processed", True)
+        self._processed = True
         self._update_processing_steps(
             {
                 "freqs": freqs,
@@ -971,6 +924,220 @@ class PowerMorlet(ProcMethod):
                 "output": output,
             }
         )
+
+    def _prepare_results_for_saving(  # SUPER
+        self,
+        results: np.array,
+        results_structure: Optional[list[str]],
+        rearrange: Optional[list[str]],
+    ) -> list:
+        """Extracts the power and inter-trial coherence results from
+        mne.time_frequency.EpochsTFR or .AverageTFR objects as a list in
+        preparation for saving.
+
+        PARAMETERS
+        ----------
+        results : numpy array
+        -   The results of the power or inter-trial coherence analysis.
+
+        results_structure : list[str] | None; default None
+        -   The names of the axes in the results, used for rearranging the axes.
+            If None, the data cannot be rearranged.
+
+        rearrange : list[str] | None; default None
+        -   How to rearrange the axes of the data once extracted. If given,
+            'results_structure' must also be given.
+        -   E.g. ["channels", "epochs", "timepoints"] would give data in the
+            format channels x epochs x timepoints
+        -   If None, the data is taken as is.
+
+        RETURNS
+        -------
+        extracted_results : array
+        -   The transformed results.
+        """
+
+        extracted_results = deepcopy(results)
+
+        if rearrange:
+            extracted_results = np.transpose(
+                extracted_results,
+                [results_structure.index(axis) for axis in rearrange],
+            )
+
+        return extracted_results.tolist()
+
+    def _save_as_json(self, to_save: dict, fpath: str) -> None:  # SUPER
+        """Saves entries in a dictionary as a json file.
+
+        PARAMETERS
+        ----------
+        to_save : dict
+        -   Dictionary in which the keys represent the names of the entries in
+            the json file, and the values represent the corresponding values.
+
+        fpath : str
+        -   Location where the data should be saved.
+        """
+
+        with open(fpath, "w", encoding="utf8") as file:
+            json.dump(to_save, file)
+
+    def _save_as_csv(self, to_save: dict, fpath: str) -> None:  # SUPER
+        """Saves entries in a dictionary as a csv file.
+
+        PARAMETERS
+        ----------
+        to_save : dict
+        -   Dictionary in which the keys represent the names of the entries in
+            the csv file, and the values represent the corresponding values.
+
+        fpath : str
+        -   Location where the data should be saved.
+        """
+
+        with open(fpath, "wb") as file:
+            save_file = csv.writer(file)
+            save_file.writerow(to_save.keys())
+            save_file.writerow(to_save.values())
+
+    def _save_as_pkl(self, to_save: Any, fpath: str) -> None:  # SUPER
+        """Pickles and saves information in any format.
+
+        PARAMETERS
+        ----------
+        to_save : Any
+        -   Information that will be saved.
+
+        fpath : str
+        -   Location where the data should be saved.
+        """
+
+        with open(fpath, "wb") as file:
+            pickle.dump(to_save, file)
+
+    def save_object(  # SUPER
+        self, fpath: str, ask_before_overwrite: Optional[bool] = None
+    ) -> None:
+        """Saves the PowerMorlet object as a .pkl file.
+
+        PARAMETERS
+        ----------
+        fpath : str
+        -   Location where the data should be saved. The filetype extension
+            (.pkl) can be included, otherwise it will be automatically added.
+
+        ask_before_overwrite : bool | None; default the object's verbosity
+        -   If True, the user is asked to confirm whether or not to overwrite a
+            pre-existing file if one exists.
+        -   If False, the user is not asked to confirm this and it is done
+            automatically.
+        -   By default, this is set to None, in which case the value of the
+            verbosity when the Signal object was instantiated is used.
+        """
+
+        if not check_ftype_present(fpath):
+            fpath += ".pkl"
+
+        if ask_before_overwrite is None:
+            ask_before_overwrite = self._verbose
+        if ask_before_overwrite:
+            write = check_before_overwrite(fpath)
+        else:
+            write = True
+
+        if write:
+            self._save_as_pkl(self, fpath)
+
+    def save_results(  # SUPER
+        self,
+        fpath: str,
+        ftype: Optional[str] = None,
+        ask_before_overwrite: Optional[bool] = None,
+    ) -> None:
+        """Saves the results (power and inter-trial coherence, if applicable)
+        and additional information as a file.
+
+        PARAMETERS
+        ----------
+        fpath : str
+        -   Location where the data should be saved.
+
+        ftype : str | None; default None
+        -   The filetype of the data that will be saved, without the leading
+            period. E.g. for saving the file in the json format, this would be
+            "json", not ".json".
+        -   The information being saved must be an appropriate type for saving
+            in this format.
+        -   If None, the filetype is determined based on 'fpath', and so the
+            extension must be included in the path.
+
+        ask_before_overwrite : bool | None; default the object's verbosity
+        -   If True, the user is asked to confirm whether or not to overwrite a
+            pre-existing file if one exists.
+        -   If False, the user is not asked to confirm this and it is done
+            automatically.
+        -   By default, this is set to None, in which case the value of the
+            verbosity when the Signal object was instantiated is used.
+
+        RAISES
+        ------
+        UnavailableProcessingError
+        -   Raised if the given format for saving the file is in an unsupported
+            format.
+        """
+
+        power = self._prepare_results_for_saving(
+            self.power.data,
+            results_structure=self.power_dims,
+            rearrange=self._power_dims_sorted,
+        )
+
+        objects = [self.signal.data.ch_names, self.power.ch_names]
+        if self._itc_returned:
+            objects.append(self.itc.ch_names)
+        if not check_matching_entries(objects=objects):
+            raise ChannelOrderError(
+                "Error when trying to save the results of the Morlet wavelet "
+                "power analysis:\nThe channel names in the preprocessed data "
+                "and in the results do not match."
+            )
+
+        to_save = {
+            "power": power,
+            "power_structure": self._power_dims_sorted,
+            "ch_names": self.signal.data.ch_names,
+            "ch_types": self.signal.data.get_channel_types(),
+            "ch_coords": self.signal.get_coordinates(),
+            "ch_regions": ordered_list_from_dict(
+                self.power.ch_names, self.extra_info["ch_regions"]
+            ),
+            "reref_types": ordered_list_from_dict(
+                self.power.ch_names, self.extra_info["reref_types"]
+            ),
+            "samp_freq": self.signal.data.info["sfreq"],
+            "metadata": self.extra_info["metadata"],
+            "processing_steps": self.processing_steps,
+            "subject_info": self.signal.data.info["subject_info"],
+        }
+        if self._itc_returned:
+            itc = self._prepare_results_for_saving(
+                self.itc.data,
+                results_structure=self.itc_dims,
+                rearrange=self._itc_dims_sorted,
+            )
+            to_save["itc"] = itc
+            to_save["itc_structure"] = self._itc_dims_sorted
+
+        super.save_results(
+            to_save=to_save,
+            fpath=fpath,
+            ftype=ftype,
+            ask_before_overwrite=ask_before_overwrite,
+        )
+
+        if self._verbose:
+            print(f"Saving the raw signals to:\n'{fpath}'.")
 
     def save(
         self,

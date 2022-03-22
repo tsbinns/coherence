@@ -7,18 +7,26 @@ Signal
 """
 
 
+from copy import deepcopy
 from typing import Any, Optional, Union
+import csv
+import json
+import pickle
 import mne
 import mne_bids
 import numpy as np
 
 from coh_dtypes import realnum
 from coh_exceptions import (
-    ProcessingOrderError,
-    MissingAttributeError,
     EntryLengthError,
+    MissingAttributeError,
+    ProcessingOrderError,
+    UnavailableProcessingError,
 )
 from coh_rereference import Reref, RerefBipolar, RerefCAR, RerefPseudo
+from coh_handle_entries import ordered_list_from_dict
+from coh_handle_files import check_ftype_present, identify_ftype
+from coh_saving import check_before_overwrite
 
 
 class Signal:
@@ -87,6 +95,9 @@ class Signal:
 
     epoch
     -   Divides the mne.io.Raw object into epochs of a specified duration.
+
+    save_data
+    -   Saves the time-series data and additional information as a file.
     """
 
     def __init__(self, verbose: bool = True) -> None:
@@ -343,13 +354,14 @@ class Signal:
         should only be called when the data is initiallz loaded.
         """
 
-        self.extra_info["rereferencing_types"] = {
+        self.extra_info["reref_types"] = {
             ch_name: "none" for ch_name in self.data.info["ch_names"]
         }
         self.extra_info["ch_regions"] = {
             ch_name: "none" for ch_name in self.data.info["ch_names"]
         }
         self.data.ch_regions = self.extra_info["ch_regions"]
+        self.data_structure = ["channels", "timepoints"]
 
     def load_raw(self, path_raw: mne_bids.BIDSPath) -> None:
         """Loads an mne.io.Raw object, loads it into memory, and sets it as the
@@ -566,8 +578,8 @@ class Signal:
         self._drop_channels(
             [
                 ch_name
-                for ch_name in self.extra_info["rereferencing_types"].keys()
-                if self.extra_info["rereferencing_types"][ch_name] == "none"
+                for ch_name in self.extra_info["reref_types"].keys()
+                if self.extra_info["reref_types"][ch_name] == "none"
             ]
         )
 
@@ -629,7 +641,7 @@ class Signal:
             in which the key:value pairs are channel name : rereference type.
         """
 
-        RerefObject = RerefMethod(
+        reref_object = RerefMethod(
             self.data.copy(),
             ch_names_old,
             ch_names_new,
@@ -639,7 +651,7 @@ class Signal:
             ch_regions_new,
         )
 
-        return RerefObject.rereference()
+        return reref_object.rereference()
 
     def _check_conflicting_channels(
         self, ch_names_1: list[str], ch_names_2: list[str]
@@ -714,7 +726,7 @@ class Signal:
             type.
         """
 
-        self.extra_info["rereferencing_types"].update(reref_types)
+        self.extra_info["reref_types"].update(reref_types)
 
     def _add_ch_region_info(self, ch_regions: dict[str, str]) -> None:
         """Adds channel region information to 'extra_info'.
@@ -1082,3 +1094,200 @@ class Signal:
                 f"Epoching the data with epoch lengths of {epoch_length} "
                 "seconds."
             )
+        self.data_structure = ["epochs", "channels", "timepoints"]
+
+    def _extract_signals(self, rearrange: Optional[list[str]]) -> np.array:
+        """Extracts the signals from the mne.io.Raw object.
+
+        PARAMETERS
+        ----------
+        rearrange : list[str] | None; default None
+        -   How to rearrange the axes of the data once extracted.
+        -   E.g. ["channels", "epochs", "timepoints"] would give data in the
+            format channels x epochs x timepoints
+        -   If None, the data is taken as is.
+
+        RETURNS
+        -------
+        extracted_signals : array
+        -   The time-series signals extracted from the mne.io.Raw oject.
+        """
+
+        extracted_signals = deepcopy(self.data.get_data())
+
+        if rearrange:
+            extracted_signals = np.transpose(
+                extracted_signals,
+                [self.data_structure.index(axis) for axis in rearrange],
+            )
+
+        return extracted_signals.tolist()
+
+    def _save_as_json(self, to_save: dict, fpath: str) -> None:
+        """Saves entries in a dictionary as a json file.
+
+        PARAMETERS
+        ----------
+        to_save : dict
+        -   Dictionary in which the keys represent the names of the entries in
+            the json file, and the values represent the corresponding values.
+
+        fpath : str
+        -   Location where the data should be saved.
+        """
+
+        with open(fpath, "w", encoding="utf8") as file:
+            json.dump(to_save, file)
+
+    def _save_as_csv(self, to_save: dict, fpath: str) -> None:
+        """Saves entries in a dictionary as a csv file.
+
+        PARAMETERS
+        ----------
+        to_save : dict
+        -   Dictionary in which the keys represent the names of the entries in
+            the csv file, and the values represent the corresponding values.
+
+        fpath : str
+        -   Location where the data should be saved.
+        """
+
+        with open(fpath, "wb") as file:
+            save_file = csv.writer(file)
+            save_file.writerow(to_save.keys())
+            save_file.writerow(to_save.values())
+
+    def _save_as_pkl(self, to_save: Any, fpath: str) -> None:
+        """Pickles and saves information in any format.
+
+        PARAMETERS
+        ----------
+        to_save : Any
+        -   Information that will be and saved.
+
+        fpath : str
+        -   Location where the data should be saved.
+        """
+
+        with open(fpath, "wb") as file:
+            pickle.dump(to_save, file)
+
+    def save_object(
+        self, fpath: str, ask_before_overwrite: Optional[bool] = None
+    ) -> None:
+        """Saves the Signal object as a .pkl file.
+
+        PARAMETERS
+        ----------
+        fpath : str
+        -   Location where the data should be saved. The filetype extension
+            (.pkl) can be included, otherwise it will be automatically added.
+
+        ask_before_overwrite : bool | None; default the object's verbosity
+        -   If True, the user is asked to confirm whether or not to overwrite a
+            pre-existing file if one exists.
+        -   If False, the user is not asked to confirm this and it is done
+            automatically.
+        -   By default, this is set to None, in which case the value of the
+            verbosity when the Signal object was instantiated is used.
+        """
+
+        if not check_ftype_present(fpath):
+            fpath += ".pkl"
+
+        if ask_before_overwrite is None:
+            ask_before_overwrite = self._verbose
+        if ask_before_overwrite:
+            write = check_before_overwrite(fpath)
+        else:
+            write = True
+
+        if write:
+            self._save_as_pkl(self, fpath)
+
+    def save_signals(
+        self,
+        fpath: str,
+        ftype: Optional[str] = None,
+        ask_before_overwrite: Optional[bool] = None,
+    ) -> None:
+        """Saves the time-series data and additional information as a file.
+
+        PARAMETERS
+        ----------
+        fpath : str
+        -   Location where the data should be saved.
+
+        ftype : str | None; default None
+        -   The filetype of the data that will be saved, without the leading
+            period. E.g. for saving the file in the json format, this would be
+            "json", not ".json".
+        -   The information being saved must be an appropriate type for saving
+            in this format.
+        -   If None, the filetype is determined based on 'fpath', and so the
+            extension must be included in the path.
+
+        ask_before_overwrite : bool | None; default the object's verbosity
+        -   If True, the user is asked to confirm whether or not to overwrite a
+            pre-existing file if one exists.
+        -   If False, the user is not asked to confirm this and it is done
+            automatically.
+        -   By default, this is set to None, in which case the value of the
+            verbosity when the Signal object was instantiated is used.
+
+        RAISES
+        ------
+        UnavailableProcessingError
+        -   Raised if the given format for saving the file is in an unsupported
+            format.
+        """
+
+        extracted_signals = self._extract_signals(
+            rearrange=["channels", "epochs", "timepoints"]
+        )
+
+        to_save = {
+            "data": extracted_signals,
+            "data_structure": self.data_structure,
+            "ch_names": self.data.ch_names,
+            "ch_types": self.data.get_channel_types(),
+            "ch_coords": self.get_coordinates(),
+            "ch_regions": ordered_list_from_dict(
+                self.data.ch_names, self.extra_info["ch_regions"]
+            ),
+            "reref_types": ordered_list_from_dict(
+                self.data.ch_names, self.extra_info["reref_types"]
+            ),
+            "samp_freq": self.data.info["sfreq"],
+            "metadata": self.extra_info["metadata"],
+            "processing_steps": self.processing_steps,
+            "subject_info": self.data.info["subject_info"],
+        }
+
+        if ftype is None:
+            ftype = identify_ftype(fpath)
+        if not check_ftype_present(fpath):
+            fpath += ftype
+
+        if ask_before_overwrite is None:
+            ask_before_overwrite = self._verbose
+        if ask_before_overwrite:
+            write = check_before_overwrite(fpath)
+        else:
+            write = True
+
+        if write:
+            if ftype == "json":
+                self._save_as_json(to_save, fpath)
+            elif ftype == "csv":
+                self._save_as_csv(to_save, fpath)
+            elif ftype == "pkl":
+                self._save_as_pkl(to_save, fpath)
+            else:
+                raise UnavailableProcessingError(
+                    f"Error when trying to save the Signal object:\nThe {ftype} "
+                    "format for saving is not supported."
+                )
+
+        if self._verbose:
+            print(f"Saving the raw signals to:\n'{fpath}'.")
