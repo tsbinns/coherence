@@ -37,6 +37,10 @@ ChannelTypeError : Exception
 InputTypeError : Exception
 -   Class for raising exceptions/errors associated with input objects being of
     the wrong type.
+
+MissingFileExtensionError : Exception
+-   Class for raising exceptions/errors associated with a filename string
+    missing a filetype extension.
 """
 
 
@@ -92,3 +96,8 @@ class InputTypeError(Exception):
     """Class for raising exceptions/errors associated with input objects being
     of the wrong type.
     """
+
+
+class MissingFileExtensionError(Exception):
+    """Class for raising exceptions/errors associated with a filename string
+    missing a filetype extension."""
