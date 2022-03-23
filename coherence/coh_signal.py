@@ -19,11 +19,10 @@ import numpy as np
 from coh_dtypes import realnum
 from coh_exceptions import (
     EntryLengthError,
-    MissingAttributeError,
     ProcessingOrderError,
     UnavailableProcessingError,
 )
-from coh_rereference import Reref, RerefBipolar, RerefCAR, RerefPseudo
+from coh_rereference import Reref, RerefBipolar, RerefCommonAverage, RerefPseudo
 from coh_handle_entries import ordered_list_from_dict
 from coh_handle_files import check_ftype_present, identify_ftype
 from coh_saving import check_before_overwrite
@@ -84,7 +83,7 @@ class Signal:
     rereference_bipolar
     -   Bipolar rereferences channels in the mne.io.Raw object.
 
-    rereference_CAR
+    rereference_common_average
     -   Common-average rereferences channels in the mne.io.Raw object.
 
     rereference_pseudo
@@ -112,6 +111,7 @@ class Signal:
         self.extra_info = {}
         self.data = None
         self._path_raw = None
+        self.data_dimensions = None
 
         # Initialises aspects of the Signal object that indicate which methods
         # have been called (starting as 'False'), which can later be updated.
@@ -125,69 +125,9 @@ class Signal:
         self._resampled = False
         self._rereferenced = False
         self._rereferenced_bipolar = False
-        self._rereferenced_CAR = False
+        self._rereferenced_common_average = False
         self._rereferenced_pseudo = False
         self._epoched = False
-
-    def _updateattr(self, attribute: str, value: Any) -> None:
-        """Updates aspects of the Signal object that indicate which methods
-        have been called.
-        -   The aspects must have already been instantiated.
-
-        PARAMETERS
-        ----------
-        attribute : str
-        -   The name of the aspect to update.
-
-        value : Any
-        -   The value to update the attribute with.
-
-        RAISES
-        ------
-        MissingAttributeError
-        -   Raised if the user attempts to update an attribute that has not been
-            instantiated in '_instantiate_attributes'.
-        """
-
-        if hasattr(self, attribute):
-            setattr(self, attribute, value)
-        else:
-            raise MissingAttributeError(
-                f"Error when attempting to update an attribute of {self}:\nThe "
-                f"attribute {attribute} does not exist, and so cannot be "
-                "updated."
-            )
-
-    def _getattr(self, attribute: str) -> Any:
-        """Gets aspects of the Signal object that indicate which methods have
-        been called.
-        -   The aspects must have already been instantiated.
-
-        PARAMETERS
-        ----------
-        attribute : str
-        -   The name of the aspect whose value should be returned.
-
-        RETURNS
-        -------
-        Any
-        -   The value of the aspect.
-
-        RAISES
-        ------
-        MissingAttributeError
-        -   Raised if the user attempts to access an attribute that has not been
-            instantiated in '_instantiate_attributes'.
-        """
-
-        if not hasattr(self, attribute):
-            raise MissingAttributeError(
-                f"Error when attempting to get an attribute of {self}:\nThe "
-                f"attribute {attribute} does not exist, and so its value "
-                "cannot be updated."
-            )
-
-        return getattr(self, attribute)
 
     def _update_processing_steps(self, step_name: str, step_value: Any) -> None:
         """Updates the 'preprocessing' entry of the 'processing_steps'
@@ -305,8 +245,8 @@ class Signal:
         )
         self.data._set_channel_positions(ch_coords, ch_names)
 
-        self._updateattr("_coordinates_set", True)
-        if self._getattr("_verbose"):
+        self._coordinates_set = True
+        if self._verbose:
             print(f"Setting channel coordinates to:\n{ch_coords}.")
 
     def set_regions(self, ch_names: list[str], ch_regions: list[str]) -> None:
@@ -333,8 +273,8 @@ class Signal:
             self.extra_info["ch_regions"][ch_name] = ch_regions[i]
         self.data.ch_regions = self.extra_info["ch_regions"]
 
-        self._updateattr("_regions_set", True)
-        if self._getattr("_verbose"):
+        self._regions_set = True
+        if self._verbose:
             print(f"Setting channel regions to:\n{ch_regions}.")
 
     def get_data(self) -> np.array:
@@ -349,9 +289,9 @@ class Signal:
 
         return self.data.get_data(reject_by_annotation="omit").copy()
 
-    def _initialise_extra_info(self) -> None:
+    def _initialise_additional_info(self) -> None:
         """Fills the extra_info dictionary with placeholder information. This
-        should only be called when the data is initiallz loaded.
+        should only be called when the data is initially loaded.
         """
 
         self.extra_info["reref_types"] = {
@@ -360,8 +300,9 @@ class Signal:
         self.extra_info["ch_regions"] = {
             ch_name: "none" for ch_name in self.data.info["ch_names"]
         }
+
         self.data.ch_regions = self.extra_info["ch_regions"]
-        self.data_structure = ["channels", "timepoints"]
+        self.data_dimensions = ["channels", "timepoints"]
 
     def load_raw(self, path_raw: mne_bids.BIDSPath) -> None:
         """Loads an mne.io.Raw object, loads it into memory, and sets it as the
@@ -381,7 +322,7 @@ class Signal:
         -   A new Signal object should be instantiated and used instead.
         """
 
-        if self._getattr("_data_loaded"):
+        if self._data_loaded:
             raise ProcessingOrderError(
                 "Error when trying to load raw data:\nRaw data has already "
                 "been loaded into the object."
@@ -392,9 +333,9 @@ class Signal:
             bids_path=self._path_raw, verbose=False
         )
         self.data.load_data()
-        self._initialise_extra_info()
+        self._initialise_additional_info()
 
-        self._updateattr("_data_loaded", True)
+        self._data_loaded = True
         if self._verbose:
             print(f"Loading the data from the filepath:\n{path_raw}.")
 
@@ -434,8 +375,7 @@ class Signal:
         except:
             print("There are no events to read from the annotations file.")
 
-        self._updateattr("_annotations_loaded", True)
-        self._update_processing_steps("annotations_added", True)
+        self._annotations_loaded = True
 
     def _pick_extra_info(self, ch_names: list[str]) -> None:
         """Retains entries for selected channels in 'extra_info', discarding
@@ -494,7 +434,7 @@ class Signal:
         self._pick_extra_info(ch_names)
         self.data.ch_regions = self.extra_info["ch_regions"]
 
-        self._updateattr("_channels_picked", True)
+        self._channels_picked = True
         self._update_processing_steps("channel_picks", ch_names)
         if self._verbose:
             print(
@@ -516,7 +456,7 @@ class Signal:
 
         self.data.filter(highpass_freq, lowpass_freq)
 
-        self._updateattr("_bandpass_filtered", True)
+        self._bandpass_filtered = True
         self._update_processing_steps(
             "bandpass_filter", [lowpass_freq, highpass_freq]
         )
@@ -544,7 +484,7 @@ class Signal:
         ).tolist()
         self.data.notch_filter(freqs)
 
-        self._updateattr("_notch_filtered", True)
+        self._notch_filtered = True
         self._update_processing_steps("notch_filter", freqs)
         if self._verbose:
             print(
@@ -564,7 +504,7 @@ class Signal:
 
         self.data.resample(resample_freq)
 
-        self._updateattr("_resampled", True)
+        self._resampled = True
         self._update_processing_steps("resample", resample_freq)
         if self._verbose:
             print(f"Resampling the data at {resample_freq} Hz.")
@@ -585,7 +525,7 @@ class Signal:
 
     def _apply_rereference(
         self,
-        RerefMethod: Reref,
+        reref_method: Reref,
         ch_names_old: Union[list[str], list[list[str]]],
         ch_names_new: Optional[list[Optional[str]]],
         ch_types_new: Optional[list[Optional[str]]],
@@ -597,7 +537,7 @@ class Signal:
 
         PARAMETERS
         ----------
-        RerefMethod : Reref
+        reref_method : Reref
         -   The rereferencing method to apply.
 
         ch_names_old : list[str | list[str]]
@@ -641,8 +581,8 @@ class Signal:
             in which the key:value pairs are channel name : rereference type.
         """
 
-        reref_object = RerefMethod(
-            self.data.copy(),
+        reref_object = reref_method(
+            deepcopy(self.data),
             ch_names_old,
             ch_names_new,
             ch_types_new,
@@ -772,7 +712,7 @@ class Signal:
 
     def _rereference(
         self,
-        RerefMethod: Reref,
+        reref_method: Reref,
         ch_names_old: Union[list[str], list[list[str]]],
         ch_names_new: Optional[list[Optional[str]]],
         ch_types_new: Optional[list[Optional[str]]],
@@ -806,8 +746,7 @@ class Signal:
         reref_types : list[str | None] | None; default None
         -   The rereferencing type applied to the channels, corresponding to the
             channels in 'ch_names_new'.
-        -   Missing values (None) will be set as 'CAR', common-average
-            rereferencing.
+        -   Missing values (None) will be set as 'common_average'.
 
         ch_coords_new : list[list[int | float] | None] | None; default None
         -   The coordinates of the newly rereferenced channels, corresponding to
@@ -846,7 +785,7 @@ class Signal:
             reref_types_dict,
             ch_regions_new,
         ) = self._apply_rereference(
-            RerefMethod,
+            reref_method,
             ch_names_old,
             ch_names_new,
             ch_types_new,
@@ -858,7 +797,7 @@ class Signal:
         self._add_rereferencing_info(reref_types_dict)
         self._add_ch_region_info(ch_regions_new)
 
-        self._updateattr("_rereferenced", True)
+        self._rereferenced = True
 
         return ch_names_new
 
@@ -892,8 +831,7 @@ class Signal:
         reref_types : list[str | None] | None; default None
         -   The rereferencing type applied to the channels, corresponding to the
             channels in 'ch_names_new'.
-        -   Missing values (None) will be set as 'CAR', common-average
-            rereferencing.
+        -   Missing values (None) will be set as 'common_average'.
 
         ch_coords_new : list[list[int | float] | None] or None; default None
         -   The coordinates of the newly rereferenced channels, corresponding to
@@ -917,7 +855,7 @@ class Signal:
             ch_regions_new,
         )
 
-        self._updateattr("_rereferenced_bipolar", True)
+        self._rereferenced_bipolar = True
         ch_reref_pairs = self._get_channel_rereferencing_pairs(
             ch_names_old, ch_names_new
         )
@@ -929,7 +867,7 @@ class Signal:
                 for [old, new] in ch_reref_pairs
             ]
 
-    def rereference_CAR(
+    def rereference_common_average(
         self,
         ch_names_old: list[list[str]],
         ch_names_new: list[str],
@@ -959,8 +897,7 @@ class Signal:
         reref_types : list[str | None] | None; default None
         -   The rereferencing type applied to the channels, corresponding to the
             channels in 'ch_names_new'.
-        -   Missing values (None) will be set as 'CAR', common-average
-            rereferencing.
+        -   Missing values (None) will be set as 'common_average'.
 
         ch_coords_new : list[list[int | float] | None] | None; default None
         -   The coordinates of the newly rereferenced channels, corresponding to
@@ -975,7 +912,7 @@ class Signal:
         """
 
         ch_names_new = self._rereference(
-            RerefCAR,
+            RerefCommonAverage,
             ch_names_old,
             ch_names_new,
             ch_types_new,
@@ -984,13 +921,17 @@ class Signal:
             ch_regions_new,
         )
 
-        self._updateattr("_rereferenced_CAR", True)
+        self._rereferenced_common_average = True
         ch_reref_pairs = self._get_channel_rereferencing_pairs(
             ch_names_old, ch_names_new
         )
-        self._update_processing_steps("rereferencing_CAR", ch_reref_pairs)
+        self._update_processing_steps(
+            "rereferencing_common_average", ch_reref_pairs
+        )
         if self._verbose:
-            print("The following channels have been CAR rereferenced:")
+            print(
+                "The following channels have been common-average rereferenced:"
+            )
             [print(f"{old} -> {new}") for [old, new] in ch_reref_pairs]
 
     def rereference_pseudo(
@@ -1053,7 +994,7 @@ class Signal:
             ch_regions_new,
         )
 
-        self._updateattr("_rereferenced_pseudo", True)
+        self._rereferenced_pseudo = True
         ch_reref_pairs = self._get_channel_rereferencing_pairs(
             ch_names_old, ch_names_new
         )
@@ -1087,14 +1028,14 @@ class Signal:
         self.data = mne.make_fixed_length_epochs(self.data, epoch_length)
         self.data.load_data()
 
-        self._updateattr("_epoched", True)
+        self._epoched = True
         self._update_processing_steps("epoch_data", epoch_length)
         if self._verbose:
             print(
                 f"Epoching the data with epoch lengths of {epoch_length} "
                 "seconds."
             )
-        self.data_structure = ["epochs", "channels", "timepoints"]
+        self.data_dimensions = ["epochs", "channels", "timepoints"]
 
     def _extract_signals(self, rearrange: Optional[list[str]]) -> np.array:
         """Extracts the signals from the mne.io.Raw object.
@@ -1118,7 +1059,7 @@ class Signal:
         if rearrange:
             extracted_signals = np.transpose(
                 extracted_signals,
-                [self.data_structure.index(axis) for axis in rearrange],
+                [self.data_dimensions.index(axis) for axis in rearrange],
             )
 
         return extracted_signals.tolist()
@@ -1247,8 +1188,8 @@ class Signal:
         )
 
         to_save = {
-            "data": extracted_signals,
-            "data_structure": self.data_structure,
+            "signals": extracted_signals,
+            "signals_dimensions": self.data_dimensions,
             "ch_names": self.data.ch_names,
             "ch_types": self.data.get_channel_types(),
             "ch_coords": self.get_coordinates(),
@@ -1285,9 +1226,8 @@ class Signal:
                 self._save_as_pkl(to_save, fpath)
             else:
                 raise UnavailableProcessingError(
-                    f"Error when trying to save the Signal object:\nThe {ftype} "
+                    f"Error when trying to save the raw signals:\nThe {ftype} "
                     "format for saving is not supported."
                 )
-
-        if self._verbose:
-            print(f"Saving the raw signals to:\n'{fpath}'.")
+            if self._verbose:
+                print(f"Saving the raw signals to:\n'{fpath}'.")
