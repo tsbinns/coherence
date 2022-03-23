@@ -327,7 +327,7 @@ def check_matching_entries(objects: list[Any]) -> bool:
     -   Raised if the objects do not have equal lengths.
     """
 
-    equal, length = check_lengths_dict_identical(objects)
+    equal, length = check_lengths_list_identical(objects)
     if not equal:
         raise EntryLengthError(
             "Error when checking whether the entries of objects are "
@@ -337,7 +337,7 @@ def check_matching_entries(objects: list[Any]) -> bool:
 
     checking = True
     matching = True
-    while checking or matching:
+    while checking and matching:
         object_i = 1
         for entry_i, base_value in enumerate(objects[0]):
             for object_values in objects[1:]:
