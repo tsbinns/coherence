@@ -1,9 +1,18 @@
-"""An abstract class for rereferencing data in an mne.io.Raw object.
+"""Classes for rereferencing data in an mne.io.Raw object.
 
 CLASSES
 -------
 Reref : abstract base class
 -   Abstract class for rereferencing data in an mne.io.Raw object.
+
+RerefBipolar : subclass of Reref
+-   Bipolar rereferences data in an mne.io.Raw object.
+
+RerefCommonAverage : subclass of Reref
+-   Common-average rereferences data in an mne.io.Raw object.
+
+RerefPseudo: subclass of Reref
+-   Pseudo rereferences data in an mne.io.Raw object.
 """
 
 
@@ -35,7 +44,7 @@ class Reref(ABC):
     RerefBipolar
     -   Bipolar rereferences data in an mne.io.Raw object.
 
-    RerefCAR
+    RerefCommonAverage
     -   Common-average rereferences data in an mne.io.Raw object.
 
     RerefPseudo
@@ -74,7 +83,7 @@ class Reref(ABC):
         """
 
         equal_lengths, n_channels = check_lengths_list_identical(
-            to_check=lengths_to_check
+            to_check=lengths_to_check, ignore_values=[None]
         )
 
         if not equal_lengths:
@@ -319,6 +328,7 @@ class Reref(ABC):
 
 class RerefBipolar(Reref):
     """Bipolar rereferences data in an mne.io.Raw object.
+    -   Subclass of the abstract class Reref.
 
     PARAMETERS
     ----------
@@ -342,8 +352,7 @@ class RerefBipolar(Reref):
     reref_types : list[str | None] | None; default None
     -   The rereferencing type applied to the channels, corresponding to the
         channels in 'ch_names_new'.
-    -   Missing values (None) will be set as 'CAR', common-average
-        rereferencing.
+    -   Missing values (None) will be set as 'common_average'
 
     ch_coords_new : list[list[int | float] | None] | None; default None
     -   The coordinates of the newly rereferenced channels, corresponding to
@@ -721,7 +730,7 @@ class RerefBipolar(Reref):
         return self.raw, self._ch_names_new, self.reref_types, self.ch_regions
 
 
-class RerefCAR(Reref):
+class RerefCommonAverage(Reref):
     """Common-average rereferences data in an mne.io.Raw object.
     -   Subclass of the abstract class Reref.
 
@@ -747,8 +756,7 @@ class RerefCAR(Reref):
     reref_types : list[str | None] | None; default None
     -   The rereferencing type applied to the channels, corresponding to the
         channels in 'ch_names_new'.
-    -   Missing values (None) will be set as 'CAR', common-average
-        rereferencing.
+    -   Missing values (None) will be set as 'common_average'.
 
     ch_coords_new : list[list[int | float] | None] | None; default None
     -   The coordinates of the newly rereferenced channels, corresponding to
@@ -778,7 +786,7 @@ class RerefCAR(Reref):
         ch_regions_new: Optional[list[Optional[str]]] = None,
     ) -> None:
 
-        # Initialises inputs of the RerefCAR object.
+        # Initialises inputs of the RerefCommonAverage object.
         self.raw = raw
         self._data_from_raw()
         self._ch_names_old = ch_names_old
@@ -790,8 +798,8 @@ class RerefCAR(Reref):
         self._reref_types = reref_types
         self._sort_inputs()
 
-        # Initialises aspects of the RerefCAR object that will be filled
-        # with information as the data is processed.
+        # Initialises aspects of the RerefCommonAverage object that will be
+        # filled with information as the data is processed.
         self._new_data = None
         self._new_ch_coords = None
 
@@ -839,15 +847,17 @@ class RerefCAR(Reref):
 
     def _sort_reref_types(self) -> None:
         """Resolves any missing entries from the rereference types of the new
-        channels, setting them to 'CAR', common-average referencing.
+        channels, setting them to 'common_average', common-average referencing.
         """
 
         if self._reref_types is None:
-            self._reref_types = ["CAR" for i in range(self._n_channels)]
+            self._reref_types = [
+                "common_average" for i in range(self._n_channels)
+            ]
         elif any(item is None for item in self._reref_types):
             for i, reref_type in enumerate(self._reref_types):
                 if reref_type is None:
-                    self._reref_types[i] = "CAR"
+                    self._reref_types[i] = "common_average"
 
     def _sort_ch_types_new(self) -> None:
         """Resolves any missing entries from the channels types of the new
