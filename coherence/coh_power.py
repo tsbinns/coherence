@@ -8,36 +8,24 @@ PowerMorlet
 
 
 from copy import deepcopy
-from typing import Any, Optional, Union
-
-import csv
-import json
-import pickle
+from typing import Optional, Union
 
 from mne import time_frequency
 
 import numpy as np
-import pandas as pd
 
 from coh_dtypes import realnum
 from coh_exceptions import (
     ChannelOrderError,
-    DuplicateEntryError,
     InputTypeError,
-    MissingEntryError,
     ProcessingOrderError,
     UnavailableProcessingError,
 )
 from coh_handle_entries import (
-    check_master_entries_in_sublists,
-    check_sublist_entries_in_master,
-    check_duplicates_list,
-    check_matching_entries,
     ordered_list_from_dict,
+    check_matching_entries,
 )
-from coh_handle_files import check_ftype_present
 from coh_processing_methods import ProcMethod
-from coh_saving import check_before_overwrite
 import coh_signal
 
 
@@ -98,122 +86,11 @@ class PowerMorlet(ProcMethod):
             which is necessary for power and connectivity analyses.
         """
 
-        if self.signal._getattr("_epoched") is False:
+        if "epochs" not in self.signal.data_dimensions:
             raise InputTypeError(
                 "The provided Signal object does not contain epoched data. "
                 "Epoched data is required for power and connectivity analyses."
             )
-
-    def _update_processing_steps(self, step_value: dict) -> None:
-        """Updates the 'power_morlet' entry of the 'processing_steps'
-        dictionary of the PowerMorlet object with new information.
-
-        PARAMETERS
-        ----------
-        step_value : dict
-        -   A dictionary where the keys are the analysis setting names and the
-            values the settings used.
-        """
-
-        self.processing_steps["power_morlet"] = step_value
-
-    def _check_identical_ch_orders(self) -> None:
-        """Checks to make sure that the order of the channels (and thus, the
-        data) in the preprocessed data, power data, and (optionally) inter-
-        trial coherence data is identical.
-
-        RAISES
-        ------
-        ChannelOrderError
-        -   Raised if the order of the names of the channels does not match.
-        """
-
-        if not check_matching_entries(
-            objects=[self.signal.data.ch_names, self.power.ch_names]
-        ):
-            raise ChannelOrderError(
-                "The order of channel names in the preprocessed data and in "
-                "the Morlet power data do not match.\nThis should only have "
-                "occurred if you re-ordered the channels of these datasets "
-                "separately of one another."
-            )
-
-        if self._itc_returned:
-            if not check_matching_entries(
-                objects=[self.signal.data.ch_names, self.itc.ch_names]
-            ):
-                raise ChannelOrderError(
-                    "The order of channel names in the preprocessed data and "
-                    "in the inter-trial coherence data do not match.\nThis "
-                    "should only have occurred if you re-ordered the channels "
-                    "of these datasets separately of one another."
-                )
-
-    def _check_vars_present(
-        self, master_list: list[str], sublists: list[list[str]]
-    ) -> None:
-        """Checks to make sure the variables in the variable order list are all
-        present in the identical and unique variable lists and that the
-        identical and unique variable lists are specified in the variable
-        order list.
-
-        PARAMETERS
-        ----------
-        master_list : list[Any]
-        -   A master list of values. Here the variable order list.
-
-        sublists : list[list[Any]]
-        -   A list of sublists of values. Here the identical and unique
-            variable lists.
-        """
-
-        all_present, absent_entries = check_master_entries_in_sublists(
-            master_list=master_list, sublists=sublists, allow_duplicates=False
-        )
-        if not all_present:
-            raise MissingEntryError(
-                "Error when trying to convert the results of the Morlet power "
-                "analysis into a DataFrame:\nThe following columns "
-                f"{absent_entries} do not have any data."
-            )
-
-        all_present, absent_entries = check_sublist_entries_in_master(
-            master_list=master_list, sublists=sublists, allow_duplicates=False
-        )
-        if not all_present:
-            raise MissingEntryError(
-                "Error when trying to convert the results of the Morlet power "
-                "analysis into a DataFrame:\nThe following columns "
-                f"{absent_entries} have not been accounted for when ordering "
-                "the columns of the DataFrame."
-            )
-
-    def _set_df_identical_vars(
-        self, var_names: list[str], var_values: dict[Any]
-    ) -> dict:
-        """Sets the variables which have identical values regardless of the
-        channel from which the data is coming.
-
-        PARAMETERS
-        ----------
-        var_names : list[str]
-        -   Names of the variables with identical values.
-
-        var_values : dict[Any]
-        -   Dictionary where the keys are the variable names and the values are
-            the values of the variables which are identical across channels.
-
-        RETURNS
-        -------
-        dict[Any]
-        -   Dictionary of key:value pairs where the keys are the variable names
-            and the values a list of identical entries for the corresponding
-            key.
-        """
-
-        n_entries = len(self.signal.data.ch_names)
-
-        return {name: [var_values[name]] * n_entries for name in var_names}
 
     def _set_df_unique_vars(self, var_names: list[str]) -> dict:
         """Sets the variables which have unique values depending on the
@@ -251,11 +128,11 @@ class PowerMorlet(ProcMethod):
             elif name == "ch_coords":
                 unique_vars[name] = self.signal.get_coordinates()
             elif name == "freqs":
-                unique_vars[name] = [list(self.power.freqs)] * len(ch_names)
+                unique_vars[name] = [self.power.freqs.tolist()] * len(ch_names)
             elif name == "power":
-                unique_vars[name] = list(self.power.data)
+                unique_vars[name] = self.power.data.tolist()
             elif name == "itc":
-                unique_vars[name] = list(self.itc.data)
+                unique_vars[name] = self.itc.data.tolist()
             else:
                 raise UnavailableProcessingError(
                     "Error when converting the Morlet power data to a "
@@ -263,50 +140,6 @@ class PowerMorlet(ProcMethod):
                 )
 
         return unique_vars
-
-    def _combine_df_vars(
-        self, identical_vars: dict[Any], unique_vars: dict[Any]
-    ) -> dict:
-        """Combines identical and unique variables together into a single
-        dictionary.
-
-        PARAMETERS
-        ----------
-        identical_vars : dict[Any]
-        -   Dictionary in which the keys are the names of the variables whose
-            values are identical across channels, and the values the variables'
-            corresponding values.
-
-        unique_vars : dict[Any]
-        -   Dictionary in which the keys are the names of the variables whose
-            values are different across channels, and the values the variables'
-            corresponding values.
-
-        RETURNS
-        -------
-        combined_vars : dict[Any]
-        -   Dictionary containing the identical and unique variables.
-
-        RAISES
-        ------
-        DuplicateEntryError
-        -   Raised if a variable is listed multiple times within the identical
-            and/or unique variables.
-        """
-
-        combined_vars = identical_vars | unique_vars
-
-        duplicates, duplicate_values = check_duplicates_list(
-            values=combined_vars.keys()
-        )
-        if duplicates:
-            raise DuplicateEntryError(
-                "Error when converting the Morlet power analysis results into "
-                f"a DataFrame:\nThe DataFrame column(s) {duplicate_values} are "
-                "repeated."
-            )
-
-        return combined_vars
 
     def results_to_dataframe(self) -> None:
         """Converts the results of the processing (power and if applicable,
@@ -316,37 +149,6 @@ class PowerMorlet(ProcMethod):
         self._power_to_dataframe()
         if self._itc_returned:
             self._itc_to_dataframe()
-
-    def _to_dataframe(
-        self,
-        var_order: list[str],
-        identical_var_names: list[str],
-        unique_var_names: list[str],
-    ) -> pd.DataFrame:
-        """Converts the processed data into a pandas DataFrame.
-
-        PARAMETERS
-        ----------
-        var_order : list[str]
-        -   The order the variables should take in the DataFrame.
-
-        identical_var_names : dict[Any]
-        -   The names of the variables whose values do not depend on the
-            channel.
-
-        unique_var_names : dict[Any]
-        -   The names of the variables whose values depend on the channel.
-        """
-
-        identical_vars = self._set_df_identical_vars(
-            identical_var_names, self.extra_info["metadata"]
-        )
-        unique_vars = self._set_df_unique_vars(unique_var_names)
-        combined_vars = self._combine_df_vars(identical_vars, unique_vars)
-
-        return pd.DataFrame.from_dict(combined_vars, orient="columns").reindex(
-            columns=var_order
-        )
 
     def _power_to_dataframe(self) -> None:
         """Converts the results of the Morlet wavelet power analysis into a
@@ -419,7 +221,13 @@ class PowerMorlet(ProcMethod):
         )
 
         self.power = self._to_dataframe(
-            var_order, identical_var_names, unique_var_names
+            var_order=var_order,
+            identical_vars=self._set_df_identical_vars(
+                var_names=identical_var_names,
+                var_values=self.extra_info["metadata"],
+                n_entries=len(self.signal.data.ch_names),
+            ),
+            unique_vars=self._set_df_unique_vars(unique_var_names),
         )
 
         self._power_in_dataframe = True
@@ -494,7 +302,13 @@ class PowerMorlet(ProcMethod):
         )
 
         self.itc = self._to_dataframe(
-            var_order, identical_var_names, unique_var_names
+            var_order=var_order,
+            identical_vars=self._set_df_identical_vars(
+                var_names=identical_var_names,
+                var_values=self.extra_info["metadata"],
+                n_entries=len(self.signal.data.ch_names),
+            ),
+            unique_vars=self._set_df_unique_vars(unique_var_names),
         )
 
         self._itc_in_dataframe = True
@@ -908,116 +722,25 @@ class PowerMorlet(ProcMethod):
             self._itc_returned = True
 
         self._processed = True
-        self._update_processing_steps(
-            {
-                "freqs": freqs,
-                "n_cycles": n_cycles,
-                "use_fft": use_fft,
-                "return_itc": return_itc,
-                "decim": decim,
-                "n_jobs": n_jobs,
-                "picks": picks,
-                "zero_mean": zero_mean,
-                "average_epochs": average_epochs,
-                "average_timepoints_power": average_timepoints_power,
-                "average_timepoints_itc": average_timepoints_itc,
-                "output": output,
-            }
-        )
+        self.processing_steps["power_morlet"] = {
+            "freqs": freqs,
+            "n_cycles": n_cycles,
+            "use_fft": use_fft,
+            "return_itc": return_itc,
+            "decim": decim,
+            "n_jobs": n_jobs,
+            "picks": picks,
+            "zero_mean": zero_mean,
+            "average_epochs": average_epochs,
+            "average_timepoints_power": average_timepoints_power,
+            "average_timepoints_itc": average_timepoints_itc,
+            "output": output,
+        }
 
-    def _prepare_results_for_saving(  # SUPER
+    def save_object(
         self,
-        results: np.array,
-        results_structure: Optional[list[str]],
-        rearrange: Optional[list[str]],
-    ) -> list:
-        """Extracts the power and inter-trial coherence results from
-        mne.time_frequency.EpochsTFR or .AverageTFR objects as a list in
-        preparation for saving.
-
-        PARAMETERS
-        ----------
-        results : numpy array
-        -   The results of the power or inter-trial coherence analysis.
-
-        results_structure : list[str] | None; default None
-        -   The names of the axes in the results, used for rearranging the axes.
-            If None, the data cannot be rearranged.
-
-        rearrange : list[str] | None; default None
-        -   How to rearrange the axes of the data once extracted. If given,
-            'results_structure' must also be given.
-        -   E.g. ["channels", "epochs", "timepoints"] would give data in the
-            format channels x epochs x timepoints
-        -   If None, the data is taken as is.
-
-        RETURNS
-        -------
-        extracted_results : array
-        -   The transformed results.
-        """
-
-        extracted_results = deepcopy(results)
-
-        if rearrange:
-            extracted_results = np.transpose(
-                extracted_results,
-                [results_structure.index(axis) for axis in rearrange],
-            )
-
-        return extracted_results.tolist()
-
-    def _save_as_json(self, to_save: dict, fpath: str) -> None:  # SUPER
-        """Saves entries in a dictionary as a json file.
-
-        PARAMETERS
-        ----------
-        to_save : dict
-        -   Dictionary in which the keys represent the names of the entries in
-            the json file, and the values represent the corresponding values.
-
-        fpath : str
-        -   Location where the data should be saved.
-        """
-
-        with open(fpath, "w", encoding="utf8") as file:
-            json.dump(to_save, file)
-
-    def _save_as_csv(self, to_save: dict, fpath: str) -> None:  # SUPER
-        """Saves entries in a dictionary as a csv file.
-
-        PARAMETERS
-        ----------
-        to_save : dict
-        -   Dictionary in which the keys represent the names of the entries in
-            the csv file, and the values represent the corresponding values.
-
-        fpath : str
-        -   Location where the data should be saved.
-        """
-
-        with open(fpath, "wb") as file:
-            save_file = csv.writer(file)
-            save_file.writerow(to_save.keys())
-            save_file.writerow(to_save.values())
-
-    def _save_as_pkl(self, to_save: Any, fpath: str) -> None:  # SUPER
-        """Pickles and saves information in any format.
-
-        PARAMETERS
-        ----------
-        to_save : Any
-        -   Information that will be saved.
-
-        fpath : str
-        -   Location where the data should be saved.
-        """
-
-        with open(fpath, "wb") as file:
-            pickle.dump(to_save, file)
-
-    def save_object(  # SUPER
-        self, fpath: str, ask_before_overwrite: Optional[bool] = None
+        fpath: str,
+        ask_before_overwrite: Optional[bool] = None,
     ) -> None:
         """Saves the PowerMorlet object as a .pkl file.
 
@@ -1027,29 +750,22 @@ class PowerMorlet(ProcMethod):
         -   Location where the data should be saved. The filetype extension
             (.pkl) can be included, otherwise it will be automatically added.
 
-        ask_before_overwrite : bool | None; default the object's verbosity
-        -   If True, the user is asked to confirm whether or not to overwrite a
+        ask_before_overwrite : bool
+        -   Whether or not the user is asked to confirm to overwrite a
             pre-existing file if one exists.
-        -   If False, the user is not asked to confirm this and it is done
-            automatically.
-        -   By default, this is set to None, in which case the value of the
-            verbosity when the Signal object was instantiated is used.
         """
-
-        if not check_ftype_present(fpath):
-            fpath += ".pkl"
 
         if ask_before_overwrite is None:
             ask_before_overwrite = self._verbose
-        if ask_before_overwrite:
-            write = check_before_overwrite(fpath)
-        else:
-            write = True
 
-        if write:
-            self._save_as_pkl(self, fpath)
+        self._save_object(
+            to_save=self,
+            fpath=fpath,
+            ask_before_overwrite=ask_before_overwrite,
+            verbose=self._verbose,
+        )
 
-    def save_results(  # SUPER
+    def save_results(
         self,
         fpath: str,
         ftype: Optional[str] = None,
@@ -1087,6 +803,9 @@ class PowerMorlet(ProcMethod):
             format.
         """
 
+        if ask_before_overwrite is None:
+            ask_before_overwrite = self._verbose
+
         power = self._prepare_results_for_saving(
             self.power.data,
             results_structure=self.power_dims,
@@ -1105,7 +824,7 @@ class PowerMorlet(ProcMethod):
 
         to_save = {
             "power": power,
-            "power_structure": self._power_dims_sorted,
+            "power_dimensions": self._power_dims_sorted,
             "ch_names": self.signal.data.ch_names,
             "ch_types": self.signal.data.get_channel_types(),
             "ch_coords": self.signal.get_coordinates(),
@@ -1129,47 +848,13 @@ class PowerMorlet(ProcMethod):
             to_save["itc"] = itc
             to_save["itc_structure"] = self._itc_dims_sorted
 
-        super.save_results(
+        self._save_results(
             to_save=to_save,
             fpath=fpath,
             ftype=ftype,
             ask_before_overwrite=ask_before_overwrite,
+            verbose=self._verbose,
         )
-
-        if self._verbose:
-            print(f"Saving the raw signals to:\n'{fpath}'.")
-
-    def save(
-        self,
-        fpath: str,
-        ask_before_overwrite: Union[bool, None] = None,
-    ) -> None:
-        """Saves the processing results to a specified location.
-
-        PARAMETERS
-        ----------
-        fpath : str
-        -   The filepath where the results will be saved.
-
-        ask_before_overwrite : bool | None; default the object's verbosity
-        -   If True, the user is asked to confirm whether or not to overwrite a
-            pre-existing file if one exists. If False, the user is not asked to
-            confirm this and it is done automatically. By default, this is set
-            to None, in which case the value of the verbosity when the
-            PowerMorlet object was instantiated is used.
-        """
-
-        if ask_before_overwrite is None:
-            ask_before_overwrite = self._verbose
-
-        if self._verbose:
-            print(f"Saving the morlet power results to:\n'{fpath}'.")
-
-        attr_to_save = ["power", "processing_steps"]
-        if self._itc_returned:
-            attr_to_save.append("itc")
-
-        super().save(fpath, self, attr_to_save, ask_before_overwrite)
 
 
 # class PowerFOOOF(ProcMethod):
