@@ -38,6 +38,10 @@ InputTypeError : Exception
 -   Class for raising exceptions/errors associated with input objects being of
     the wrong type.
 
+UnidenticalEntryError : Exception
+-   Class for raising exceptions/errors associated with two objects being
+    unidentical.
+
 MissingFileExtensionError : Exception
 -   Class for raising exceptions/errors associated with a filename string
     missing a filetype extension.
@@ -46,14 +50,12 @@ MissingFileExtensionError : Exception
 
 class ProcessingOrderError(Exception):
     """Class for raising exceptions/errors associated with performing processing
-    steps in an incorrect order.
-    """
+    steps in an incorrect order."""
 
 
 class UnavailableProcessingError(Exception):
     """Class for raising exceptions/error associated with trying to perform
-    processing steps that cannot be done.
-    """
+    processing steps that cannot be done."""
 
 
 class MissingAttributeError(Exception):
@@ -64,8 +66,7 @@ class MissingAttributeError(Exception):
 
 class EntryLengthError(Exception):
     """Class for raising exceptions/error associated with entries within a list
-    having a nonidentical length.
-    """
+    having a nonidentical length."""
 
 
 class DuplicateEntryError(Exception):
@@ -76,8 +77,7 @@ class DuplicateEntryError(Exception):
 
 class MissingEntryError(Exception):
     """Class for raising exceptions/errors associated with missing entries between
-    objects.
-    """
+    objects."""
 
 
 class ChannelOrderError(Exception):
@@ -88,14 +88,17 @@ class ChannelOrderError(Exception):
 
 class ChannelTypeError(Exception):
     """Class for raising exceptions/errors associated with trying to handle
-    channels of different types.
-    """
+    channels of different types."""
 
 
 class InputTypeError(Exception):
     """Class for raising exceptions/errors associated with input objects being
-    of the wrong type.
-    """
+    of the wrong type."""
+
+
+class UnidenticalEntryError(Exception):
+    """Class for raising exceptions/errors associated with two objects being
+    unidentical."""
 
 
 class MissingFileExtensionError(Exception):
