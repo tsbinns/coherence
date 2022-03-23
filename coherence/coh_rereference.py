@@ -15,19 +15,16 @@ RerefPseudo: subclass of Reref
 -   Pseudo rereferences data in an mne.io.Raw object.
 """
 
-
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from typing import Optional
-
+from typing import Optional, Union
 import mne
 import numpy as np
-
 from coh_dtypes import realnum
 from coh_exceptions import ChannelTypeError, EntryLengthError
 from coh_handle_entries import (
-    check_lengths_list_identical,
     check_lengths_list_equals_n,
+    check_lengths_list_identical,
 )
 
 
@@ -55,8 +52,7 @@ class Reref(ABC):
     -   This is useful if e.g. the channels were already hardware rereferenced.
     """
 
-    @abstractmethod
-    def _check_input_lengths(self, lengths_to_check: list[list]) -> int:
+    def _check_input_lengths(self, lists: list[list]) -> int:
         """Checks that the lengths of the entries (representing the features of
         channels that will be rereferenced, e.g. channel names, coordinates,
         etc...) within a list are of the same length.
@@ -65,16 +61,14 @@ class Reref(ABC):
 
         PARAMETERS
         ----------
-        lengths_to_check : list[list]
+        lists : list[list]
         -   List containing the entries whose lengths should be checked.
 
         RETURNS
         -------
-        int
+        n_channels : int
         -   The length of the list's entries, corresponding to the number of
             channels in the rereferenced data.
-        -   Only returned if the lengths of the entries in the list are equal,
-            else an error is raised before.
 
         RAISES
         ------
@@ -83,7 +77,7 @@ class Reref(ABC):
         """
 
         equal_lengths, n_channels = check_lengths_list_identical(
-            to_check=lengths_to_check, ignore_values=[None]
+            to_check=lists, ignore_values=[None]
         )
 
         if not equal_lengths:
@@ -95,7 +89,6 @@ class Reref(ABC):
 
         return n_channels
 
-    @abstractmethod
     def _sort_raw(
         self, raw: mne.io.Raw, chs_to_analyse: list[str]
     ) -> mne.io.Raw:
@@ -127,25 +120,188 @@ class Reref(ABC):
 
         return raw.reorder_channels(chs_to_analyse)
 
-    @abstractmethod
-    def _sort_ch_names_new(self) -> None:
-        pass
+    def _sort_ch_names_new(
+        self, ch_names_old: list[str], ch_names_new: Optional[list[str]]
+    ) -> list[str]:
+        """Resolves any missing entries for the names of the new, rereferenced
+        channels, taking names from the channels being rereferenced.
 
-    @abstractmethod
-    def _sort_ch_types_new(self) -> None:
-        pass
+        PARAMETERS
+        ----------
+        ch_names_old : list[str]
+        -   Names of the original channels in the data.
 
-    @abstractmethod
-    def _sort_reref_types(self) -> None:
-        pass
+        ch_names_new : list[str | None] | None
+        -   Names of the new channels produced from rereferencing.
+        -   If None, 'ch_names_old' is used.
+        -   If some entries are None, the corresponding entries from
+            'ch_names_old' are used.
 
-    @abstractmethod
-    def _sort_ch_coords_new(self) -> None:
-        pass
+        RETURNS
+        -------
+        ch_names_new : list[str]
+        -   Names of the new channels produced from rereferencing, with any
+            missing entries filled.
+        """
 
-    @abstractmethod
-    def _sort_ch_regions_new(self) -> None:
-        pass
+        if ch_names_new is None:
+            ch_names_new = ch_names_old
+        elif any(item is None for item in ch_names_new):
+            for i, ch_name in enumerate(ch_names_new):
+                if ch_name is None:
+                    ch_names_new[i] = ch_names_old[i]
+
+        return ch_names_new
+
+    def _sort_ch_types_new(
+        self,
+        ch_types_old: list[str],
+        ch_types_new: Optional[list[Union[str, None]]],
+    ) -> list[str]:
+        """Resolves any missing entries from the channels types of the new
+        channels, based on the types of channels they will be rereferenced from.
+
+        PARAMETERS
+        ----------
+        ch_types_old : list[str]
+        -   Types of the original channels in the data.
+
+        ch_types_new : list[str | None] | None
+        -   Types of the new channels produced from rereferencing.
+        -   If None, 'ch_typess_old' is used.
+        -   If some entries are None, the corresponding entries from
+            'ch_types_old' are used.
+
+        RETURNS
+        -------
+        ch_types_new : list[str]
+        -   Types of the new channels produced from rereferencing, with any
+            missing entries filled.
+        """
+
+        if ch_types_new is None:
+            ch_types_new = ch_types_old
+        elif any(item is None for item in ch_types_new):
+            for i, ch_type in enumerate(ch_types_new):
+                if ch_type is None:
+                    ch_types_new[i] = ch_types_old[i]
+
+        return ch_types_new
+
+    def _sort_reref_types(
+        self, reref_types: Optional[list[str]], fill_type: str, n_channels: int
+    ) -> list[str]:
+        """Resolves any missing entries from the rereference types of the
+        channels.
+
+        PARAMETERS
+        ----------
+        reref_types : list[str] | None
+        -   The rereferencing types of the channels.
+        -   If any entries are None, they will be set to 'fill_type'.
+        -   If all entries are None, a list of 'fill_type' of length
+            'n_channels' will be created.
+
+        fill_type : str
+        -   The type of rereferencing to fill missing entries.
+
+        n_channels : int
+        -   The number of channels in the data, used to create a 'reref_types'
+            list if 'reref_types' is None.
+
+        RETURNS
+        -------
+        reref_types : list[str]
+        -   The rereferencing types of the channels, with no missing entries.
+        """
+
+        if reref_types is None:
+            reref_types = [fill_type] * n_channels
+        elif any(item is None for item in reref_types):
+            for i, reref_type in enumerate(reref_types):
+                if reref_type is None:
+                    reref_types[i] = fill_type
+
+        return reref_types
+
+    def _sort_ch_coords_new(
+        self,
+        ch_coords_old: Optional[list[Optional[list[realnum]]]],
+        ch_coords_new: list[list[realnum]],
+    ) -> list[list[realnum]]:
+        """Resolves any missing entries for the channel coordinates of the new,
+        rereferenced channels by taking the value of the coordinates of the
+        channels being rereferenced.
+
+        PARAMETERS
+        ----------
+        ch_coords_old : list[list[realnum] | None] | None
+        -   X-, y-, and z- axis coordinates of the original channels in the
+            data.
+
+        ch_coords_new : list[list[realnum]]
+        -   X-, y-, and z- axis coordinates of the channels produced from
+            rereferencing.
+
+        RETURNS
+        -------
+        ch_coords_new : list[list[realnum]]
+        -   X-, y-, and z- axis coordinates of the channels produced from
+            rereferencing, with missing entries filled in based on
+            'ch_coords_old'.
+        RAISES
+        ------
+        EntryLengthError
+        -   Raised if any of the channel coordinates do not contain 3 entries,
+            i.e. x, y, and z coordinates.
+        """
+
+        if ch_coords_new is None:
+            ch_coords_new = ch_coords_old
+        elif any(item is None for item in ch_coords_new):
+            for i, ch_coords in ch_coords_new:
+                if ch_coords is None:
+                    ch_coords_new[i] = ch_coords_old[i]
+
+        if not check_lengths_list_equals_n(to_check=ch_coords_new, n=3):
+            raise EntryLengthError(
+                "Error when setting coordinates for the rereferenced data:\n"
+                "Three, and only three coordinates (x, y, and z) must be "
+                "present, but the rereferencing settings specify otherwise."
+            )
+
+        return ch_coords_new
+
+    def _sort_ch_regions_new(
+        self, ch_regions_new: Union[list[str], None], n_channels: int
+    ) -> Union[list[str], None]:
+        """Resolves any missing entries from the channels regions of the new
+        channels, setting missing entries to None (as these cannot yet be
+        determined based on coordinates).
+
+        PARAMETERS
+        ----------
+        ch_regions_new : list[str] | None
+        -   Regions of the original channels in the data.
+        -   If individual entries are None, these are left as is.
+        -   If None, a list of length 'n_channels' is created with all entries
+            set to None.
+
+        n_channels : int
+        -   The number of channels to create regions for is 'ch_regions_new' is
+            None.
+
+        RETURNS
+        -------
+        ch_regions_new : list[str | None]
+        -   Regions of the channels created by rereferencing, with all regions
+            set to None if they were not specified.
+        """
+
+        if ch_regions_new is None:
+            ch_regions_new = [None] * n_channels
+
+        return ch_regions_new
 
     @abstractmethod
     def _sort_inputs(self) -> None:
@@ -165,7 +321,7 @@ class Reref(ABC):
 
         RETURNS
         -------
-        np.array
+        numpy array
         -   Array of the data with shape [n_channels, n_timepoints].
 
         mne.Info
@@ -200,7 +356,7 @@ class Reref(ABC):
 
         PARAMETERS
         ----------
-        data : np.array
+        data : numpy array
         -   Array of the rereferenced data with shape [n_channels x
             n_timepoints].
 
@@ -398,37 +554,7 @@ class RerefBipolar(Reref):
         # with information as the data is processed.
         self._new_data = None
         self._new_ch_coords = None
-
-    def _check_input_lengths(self) -> None:
-        """Checks that the lengths of the entries (representing the features of
-        channels that will be rereferenced, e.g. channel names, coordinates,
-        etc...) within a list are of the same length.
-        -   This length corresponds to the number of channels in the
-            rereferenced data.
-        -   Implemented in the parent class' method.
-        """
-
-        self._n_channels = super()._check_input_lengths(
-            [
-                self._ch_names_old,
-                self._ch_names_new,
-                self._ch_types_new,
-                self._reref_types,
-                self._ch_coords_new,
-                self._ch_regions_new,
-            ]
-        )
-
-    def _sort_raw(self) -> None:
-        """Drops channels irrelevant to the rereferencing from an mne.io.Raw
-        object.
-        """
-
-        chs_to_analyse = np.unique(
-            [name for names in self._ch_names_old for name in names]
-        ).tolist()
-
-        self.raw = super()._sort_raw(self.raw, chs_to_analyse)
+        self._n_channels = None
 
     def _check_ch_names_old(self) -> None:
         """Checks that two channel names (i.e. an anode and a cathode) are given
@@ -449,53 +575,78 @@ class RerefBipolar(Reref):
                 "settings specify otherwise."
             )
 
-    def _sort_ch_names_new(self) -> None:
+    def _sort_ch_names_new(
+        self, ch_names_old: list[list[str]], ch_names_new: list[str]
+    ) -> None:
         """Resolves any missing entries for the names of the new, rereferenced
-        channels, generating names based on the channels being rereferenced.
+        channels, taking names from the channels being rereferenced.
+
+        PARAMETERS
+        ----------
+        ch_names_old : list[str]
+        -   Names of the original channels in the data.
+
+        ch_names_new : list[str | None] | None
+        -   Names of the new channels produced from rereferencing
+        -   If None, 'ch_names_old' is used.
+        -   If some entries are None, the corresponding entries from
+            'ch_names_old' are used.
+
+        RETURNS
+        -------
+        ch_names_new : list[str]
+        -   Names of the new channels produced from rereferencing, with any
+            missing entries filled.
         """
 
-        if self._ch_names_new is None:
-            for ch_names in self._ch_names_old:
-                self._ch_names_new.append("-".join(name for name in ch_names))
-        elif any(item is None for item in self._ch_names_new):
-            for i, ch_name in enumerate(self._ch_names_new):
+        if ch_names_new is None:
+            for ch_names in ch_names_old:
+                ch_names_new.append("-".join(name for name in ch_names))
+        elif any(item is None for item in ch_names_new):
+            for i, ch_name in enumerate(ch_names_new):
                 if ch_name is None:
-                    self._ch_names_new[i] = "-".join(
-                        name for name in self._ch_names_old[i]
-                    )
+                    ch_names_new[i] = "-".join(name for name in ch_names_old[i])
 
-    def _sort_reref_types(self) -> None:
-        """Resolves any missing entries from the rereference types of the new
-        channels, setting them to 'bipolar'.
-        """
+        return ch_names_new
 
-        if self._reref_types is None:
-            self._reref_types = ["bipolar" for i in range(self._n_channels)]
-        elif any(item is None for item in self._reref_types):
-            for i, reref_type in enumerate(self._reref_types):
-                if reref_type is None:
-                    self._reref_types[i] = "bipolar"
-
-    def _sort_ch_types_new(self) -> None:
+    def _sort_ch_types_new(
+        self,
+        ch_types_old: list[list[str]],
+        ch_types_new: Optional[list[Union[str, None]]],
+    ) -> list[str]:
         """Resolves any missing entries from the channels types of the new
         channels, based on the types of channels they will be rereferenced from.
 
+        PARAMETERS
+        ----------
+        ch_types_old : list[list[str]]
+        -   Types of the original channels in the data.
+
+        ch_types_new : list[str | None] | None
+        -   Types of the new channels produced from rereferencing.
+        -   If None, 'ch_typess_old' is used.
+        -   If some entries are None, the corresponding entries from
+            'ch_types_old' are used.
+
+        RETURNS
+        -------
+        ch_types_new : list[str]
+        -   Types of the new channels produced from rereferencing, with any
+            missing entries filled.
+
         RAISES
         ------
-        ChannelTypeMismatch
+        ChannelTypeError
         -   Raised if two channels which are being rereferenced into a new
             channel do not have the same channel type and the type of this new
             channel has not been specified.
         """
 
-        if self._ch_types_new is None:
-            self._ch_types_new = []
-            for ch_names in self._ch_names_old:
-                ch_types_old = list(
-                    np.unique(self.raw.get_channel_types(ch_names))
-                )
-                if len(ch_types_old) == 1:
-                    self._ch_types_new.append(ch_types_old[0])
+        if ch_types_new is None:
+            ch_types_new = []
+            for ch_types in ch_types_old:
+                if len(np.unique(ch_types)) == 1:
+                    ch_types_new.append(ch_types[0])
                 else:
                     raise ChannelTypeError(
                         "Error when trying to bipolar rereference data:\nNo "
@@ -504,16 +655,11 @@ class RerefBipolar(Reref):
                         "channels being rereferenced as they are of different "
                         "channel types."
                     )
-        elif any(item is None for item in self._ch_types_new):
-            for i, ch_type in enumerate(self._ch_types_new):
+        elif any(item is None for item in ch_types_new):
+            for i, ch_type in enumerate(ch_types_new):
                 if ch_type is None:
-                    ch_types_old = list(
-                        np.unique(
-                            self.raw.get_channel_types(self._ch_names_old[i])
-                        )
-                    )
-                    if len(ch_types_old) == 1:
-                        self._ch_types_new.append(ch_types_old[0])
+                    if len(np.unique(ch_types_old[i])) == 1:
+                        self._ch_types_new.append(ch_types_old[i][0])
                     else:
                         raise ChannelTypeError(
                             "Error when trying to bipolar rereference data:\n"
@@ -523,10 +669,33 @@ class RerefBipolar(Reref):
                             "are of different channel types."
                         )
 
-    def _sort_ch_coords_new(self) -> None:
+        return ch_types_new
+
+    def _sort_ch_coords_new(
+        self,
+        ch_coords_old: Union[list[list[list[realnum]]], None],
+        ch_coords_new: list[list[realnum]],
+    ) -> list[list[realnum]]:
         """Resolves any missing entries for the channel coordinates of the new,
-        rereferenced channels by taking the mean value of the coordinates of the
+        rereferenced channels by taking the value of the coordinates of the
         channels being rereferenced.
+
+        PARAMETERS
+        ----------
+        ch_coords_old : list[list[list[realnum]] | None] | None
+        -   X-, y-, and z- axis coordinates of the original channels in the
+            data.
+
+        ch_coords_new : list[list[realnum]]
+        -   X-, y-, and z- axis coordinates of the channels produced from
+            rereferencing.
+
+        RETURNS
+        -------
+        ch_coords_new : list[list[realnum]]
+        -   X-, y-, and z- axis coordinates of the channels produced from
+            rereferencing, with missing entries filled in based on
+            'ch_coords_old'.
 
         RAISES
         ------
@@ -535,61 +704,79 @@ class RerefBipolar(Reref):
             i.e. x, y, and z coordinates.
         """
 
-        if self._ch_coords_new is None:
-            self._ch_coords_new = [
-                np.around(
-                    np.mean(
-                        [
-                            self._ch_coords[self._ch_index[i][0]],
-                            self._ch_coords[self._ch_index[i][1]],
-                        ],
-                        axis=0,
-                    ),
-                    2,
-                )
+        if ch_coords_new is None:
+            ch_coords_new = [
+                np.around(np.mean(ch_coords_old[i], axis=0), 2)
                 for i in range(self._n_channels)
             ]
-        elif any(item is None for item in self._ch_types_new):
-            for i, ch_coords in self._ch_coords_new:
+        elif any(item is None for item in ch_coords_new):
+            for i, ch_coords in ch_coords_new:
                 if ch_coords is None:
-                    self._ch_coords_new[i] = np.around(
-                        np.mean(
-                            [
-                                self._ch_coords[self._ch_index[i][0]],
-                                self._ch_coords[self._ch_index[i][1]],
-                            ],
-                            axis=0,
-                        ),
-                        2,
+                    ch_coords_new[i] = np.around(
+                        np.mean(ch_coords_old[i], axis=0), 2
                     )
 
-        if not check_lengths_list_equals_n(to_check=self._ch_coords_new, n=3):
+        if not check_lengths_list_equals_n(to_check=ch_coords_new, n=3):
             raise EntryLengthError(
                 "Error when setting coordinates for the rereferenced data:\n"
                 "Three, and only three coordinates (x, y, and z) must be "
                 "present, but the rereferencing settings specify otherwise."
             )
 
-    def _sort_ch_regions_new(self) -> None:
-        """Resolves any missing entries from the channels regions of the new
-        channels, setting missing entries to None.
-        """
-
-        if self._ch_regions_new is None:
-            self._ch_regions_new = [None] * len(self._ch_names_old)
+        return ch_coords_new
 
     def _sort_inputs(self) -> None:
         """Checks that rereferencing settings are compatible and discards
         rereferencing-irrelevant channels from the data.
         """
 
-        self._check_input_lengths()
-        self._sort_raw()
-        self._sort_ch_names_new()
-        self._sort_ch_types_new()
-        self._sort_reref_types()
-        self._sort_ch_coords_new()
-        self._sort_ch_regions_new()
+        self._n_channels = self._check_input_lengths(
+            lists=[
+                self._ch_names_old,
+                self._ch_names_new,
+                self._ch_types_new,
+                self._reref_types,
+                self._ch_coords_new,
+                self._ch_regions_new,
+            ]
+        )
+
+        self.raw = self._sort_raw(
+            raw=self.raw,
+            chs_to_analyse=np.unique(
+                [name for names in self._ch_names_old for name in names]
+            ).tolist(),
+        )
+
+        self._ch_names_new = self._sort_ch_names_new(
+            ch_names_old=self._ch_names_old, ch_names_new=self._ch_names_new
+        )
+
+        self._ch_types_new = self._sort_ch_types_new(
+            ch_types_old=self.raw.get_channel_types(self._ch_names_old),
+            ch_types_new=self._ch_types_new,
+        )
+
+        self._reref_types = self._sort_reref_types(
+            reref_types=self._reref_types,
+            fill_type="bipolar",
+            n_channels=self._n_channels,
+        )
+
+        self._ch_coords_new = self._sort_ch_coords_new(
+            ch_coords_old=[
+                [
+                    self._ch_coords[self._ch_index[i][0]],
+                    self._ch_coords[self._ch_index[i][1]],
+                ]
+                for i in range(self._n_channels)
+            ],
+            ch_coords_new=self._ch_coords_new,
+        )
+
+        self._ch_regions_new = self._sort_ch_regions_new(
+            ch_regions_new=self._ch_regions_new, n_channels=self._n_channels
+        )
 
     def _data_from_raw(self) -> None:
         """Extracts components of an mne.io.Raw object and returns them."""
@@ -803,17 +990,13 @@ class RerefCommonAverage(Reref):
         self._new_data = None
         self._new_ch_coords = None
 
-    def _check_input_lengths(self) -> None:
-        """Checks that the lengths of the entries (representing the features of
-        channels that will be rereferenced, e.g. channel names, coordinates,
-        etc...) within a list are of the same length.
-        -   This length corresponds to the number of channels in the
-            rereferenced data.
-        -   Implemented in the parent class' method.
+    def _sort_inputs(self) -> None:
+        """Checks that rereferencing settings are compatible and discards
+        rereferencing-irrelevant channels from the data.
         """
 
-        self._n_channels = super()._check_input_lengths(
-            [
+        self._n_channels = self._check_input_lengths(
+            lists=[
                 self._ch_names_old,
                 self._ch_names_new,
                 self._ch_types_new,
@@ -823,107 +1006,37 @@ class RerefCommonAverage(Reref):
             ]
         )
 
-    def _sort_raw(self) -> None:
-        """Drops channels irrelevant to the rereferencing from an mne.io.Raw
-        object.
-        -   Partially implemented in the parent class' method.
-        """
+        self.raw = self._sort_raw(
+            raw=self.raw,
+            chs_to_analyse=np.unique(list(self._ch_names_old)).tolist(),
+        )
 
-        chs_to_analyse = np.unique(list(self._ch_names_old)).tolist()
+        self._ch_names_new = self._sort_ch_names_new(
+            ch_names_old=self._ch_names_old, ch_names_new=self._ch_names_new
+        )
 
-        self.raw = super()._sort_raw(self.raw, chs_to_analyse)
+        self._ch_types_new = self._sort_ch_types_new(
+            ch_types_old=self.raw.get_channel_types(self._ch_names_old),
+            ch_types_new=self._ch_types_new,
+        )
 
-    def _sort_ch_names_new(self) -> None:
-        """Resolves any missing entries for the names of the new, rereferenced
-        channels, taking names from the channels being rereferenced.
-        """
+        self._reref_types = self._sort_reref_types(
+            reref_types=self._reref_types,
+            fill_type="common_average",
+            n_channels=self._n_channels,
+        )
 
-        if self._ch_names_new is None:
-            self._ch_names_new = list(self._ch_names_old)
-        elif any(item is None for item in self._ch_names_new):
-            for i, ch_name in enumerate(self._ch_names_new):
-                if ch_name is None:
-                    self._ch_names_new[i] = list(self._ch_names_old[i])
-
-    def _sort_reref_types(self) -> None:
-        """Resolves any missing entries from the rereference types of the new
-        channels, setting them to 'common_average', common-average referencing.
-        """
-
-        if self._reref_types is None:
-            self._reref_types = [
-                "common_average" for i in range(self._n_channels)
-            ]
-        elif any(item is None for item in self._reref_types):
-            for i, reref_type in enumerate(self._reref_types):
-                if reref_type is None:
-                    self._reref_types[i] = "common_average"
-
-    def _sort_ch_types_new(self) -> None:
-        """Resolves any missing entries from the channels types of the new
-        channels, based on the types of channels they will be rereferenced from.
-        """
-
-        if self._ch_types_new is None:
-            self._ch_types_new = list(
-                self.raw.get_channel_types(self._ch_names_old)
-            )
-        elif any(item is None for item in self._ch_types_new):
-            for i, ch_type in enumerate(self._ch_types_new):
-                if ch_type is None:
-                    self._ch_types_new[i] = list(
-                        self.raw.get_channel_types(self._ch_names_old[i])
-                    )
-
-    def _sort_ch_coords_new(self) -> None:
-        """Resolves any missing entries for the channel coordinates of the new,
-        rereferenced channels by taking the value of the coordinates of the
-        channels being rereferenced.
-
-        RAISES
-        ------
-        EntryLengthError
-        -   Raised if any of the channel coordinates do not contain 3 entries,
-            i.e. x, y, and z coordinates.
-        """
-
-        if self._ch_coords_new is None:
-            self._ch_coords_new = [
+        self._ch_coords_new = self._sort_ch_coords_new(
+            ch_coords_old=[
                 self._ch_coords[self._ch_index[i]]
                 for i in range(self._n_channels)
-            ]
-        elif any(item is None for item in self._ch_types_new):
-            for i, ch_coords in self._ch_coords_new:
-                if ch_coords is None:
-                    self._ch_coords_new[i] = self._ch_coords[self._ch_index[i]]
+            ],
+            ch_coords_new=self._ch_coords_new,
+        )
 
-        if not check_lengths_list_equals_n(to_check=self._ch_coords_new, n=3):
-            raise EntryLengthError(
-                "Error when setting coordinates for the rereferenced data:\n"
-                "Three, and only three coordinates (x, y, and z) must be "
-                "present, but the rereferencing settings specify otherwise."
-            )
-
-    def _sort_ch_regions_new(self) -> None:
-        """Resolves any missing entries from the channels regions of the new
-        channels, setting them to None.
-        """
-
-        if self._ch_regions_new is None:
-            self._ch_regions_new = [None] * len(self._ch_names_old)
-
-    def _sort_inputs(self) -> None:
-        """Checks that rereferencing settings are compatible and discards
-        rereferencing-irrelevant channels from the data.
-        """
-
-        self._check_input_lengths()
-        self._sort_raw()
-        self._sort_ch_names_new()
-        self._sort_ch_types_new()
-        self._sort_reref_types()
-        self._sort_ch_coords_new()
-        self._sort_ch_regions_new()
+        self._ch_regions_new = self._sort_ch_regions_new(
+            ch_regions_new=self._ch_regions_new, n_channels=self._n_channels
+        )
 
     def _data_from_raw(self) -> None:
         """Extracts components of an mne.io.Raw object and returns them."""
@@ -1133,46 +1246,6 @@ class RerefPseudo(Reref):
         self._new_data = None
         self._new_ch_coords = None
 
-    def _check_input_lengths(self) -> None:
-        """Checks that the lengths of the entries (representing the features of
-        channels that will be rereferenced, e.g. channel names, coordinates,
-        etc...) within a list are of the same length.
-        -   This length corresponds to the number of channels in the
-            rereferenced data.
-        """
-
-        self._n_channels = super()._check_input_lengths(
-            [
-                self._ch_names_old,
-                self._ch_names_new,
-                self._ch_types_new,
-                self._reref_types,
-                self._ch_coords_new,
-                self._ch_regions_new,
-            ]
-        )
-
-    def _sort_raw(self) -> None:
-        """Drops channels irrelevant to the rereferencing from an mne.io.Raw
-        object.
-        """
-
-        chs_to_analyse = np.unique(list(self._ch_names_old)).tolist()
-
-        self.raw = super()._sort_raw(self.raw, chs_to_analyse)
-
-    def _sort_ch_names_new(self) -> None:
-        """Resolves any missing entries for the names of the new, rereferenced
-        channels, taking names from the channels being rereferenced.
-        """
-
-        if self._ch_names_new is None:
-            self._ch_names_new = list(self._ch_names_old)
-        elif any(item is None for item in self._ch_names_new):
-            for i, ch_name in enumerate(self._ch_names_new):
-                if ch_name is None:
-                    self._ch_names_new[i] = list(self._ch_names_old[i])
-
     def _sort_reref_types(self) -> None:
         """Checks that all rereferencing types have been specified for the new
         channels, as these cannot be derived from the arbitrary method of pseudo
@@ -1192,80 +1265,71 @@ class RerefPseudo(Reref):
                 "."
             )
 
-    def _sort_ch_types_new(self) -> None:
-        """Resolves any missing entries from the channels types of the new
-        channels, based on the types of channels they will be rereferenced from.
-        """
-
-        if self._ch_types_new is None:
-            self._ch_types_new = list(
-                self.raw.get_channel_types(self._ch_names_old)
-            )
-        elif any(item is None for item in self._ch_types_new):
-            for i, ch_type in enumerate(self._ch_types_new):
-                if ch_type is None:
-                    self._ch_types_new[i] = list(
-                        self.raw.get_channel_types(self._ch_names_old[i])
-                    )
-
-    def _sort_ch_coords_new(self) -> None:
-        """Resolves any missing entries for the channel coordinates of the new,
-        rereferenced channels by taking the value of the coordinates of the
-        channels being rereferenced.
-
-        RAISES
-        ------
-        EntryLengthError
-        -   Raised if any of the channel coordinates do not contain 3 entries,
-            i.e. x, y, and z coordinates.
-        """
-
-        if self._ch_coords_new is None:
-            self._ch_coords_new = [
-                self._ch_coords[self._ch_index[i]]
-                for i in range(self._n_channels)
-            ]
-        elif any(item is None for item in self._ch_types_new):
-            for i, ch_coords in self._ch_coords_new:
-                if ch_coords is None:
-                    self._ch_coords_new[i] = self._ch_coords[self._ch_index[i]]
-
-        if not check_lengths_list_equals_n(to_check=self._ch_coords_new, n=3):
-            raise EntryLengthError(
-                "Error when setting coordinates for the rereferenced data:\n"
-                "Three, and only three coordinates (x, y, and z) must be "
-                "present, but the rereferencing settings specify otherwise."
-            )
-
-    def _sort_ch_regions_new(self) -> None:
+    def _sort_ch_regions_new(
+        self,
+        ch_regions_old: list[Union[str, None]],
+        ch_regions_new: Union[list[Union[str, None]], None],
+    ) -> None:
         """Resolves any missing entries from the channels regions of the new
         channels, based on the regions of channels they will be rereferenced
         from.
         """
 
-        if self._ch_regions_new is None:
-            self._ch_regions_new = [
-                self.raw.ch_regions[ch_name] for ch_name in self._ch_names_old
-            ]
-        elif any(item is None for item in self._ch_regions_new):
-            for i, ch_region in enumerate(self._ch_regions_new):
+        if ch_regions_new is None:
+            ch_regions_new = ch_regions_old
+        elif any(item is None for item in ch_regions_new):
+            for i, ch_region in enumerate(ch_regions_new):
                 if ch_region is None:
-                    self._ch_regions_new[i] = list(
-                        self.raw.ch_regions[self._ch_names_old[i]]
-                    )
+                    ch_regions_new[i] = ch_regions_old[i]
+
+        return ch_regions_new
 
     def _sort_inputs(self) -> None:
         """Checks that rereferencing settings are compatible and discards
         rereferencing-irrelevant channels from the data.
         """
 
-        self._check_input_lengths()
-        self._sort_raw()
-        self._sort_ch_names_new()
-        self._sort_ch_types_new()
+        self._n_channels = self._check_input_lengths(
+            lists=[
+                self._ch_names_old,
+                self._ch_names_new,
+                self._ch_types_new,
+                self._reref_types,
+                self._ch_coords_new,
+                self._ch_regions_new,
+            ]
+        )
+
+        self.raw = self._sort_raw(
+            raw=self.raw,
+            chs_to_analyse=np.unique(list(self._ch_names_old)).tolist(),
+        )
+
+        self._ch_names_new = self._sort_ch_names_new(
+            ch_names_old=self._ch_names_old, ch_names_new=self._ch_names_new
+        )
+
+        self._ch_types_new = self._sort_ch_types_new(
+            ch_types_old=self.raw.get_channel_types(self._ch_names_old),
+            ch_types_new=self._ch_types_new,
+        )
+
         self._sort_reref_types()
-        self._sort_ch_coords_new()
-        self._sort_ch_regions_new()
+
+        self._ch_coords_new = self._sort_ch_coords_new(
+            ch_coords_old=[
+                self._ch_coords[self._ch_index[i]]
+                for i in range(self._n_channels)
+            ],
+            ch_coords_new=self._ch_coords_new,
+        )
+
+        self._ch_regions_new = self._sort_ch_regions_new(
+            ch_regions_old=[
+                self.raw.ch_regions[ch_name] for ch_name in self._ch_names_old
+            ],
+            ch_regions_new=self._ch_regions_new,
+        )
 
     def _data_from_raw(self) -> None:
         """Extracts components of an mne.io.Raw object and returns them."""
