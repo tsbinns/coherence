@@ -11,10 +11,8 @@ power_FOOOF_analysis
     power analysis.
 """
 
-
 import json
 import numpy as np
-
 from coh_handle_files import (
     generate_analysiswise_fpath,
     generate_sessionwise_fpath,

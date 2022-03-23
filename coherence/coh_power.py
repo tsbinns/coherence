@@ -6,14 +6,10 @@ PowerMorlet
 -   Performs power analysis on preprocessed data using Morlet wavelets.
 """
 
-
 from copy import deepcopy
 from typing import Optional, Union
-
 from mne import time_frequency
-
 import numpy as np
-
 from coh_dtypes import realnum
 from coh_exceptions import (
     ChannelOrderError,
@@ -66,7 +62,7 @@ class PowerMorlet(ProcMethod):
         self._itc_dims_sorted = None
 
         # Initialises aspects of the Analysis object that indicate which methods
-        # have been called (starting as 'False'), which can later be updated.
+        # have been called (starting as "False"), which can later be updated.
         self._processed = False
         self._itc_returned = False
         self._epochs_averaged = False

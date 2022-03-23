@@ -32,34 +32,32 @@ ordered_list_from_dict
 -   Creates a list from entries in a dictionary, sorted based on a given order.
 """
 
-
 from itertools import chain
-from typing import Any, Optional, Union
-
+from typing import Optional, Union
 from coh_exceptions import DuplicateEntryError, EntryLengthError
 
 
 def _find_lengths_dict(
-    to_check: dict[Any, Any],
-    ignore_values: Optional[list[Any]],
-    ignore_keys: Optional[list[Any]],
+    to_check: dict,
+    ignore_values: Optional[list],
+    ignore_keys: Optional[list],
 ) -> list[int]:
-    """Finds the lengths of entries within a list.
+    """Finds the lengths of entries within a dictionary.
 
     PARAMETERS
     ----------
-    to_check : list[Any]
-    -   The list for which the lengths of the entries should be checked.
+    to_check : dict
+    -   The dictionary for which the lengths of the entries should be checked.
 
-    ignore_values : list[Any] | None; default None
+    ignore_values : list | None; default None
     -   The values of entries within 'to_check' to ignore when checking the
         lengths of entries.
-    -   If None (default), no entries are ignored.
+    -   If None (default), no values are ignored.
 
-    ignore_keys : list[Any] | None; default None
+    ignore_keys : list | None; default None
     -   The keys of entries within 'to_check' to ignore when checking the
         lengths of entries.
-    -   If None (default), no entries are ignored.
+    -   If None (default), no keys are ignored.
 
     RETURNS
     -------
@@ -76,27 +74,27 @@ def _find_lengths_dict(
 
 
 def check_lengths_dict_identical(
-    to_check: dict[Any, Any],
-    ignore_values: Optional[list[Any]] = None,
-    ignore_keys: Optional[list[Any]] = None,
+    to_check: dict,
+    ignore_values: Optional[list] = None,
+    ignore_keys: Optional[list] = None,
 ) -> tuple[bool, Union[int, list[int]]]:
     """Checks whether the lengths of entries in the input dictionary are
     identical.
 
     PARAMETERS
     ----------
-    to_check : dict[Any, Any]
+    to_check : dict
     -   The dictionary for which the lengths of the entries should be checked.
 
-    ignore_values : list[Any]; optional, default []
+    ignore_values : list | None; default None
     -   The values of entries within 'to_check' to ignore when checking the
         lengths of entries.
-    -   If [] (default), no entries are ignored.
+    -   If None (default), no values are ignored.
 
-    ignore_keys : list[Any]; optional, default []
+    ignore_keys : list | None; default None
     -   The keys of entries within 'to_check' to ignore when checking the
         lengths of entries.
-    -   If [] (default), no entries are ignored.
+    -   If None (default), no keys are ignored.
 
     RETURNS
     -------
@@ -125,30 +123,30 @@ def check_lengths_dict_identical(
 
 
 def check_lengths_dict_equals_n(
-    to_check: dict[Any, Any],
+    to_check: dict,
     n: int,
-    ignore_values: Optional[list[Any]] = None,
-    ignore_keys: Optional[list[Any]] = None,
+    ignore_values: Optional[list] = None,
+    ignore_keys: Optional[list] = None,
 ) -> bool:
     """Checks whether the lengths of entries in the input dictionary are equal
     to a given number.
 
     PARAMETERS
     ----------
-    to_check : list[Any]
+    to_check : list
     -   The list for which the lengths of the entries should be checked.
 
-    ignore_values : list[Any]; default []
+    ignore_values : list | None; default None
     -   The values of entries within 'to_check' to ignore when checking the
         lengths of entries.
-    -   If [] (default), no entries are ignored.
+    -   If None (default), no values are ignored.
 
     n : int
     -   The integer which the lengths of the entries should be equal to.
 
     RETURNS
     -------
-    bool
+    all_n : bool
     -   Whether or not the lengths of the entries are equal to 'n'.
     """
 
@@ -165,19 +163,19 @@ def check_lengths_dict_equals_n(
 
 
 def _find_lengths_list(
-    to_check: list[Any], ignore_values: Optional[list[Any]]
+    to_check: list, ignore_values: Optional[list]
 ) -> list[int]:
     """Finds the lengths of entries within a list.
 
     PARAMETERS
     ----------
-    to_check : list[Any]
+    to_check : list
     -   The list for which the lengths of the entries should be checked.
 
-    ignore_values : list[Any] | None; default None
+    ignore_values : list | None; default None
     -   The values of entries within 'to_check' to ignore when checking the
         lengths of entries.
-    -   If None (default), no entries are ignored.
+    -   If None (default), no values are ignored.
 
     RETURNS
     -------
@@ -196,20 +194,20 @@ def _find_lengths_list(
 
 
 def check_lengths_list_identical(
-    to_check: list[Any], ignore_values: Optional[list[Any]] = None
+    to_check: list, ignore_values: Optional[list] = None
 ) -> tuple[bool, Union[int, list[int]]]:
     """Checks whether the lengths of entries in the input dictionary are
         identical.
 
     PARAMETERS
     ----------
-    to_check : list[Any]
+    to_check : list
     -   The list for which the lengths of the entries should be checked.
 
-    ignore_values : list[Any] | None; default None
+    ignore_values : list | None; default None
     -   The values of entries within 'to_check' to ignore when checking the
         lengths of entries.
-    -   If None (default), no entries are ignored.
+    -   If None (default), no values are ignored.
 
     RETURNS
     -------
@@ -238,27 +236,27 @@ def check_lengths_list_identical(
 
 
 def check_lengths_list_equals_n(
-    to_check: list[Any], n: int, ignore_values: Optional[list[Any]] = None
+    to_check: list, n: int, ignore_values: Optional[list] = None
 ) -> bool:
     """Checks whether the lengths of entries in the input dictionary are equal
     to a given number.
 
     PARAMETERS
     ----------
-    to_check : list[Any]
+    to_check : list
     -   The list for which the lengths of the entries should be checked.
-
-    ignore_values : list[Any] | None; default None
-    -   The values of entries within 'to_check' to ignore when checking the
-        lengths of entries.
-    -   If None (default), no entries are ignored.
 
     n : int
         -   The integer which the lengths of the entries should be equal to.
 
+    ignore_values : list | None; default None
+    -   The values of entries within 'to_check' to ignore when checking the
+        lengths of entries.
+    -   If None (default), no values are ignored.
+
     RETURNS
     -------
-    bool
+    all_n : bool
     -   Whether or not the lengths of the entries are equal to 'n'.
     """
 
@@ -275,13 +273,13 @@ def check_lengths_list_equals_n(
 
 
 def check_duplicates_list(
-    values: list[Any],
-) -> tuple[bool, Optional[list[Any]]]:
+    values: list,
+) -> tuple[bool, Optional[list]]:
     """Checks whether duplicates exist within an input list.
 
     PARAMETERS
     ----------
-    values : list[Any]
+    values : list
     -   The list of values whose entries should be checked for duplicates.
 
     RETURNS
@@ -289,7 +287,7 @@ def check_duplicates_list(
     duplicates : bool
     -   Whether or not duplicates are present.
 
-    duplicate_values : list[Any] | None
+    duplicate_values : list | None
     -   The list of duplicates values, or None if no duplicates are present.
     """
 
@@ -307,19 +305,19 @@ def check_duplicates_list(
     return duplicates, duplicate_values
 
 
-def check_matching_entries(objects: list[Any]) -> bool:
+def check_matching_entries(objects: list) -> bool:
     """Checks whether the entries of objects match one another.
 
     PARAMETERS
     ----------
-    objects : list[Any]
+    objects : list
     -   The objects whose entries should be compared.
 
     RETURNS
     -------
     matching : bool
-    -   If True, the entries of the objects match. If False, the entries do
-        not match.
+    -   If True, the entries of the objects match. If False, the entries do not
+        match.
 
     RAISES
     ------
@@ -351,19 +349,19 @@ def check_matching_entries(objects: list[Any]) -> bool:
 
 
 def check_master_entries_in_sublists(
-    master_list: list[Any],
-    sublists: list[list[Any]],
+    master_list: list,
+    sublists: list[list],
     allow_duplicates: bool = True,
-) -> tuple[bool, Optional[list[Any]]]:
+) -> tuple[bool, Optional[list]]:
     """Checks whether all values in a master list are present in a set of
     sublists.
 
     PARAMETERS
     ----------
-    master_list : list[Any]
+    master_list : list
     -   A master list of values.
 
-    sublists : list[list[Any]]
+    sublists : list[list]
     -   A list of sublists of values.
 
     allow_duplicates : bool; default True
@@ -374,7 +372,7 @@ def check_master_entries_in_sublists(
     all_present : bool
     -   Whether all values in the master list were present in the sublists.
 
-    absent_entries : list[Any] | None
+    absent_entries : list | None
     -   The entry/ies of the master list missing from the sublists. If no
         entries are missing, this is None.
     """
@@ -404,19 +402,19 @@ def check_master_entries_in_sublists(
 
 
 def check_sublist_entries_in_master(
-    master_list: list[Any],
-    sublists: list[list[Any]],
+    master_list: list,
+    sublists: list[list],
     allow_duplicates: bool = True,
-) -> tuple[bool, Optional[list[Any]]]:
+) -> tuple[bool, Optional[list]]:
     """Checks whether all values in a set of sublists are present in a master
     list.
 
     PARAMETERS
     ----------
-    master_list : list[Any]
+    master_list : list
     -   A master list of values.
 
-    sublists : list[list[Any]]
+    sublists : list[list]
     -   A list of sublists of values.
 
     allow_duplicates : bool; default True
@@ -427,7 +425,7 @@ def check_sublist_entries_in_master(
     all_present : bool
     -   Whether all values in the sublists were present in the master list.
 
-    absent_entries : list[Any] | None
+    absent_entries : list | None
     -   The entry/ies of the sublists missing from the master list. If no
         entries are missing, this is None.
     """
@@ -456,9 +454,7 @@ def check_sublist_entries_in_master(
     return all_present, absent_entries
 
 
-def ordered_list_from_dict(
-    list_order: list[str], dict_to_order: dict[Any]
-) -> list[Any]:
+def ordered_list_from_dict(list_order: list[str], dict_to_order: dict) -> list:
     """Creates a list from entries in a dictionary, sorted based on a given
     order.
 
@@ -468,12 +464,12 @@ def ordered_list_from_dict(
     -   The names of keys in the dictionary, in the order that
         the values will occur in the list.
 
-    dict_to_order : dict[Any]
+    dict_to_order : dict
     -   The dictionary whose entries will be added to the list.
 
     RETURNS
     -------
-    list[Any]
+    list
     -   The ordered list.
     """
 

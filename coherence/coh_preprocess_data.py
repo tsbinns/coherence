@@ -120,8 +120,8 @@ def preprocessing(
             reref_method = signal.rereference_pseudo
         elif key == "bipolar":
             reref_method = signal.rereference_bipolar
-        elif key == "CAR":
-            reref_method = signal.rereference_CAR
+        elif key == "common_average":
+            reref_method = signal.rereference_common_average
         else:
             raise Exception(
                 "Error when rereferencing data:\nThe following rereferencing "

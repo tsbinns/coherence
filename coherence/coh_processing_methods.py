@@ -6,18 +6,14 @@ ProcMethod
 -   Abstract class for implementing data processing methods.
 """
 
-
 import csv
 import json
 import pickle
-
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from typing import Optional, Union
-
 import numpy as np
 import pandas as pd
-
 from coh_exceptions import (
     DuplicateEntryError,
     MissingEntryError,
@@ -66,6 +62,15 @@ class ProcMethod(ABC):
     def _sort_inputs(self):
         """Checks the inputs to the processing method object to ensure that they
         match the requirements for processing."""
+
+    @abstractmethod
+    def _set_df_unique_vars(self):
+        """Sets the variables which have unique values depending on the
+        channel from which the data is coming."""
+
+    @abstractmethod
+    def process(self) -> None:
+        """Performs the processing on the data."""
 
     def _check_vars_present(
         self, master_list: list[str], sublists: list[list[str]]
@@ -140,11 +145,6 @@ class ProcMethod(ABC):
 
         return {name: [var_values[name]] * n_entries for name in var_names}
 
-    @abstractmethod
-    def _set_df_unique_vars(self):
-        """Sets the variables which have unique values depending on the
-        channel from which the data is coming."""
-
     def _combine_df_vars(self, identical_vars: dict, unique_vars: dict) -> dict:
         """Combines identical and unique variables together into a single
         dictionary.
@@ -207,6 +207,10 @@ class ProcMethod(ABC):
         unique_vars : dict
         -   The names of the variables whose values depend on the channel, and
             their corresponding values.
+
+        RETURNS
+        pandas DataFrame
+        -   The processed data in a DataFrame format.
         """
 
         combined_vars = self._combine_df_vars(identical_vars, unique_vars)
@@ -214,10 +218,6 @@ class ProcMethod(ABC):
         return pd.DataFrame.from_dict(combined_vars, orient="columns").reindex(
             columns=var_order
         )
-
-    @abstractmethod
-    def process(self) -> None:
-        """Performs the processing on the data."""
 
     def _prepare_results_for_saving(
         self,

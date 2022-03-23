@@ -21,7 +21,6 @@ identify_ftype
 -   Finds what file type of a file is based on the filename extension.
 """
 
-
 import os
 import mne_bids
 from coh_exceptions import MissingFileExtensionError

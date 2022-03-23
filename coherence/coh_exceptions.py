@@ -60,8 +60,7 @@ class UnavailableProcessingError(Exception):
 
 class MissingAttributeError(Exception):
     """Class for raising exceptions/errors associated with attributes of an
-    object that have not been instantiated.
-    """
+    object that have not been instantiated."""
 
 
 class EntryLengthError(Exception):
