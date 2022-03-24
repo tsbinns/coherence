@@ -52,6 +52,27 @@ class Reref(ABC):
     -   This is useful if e.g. the channels were already hardware rereferenced.
     """
 
+    @abstractmethod
+    def _sort_inputs(self) -> None:
+        """Checks that rereferencing settings are compatible and discards
+        rereferencing-irrelevant channels from the data."""
+
+    @abstractmethod
+    def _index_old_channels(self) -> None:
+        """Creates an index of channels that are being rereferenced."""
+
+    @abstractmethod
+    def _set_data(self) -> None:
+        """Rereferences the data."""
+
+    @abstractmethod
+    def _set_coordinates(self) -> None:
+        """Sets the coordinates of the new, rereferenced channels."""
+
+    @abstractmethod
+    def rereference(self) -> None:
+        """Rereferences the data in an mne.io.Raw object."""
+
     def _check_input_lengths(self, lists: list[list]) -> int:
         """Checks that the lengths of the entries (representing the features of
         channels that will be rereferenced, e.g. channel names, coordinates,
@@ -303,11 +324,6 @@ class Reref(ABC):
 
         return ch_regions_new
 
-    @abstractmethod
-    def _sort_inputs(self) -> None:
-        pass
-
-    @abstractmethod
     def _data_from_raw(
         self, raw: mne.io.Raw
     ) -> tuple[np.ndarray, mne.Info, list[str], list[list[realnum]]]:
@@ -331,7 +347,7 @@ class Reref(ABC):
         -   List of channel names taken from the mne.io.Raw object corresponding
             to the channels in the data array.
 
-        list[list[int or float]]
+        list[list[int | float]]
         -   List of channel coordinates taken from the mne.io.Raw object, with
             each channel's coordinates given in a sublist containing the x, y,
             and z coordinates.
@@ -344,7 +360,6 @@ class Reref(ABC):
             raw._get_channel_positions().copy().tolist(),
         )
 
-    @abstractmethod
     def _raw_from_data(
         self,
         data: np.ndarray,
@@ -379,7 +394,6 @@ class Reref(ABC):
 
         return raw
 
-    @abstractmethod
     def _store_rereference_types(
         self, ch_names: list[str], reref_types: list[str]
     ) -> dict[str, str]:
@@ -404,7 +418,6 @@ class Reref(ABC):
 
         return {ch_names[i]: reref_types[i] for i in range(len(ch_names))}
 
-    @abstractmethod
     def _store_ch_regions(
         self, ch_names: list[str], ch_regions: list[str]
     ) -> dict[str, str]:
@@ -429,19 +442,6 @@ class Reref(ABC):
 
         return {ch_names[i]: ch_regions[i] for i in range(len(ch_names))}
 
-    @abstractmethod
-    def _index_old_channels(self) -> None:
-        """Creates an index of channels that are being rereferenced."""
-
-    @abstractmethod
-    def _set_data(self) -> None:
-        """Rereferences the data."""
-
-    @abstractmethod
-    def _set_coordinates(self) -> None:
-        """Sets the coordinates of the new, rereferenced channels."""
-
-    @abstractmethod
     def _set_data_info(
         self, ch_names: list[str], ch_types: list[str], old_info: mne.Info
     ) -> mne.Info:
@@ -476,10 +476,6 @@ class Reref(ABC):
                 new_info[key] = value
 
         return new_info
-
-    @abstractmethod
-    def rereference(self) -> None:
-        """Rereferences the data in an mne.io.Raw object."""
 
 
 class RerefBipolar(Reref):
@@ -540,7 +536,12 @@ class RerefBipolar(Reref):
 
         # Initialises inputs of the RerefBipolar object.
         self.raw = raw
-        self._data_from_raw()
+        (
+            self._data,
+            self._data_info,
+            self._ch_names,
+            self._ch_coords,
+        ) = self._data_from_raw(self.raw)
         self._ch_names_old = ch_names_old
         self._index_old_channels()
         self._ch_names_new = ch_names_new
@@ -553,8 +554,11 @@ class RerefBipolar(Reref):
         # Initialises aspects of the RerefBipolar object that will be filled
         # with information as the data is processed.
         self._new_data = None
+        self._new_data_info = None
         self._new_ch_coords = None
         self._n_channels = None
+        self.reref_types = None
+        self.ch_regions = None
 
     def _check_ch_names_old(self) -> None:
         """Checks that two channel names (i.e. an anode and a cathode) are given
@@ -778,43 +782,6 @@ class RerefBipolar(Reref):
             ch_regions_new=self._ch_regions_new, n_channels=self._n_channels
         )
 
-    def _data_from_raw(self) -> None:
-        """Extracts components of an mne.io.Raw object and returns them."""
-
-        (
-            self._data,
-            self._data_info,
-            self._ch_names,
-            self._ch_coords,
-        ) = super()._data_from_raw(self.raw)
-
-    def _raw_from_data(self) -> None:
-        """Generates an mne.io.Raw object based on the rereferenced data and its
-        associated information.
-        """
-
-        self.raw = super()._raw_from_data(
-            self._new_data, self._new_data_info, self._new_ch_coords
-        )
-
-    def _store_rereference_types(self) -> None:
-        """Generates a dictionary of key:value pairs consisting of channel name
-        : rereferencing type.
-        """
-
-        self.reref_types = super()._store_rereference_types(
-            self._ch_names_new, self._reref_types
-        )
-
-    def _store_ch_regions(self) -> None:
-        """Generates a dictionary of key:value pairs consisting of channel name
-        : channel region.
-        """
-
-        self.ch_regions = super()._store_ch_regions(
-            self._ch_names_new, self._ch_regions_new
-        )
-
     def _index_old_channels(self) -> None:
         """Creates an index of channels that are being rereferenced, matching
         the format of the channel names used for rereferencing.
@@ -881,15 +848,6 @@ class RerefBipolar(Reref):
                     )
                 )
 
-    def _set_data_info(self) -> None:
-        """Creates an mne.Info object containing information about the newly
-        rereferenced data.
-        """
-
-        self._new_data_info = super()._set_data_info(
-            self._ch_names_new, self._ch_types_new, self._data_info
-        )
-
     def rereference(self) -> tuple[mne.io.Raw, list[str], dict[str, str]]:
         """Rereferences the data in an mne.io.Raw object.
 
@@ -908,11 +866,24 @@ class RerefBipolar(Reref):
         """
 
         self._set_data()
+
         self._set_coordinates()
-        self._set_data_info()
-        self._raw_from_data()
-        self._store_rereference_types()
-        self._store_ch_regions()
+
+        self._new_data_info = self._set_data_info(
+            self._ch_names_new, self._ch_types_new, self._data_info
+        )
+
+        self.raw = self._raw_from_data(
+            self._new_data, self._new_data_info, self._new_ch_coords
+        )
+
+        self.reref_types = self._store_rereference_types(
+            self._ch_names_new, self._reref_types
+        )
+
+        self.ch_regions = self._store_ch_regions(
+            self._ch_names_new, self._ch_regions_new
+        )
 
         return self.raw, self._ch_names_new, self.reref_types, self.ch_regions
 
@@ -975,7 +946,12 @@ class RerefCommonAverage(Reref):
 
         # Initialises inputs of the RerefCommonAverage object.
         self.raw = raw
-        self._data_from_raw()
+        (
+            self._data,
+            self._data_info,
+            self._ch_names,
+            self._ch_coords,
+        ) = self._data_from_raw(self.raw)
         self._ch_names_old = ch_names_old
         self._index_old_channels()
         self._ch_names_new = ch_names_new
@@ -988,7 +964,10 @@ class RerefCommonAverage(Reref):
         # Initialises aspects of the RerefCommonAverage object that will be
         # filled with information as the data is processed.
         self._new_data = None
+        self._new_data_info = None
         self._new_ch_coords = None
+        self.reref_types = None
+        self.ch_regions = None
 
     def _sort_inputs(self) -> None:
         """Checks that rereferencing settings are compatible and discards
@@ -1036,43 +1015,6 @@ class RerefCommonAverage(Reref):
 
         self._ch_regions_new = self._sort_ch_regions_new(
             ch_regions_new=self._ch_regions_new, n_channels=self._n_channels
-        )
-
-    def _data_from_raw(self) -> None:
-        """Extracts components of an mne.io.Raw object and returns them."""
-
-        (
-            self._data,
-            self._data_info,
-            self._ch_names,
-            self._ch_coords,
-        ) = super()._data_from_raw(self.raw)
-
-    def _raw_from_data(self) -> None:
-        """Generates an mne.io.Raw object based on the rereferenced data and its
-        associated information.
-        """
-
-        self.raw = super()._raw_from_data(
-            self._new_data, self._new_data_info, self._new_ch_coords
-        )
-
-    def _store_rereference_types(self) -> None:
-        """Generates a dictionary of key:value pairs consisting of channel name
-        : rereferencing type.
-        """
-
-        self.reref_types = super()._store_rereference_types(
-            self._ch_names_new, self._reref_types
-        )
-
-    def _store_ch_regions(self) -> None:
-        """Generates a dictionary of key:value pairs consisting of channel name
-        : channel region.
-        """
-
-        self.ch_regions = super()._store_ch_regions(
-            self._ch_names_new, self._ch_regions_new
         )
 
     def _index_old_channels(self) -> None:
@@ -1131,15 +1073,6 @@ class RerefCommonAverage(Reref):
                     self._ch_coords[self._ch_index[ch_i]]
                 )
 
-    def _set_data_info(self) -> None:
-        """Creates an mne.Info object containing information about the newly
-        rereferenced data.
-        """
-
-        self._new_data_info = super()._set_data_info(
-            self._ch_names_new, self._ch_types_new, self._data_info
-        )
-
     def rereference(self) -> tuple[mne.io.Raw, list[str], dict[str, str]]:
         """Rereferences the data in an mne.io.Raw object.
 
@@ -1159,11 +1092,24 @@ class RerefCommonAverage(Reref):
         """
 
         self._set_data()
+
         self._set_coordinates()
-        self._set_data_info()
-        self._raw_from_data()
-        self._store_rereference_types()
-        self._store_ch_regions()
+
+        self._new_data_info = self._set_data_info(
+            self._ch_names_new, self._ch_types_new, self._data_info
+        )
+
+        self.raw = self._raw_from_data(
+            self._new_data, self._new_data_info, self._new_ch_coords
+        )
+
+        self.reref_types = self._store_rereference_types(
+            self._ch_names_new, self._reref_types
+        )
+
+        self.ch_regions = self._store_ch_regions(
+            self._ch_names_new, self._ch_regions_new
+        )
 
         return self.raw, self._ch_names_new, self.reref_types, self.ch_regions
 
@@ -1231,7 +1177,12 @@ class RerefPseudo(Reref):
 
         # Iniialises inputs of the RerefPseudo object.
         self.raw = raw
-        self._data_from_raw()
+        (
+            self._data,
+            self._data_info,
+            self._ch_names,
+            self._ch_coords,
+        ) = self._data_from_raw(self.raw)
         self._ch_names_old = ch_names_old
         self._index_old_channels()
         self._ch_names_new = ch_names_new
@@ -1244,7 +1195,10 @@ class RerefPseudo(Reref):
         # Initialises aspects of the RerefPseudo object that will be filled
         # with information as the data is processed.
         self._new_data = None
+        self._new_data_info = None
         self._new_ch_coords = None
+        self.reref_types = None
+        self.ch_regions = None
 
     def _sort_reref_types(self) -> None:
         """Checks that all rereferencing types have been specified for the new
@@ -1331,41 +1285,6 @@ class RerefPseudo(Reref):
             ch_regions_new=self._ch_regions_new,
         )
 
-    def _data_from_raw(self) -> None:
-        """Extracts components of an mne.io.Raw object and returns them."""
-
-        (
-            self._data,
-            self._data_info,
-            self._ch_names,
-            self._ch_coords,
-        ) = super()._data_from_raw(self.raw)
-
-    def _raw_from_data(self) -> None:
-        """Generates an mne.io.Raw object based on the rereferenced data and its
-        associated information."""
-
-        self.raw = super()._raw_from_data(
-            self._new_data, self._new_data_info, self._new_ch_coords
-        )
-
-    def _store_rereference_types(self) -> None:
-        """Generates a dictionary of key:value pairs consisting of channel name
-        : rereferencing type."""
-
-        self.reref_types = super()._store_rereference_types(
-            self._ch_names_new, self._reref_types
-        )
-
-    def _store_ch_regions(self) -> None:
-        """Generates a dictionary of key:value pairs consisting of channel name
-        : channel region.
-        """
-
-        self.ch_regions = super()._store_ch_regions(
-            self._ch_names_new, self._ch_regions_new
-        )
-
     def _index_old_channels(self) -> None:
         """Creates an index of channels that are being rereferenced, matching
         the format of the channel names used for rereferencing.
@@ -1421,15 +1340,6 @@ class RerefPseudo(Reref):
                     np.around(self._ch_coords[self._ch_index[ch_i]], 2)
                 )
 
-    def _set_data_info(self) -> None:
-        """Creates an mne.Info object containing information about the newly
-        rereferenced data.
-        """
-
-        self._new_data_info = super()._set_data_info(
-            self._ch_names_new, self._ch_types_new, self._data_info
-        )
-
     def rereference(self) -> tuple[mne.io.Raw, list[str], dict[str, str]]:
         """Rereferences the data in an mne.io.Raw object.
 
@@ -1449,10 +1359,23 @@ class RerefPseudo(Reref):
         """
 
         self._set_data()
+
         self._set_coordinates()
-        self._set_data_info()
-        self._raw_from_data()
-        self._store_rereference_types()
-        self._store_ch_regions()
+
+        self._new_data_info = self._set_data_info(
+            self._ch_names_new, self._ch_types_new, self._data_info
+        )
+
+        self.raw = self._raw_from_data(
+            self._new_data, self._new_data_info, self._new_ch_coords
+        )
+
+        self.reref_types = self._store_rereference_types(
+            self._ch_names_new, self._reref_types
+        )
+
+        self.ch_regions = self._store_ch_regions(
+            self._ch_names_new, self._ch_regions_new
+        )
 
         return self.raw, self._ch_names_new, self.reref_types, self.ch_regions
