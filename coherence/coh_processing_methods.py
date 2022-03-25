@@ -11,11 +11,13 @@ import json
 import pickle
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from typing import Optional, Union
+from typing import Union
 import numpy as np
 import pandas as pd
+import coh_signal
 from coh_exceptions import (
     DuplicateEntryError,
+    InputTypeError,
     MissingEntryError,
     MissingFileExtensionError,
     UnavailableProcessingError,
@@ -32,6 +34,14 @@ from coh_saving import check_before_overwrite
 
 class ProcMethod(ABC):
     """Abstract class for implementing data processing methods.
+
+    PARAMETERS
+    ----------
+    signal : coh_signal.Signal
+    -   A preprocessed Signal object whose data will be processed.
+
+    verbose : bool; Optional, default True
+    -   Whether or not to print information about the information processing.
 
     METHODS
     -------
@@ -59,9 +69,24 @@ class ProcMethod(ABC):
     """
 
     @abstractmethod
-    def _sort_inputs(self):
-        """Checks the inputs to the processing method object to ensure that they
-        match the requirements for processing."""
+    def __init__(self, signal: coh_signal.Signal, verbose: bool) -> None:
+
+        # Initialises aspects of the ProcMethod object that will be filled with
+        # information as the data is processed.
+        self._fpath = None
+        self._ftype = None
+        self._ask_before_overwrite = None
+        self._to_save = None
+
+        # Initialises inputs of the ProcMethod object.
+        self.signal = deepcopy(signal)
+        self._verbose = verbose
+        self._sort_inputs()
+
+        # Initialises aspects of the ProcMethod object that indicate which
+        # methods have been called (starting as 'False'), which can later be
+        # updated.
+        self._processed = False
 
     @abstractmethod
     def _set_df_unique_vars(self):
@@ -71,6 +96,26 @@ class ProcMethod(ABC):
     @abstractmethod
     def process(self) -> None:
         """Performs the processing on the data."""
+
+    def _sort_inputs(self):
+        """Checks the inputs to the processing method object to ensure that they
+        match the requirements for processing and assigns inputs.
+
+        RAISES
+        ------
+        InputTypeError
+        -   Raised if the Signal object input does not contain epoched data,
+            which is necessary for power and connectivity analyses.
+        """
+
+        if "epochs" not in self.signal.data_dimensions:
+            raise InputTypeError(
+                "The provided Signal object does not contain epoched data. "
+                "Epoched data is required for power and connectivity analyses."
+            )
+
+        self.processing_steps = deepcopy(self.signal.processing_steps)
+        self.extra_info = deepcopy(self.signal.extra_info)
 
     def _check_vars_present(
         self, master_list: list[str], sublists: list[list[str]]
@@ -222,8 +267,8 @@ class ProcMethod(ABC):
     def _prepare_results_for_saving(
         self,
         results: np.array,
-        results_structure: Optional[list[str]],
-        rearrange: Optional[list[str]],
+        results_dims: Union[list[str], None],
+        rearrange: Union[list[str], None],
     ) -> list:
         """Copies analysis results and rearranges their dimensions as specified
         in preparation for saving.
@@ -233,7 +278,7 @@ class ProcMethod(ABC):
         results : numpy array
         -   The results of the analysis.
 
-        results_structure : list[str] | None; default None
+        results_dims : list[str] | None; default None
         -   The names of the axes in the results, used for rearranging the axes.
             If None, the data cannot be rearranged.
 
@@ -255,7 +300,7 @@ class ProcMethod(ABC):
         if rearrange:
             extracted_results = np.transpose(
                 extracted_results,
-                [results_structure.index(axis) for axis in rearrange],
+                [results_dims.index(axis) for axis in rearrange],
             )
 
         return extracted_results.tolist()
@@ -390,7 +435,7 @@ class ProcMethod(ABC):
 
         RAISES
         ------
-        UnidencitcalEntryError
+        UnidenticalEntryError
         -   Raised if the filetype in the filepath and the specified filetype do
             not match.
 
