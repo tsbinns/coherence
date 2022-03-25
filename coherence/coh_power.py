@@ -6,14 +6,13 @@ PowerMorlet
 -   Performs power analysis on preprocessed data using Morlet wavelets.
 """
 
-from copy import deepcopy
 from typing import Optional, Union
 from mne import time_frequency
 import numpy as np
+import coh_signal
 from coh_dtypes import realnum
 from coh_exceptions import (
     ChannelOrderError,
-    InputTypeError,
     ProcessingOrderError,
     UnavailableProcessingError,
 )
@@ -22,7 +21,6 @@ from coh_handle_entries import (
     check_matching_entries,
 )
 from coh_processing_methods import ProcMethod
-import coh_signal
 
 
 class PowerMorlet(ProcMethod):
@@ -41,19 +39,19 @@ class PowerMorlet(ProcMethod):
     process
     -   Performs Morlet wavelet power analysis using the implementation in
         mne.time_frequency.tfr_morlet.
+
+    save_object
+    -   Saves the PowerMorlet object as a .pkl file.
+
+    save_results
+    -   Saves the results and additional information as a file.
     """
 
     def __init__(self, signal: coh_signal.Signal, verbose: bool = True) -> None:
+        super().__init__(signal=signal, verbose=verbose)
 
-        # Initialises inputs of the Analysis object.
-        self.signal = deepcopy(signal)
-        self._verbose = verbose
-        self._sort_inputs()
-
-        # Initialises aspects of the Analysis object that will be filled with
+        # Initialises aspects of the PowerMorlet object that will be filled with
         # information as the data is processed.
-        self.processing_steps = deepcopy(self.signal.processing_steps)
-        self.extra_info = deepcopy(self.signal.extra_info)
         self.power = None
         self.itc = None
         self.power_dims = None
@@ -61,32 +59,15 @@ class PowerMorlet(ProcMethod):
         self.itc_dims = None
         self._itc_dims_sorted = None
 
-        # Initialises aspects of the Analysis object that indicate which methods
-        # have been called (starting as "False"), which can later be updated.
-        self._processed = False
+        # Initialises aspects of the PowerMorlet object that indicate which
+        # methods have been called (starting as 'False'), which can later be
+        # updated.
         self._itc_returned = False
         self._epochs_averaged = False
         self._power_timepoints_averaged = False
         self._itc_timepoints_averaged = False
         self._power_in_dataframe = False
         self._itc_in_dataframe = False
-
-    def _sort_inputs(self) -> None:
-        """Checks the inputs to the processing method object to ensure that they
-        match the requirements for processing.
-
-        RAISES
-        ------
-        InputTypeError
-        -   Raised if the Signal object input does not contain epoched data,
-            which is necessary for power and connectivity analyses.
-        """
-
-        if "epochs" not in self.signal.data_dimensions:
-            raise InputTypeError(
-                "The provided Signal object does not contain epoched data. "
-                "Epoched data is required for power and connectivity analyses."
-            )
 
     def _set_df_unique_vars(self, var_names: list[str]) -> dict:
         """Sets the variables which have unique values depending on the
@@ -320,7 +301,8 @@ class PowerMorlet(ProcMethod):
 
         PARAMETERS
         ----------
-        result :
+        result : MNE time_frequency.EpochsTFR |
+        tuple[MNE time_frequency.AverageTFR]
         -   The result of mne.time_frequency.tfr_morlet.
 
         itc_returned : bool
@@ -460,7 +442,7 @@ class PowerMorlet(ProcMethod):
         return_itc: bool = True,
         decim: Union[int, slice] = 1,
         n_jobs: int = 1,
-        picks: Union[list[int], None] = None,
+        picks: Optional[list[int]] = None,
         zero_mean: bool = True,
         average_epochs: bool = True,
         output: str = "power",
@@ -516,8 +498,9 @@ class PowerMorlet(ProcMethod):
 
         RETURNS
         -------
-        result : time_frequency.EpochsTFR | tuple[time_frequency.AverageTFR] |
-        tuple[time_frequency.EpochsTFR, time_frequency.AverageTFR]
+        result : MNE time_frequency.EpochsTFR |
+        tuple[MNE time_frequency.AverageTFR] |
+        tuple[MNE time_frequency.EpochsTFR, MNE time_frequency.AverageTFR]
         -   The result of the Morlet power analysis (optionally alongside
             inter-trial coherence).
         -   If return_itc if False and average_epochs is False, the result is
@@ -610,7 +593,7 @@ class PowerMorlet(ProcMethod):
         return_itc: bool = True,
         decim: Union[int, slice] = 1,
         n_jobs: int = 1,
-        picks: Union[list[int], None] = None,
+        picks: Optional[list[int]] = None,
         zero_mean: bool = True,
         average_epochs: bool = True,
         average_timepoints_power: bool = True,
@@ -753,13 +736,11 @@ class PowerMorlet(ProcMethod):
 
         if ask_before_overwrite is None:
             ask_before_overwrite = self._verbose
+        self._ask_before_overwrite = ask_before_overwrite
+        self._fpath = fpath
+        self._to_save = self
 
-        self._save_object(
-            to_save=self,
-            fpath=fpath,
-            ask_before_overwrite=ask_before_overwrite,
-            verbose=self._verbose,
-        )
+        self._save_object()
 
     def save_results(
         self,
@@ -801,10 +782,13 @@ class PowerMorlet(ProcMethod):
 
         if ask_before_overwrite is None:
             ask_before_overwrite = self._verbose
+        self._ask_before_overwrite = self._ask_before_overwrite
+        self._fpath = fpath
+        self._ftype = ftype
 
         power = self._prepare_results_for_saving(
             self.power.data,
-            results_structure=self.power_dims,
+            results_dims=self.power_dims,
             rearrange=self._power_dims_sorted,
         )
 
@@ -818,7 +802,7 @@ class PowerMorlet(ProcMethod):
                 "and in the results do not match."
             )
 
-        to_save = {
+        self._to_save = {
             "power": power,
             "power_dimensions": self._power_dims_sorted,
             "ch_names": self.signal.data.ch_names,
@@ -838,19 +822,107 @@ class PowerMorlet(ProcMethod):
         if self._itc_returned:
             itc = self._prepare_results_for_saving(
                 self.itc.data,
-                results_structure=self.itc_dims,
+                results_dims=self.itc_dims,
                 rearrange=self._itc_dims_sorted,
             )
-            to_save["itc"] = itc
-            to_save["itc_structure"] = self._itc_dims_sorted
+            self._to_save.update(itc=itc, itc_dimensions=self._itc_dims_sorted)
 
-        self._save_results(
-            to_save=to_save,
-            fpath=fpath,
-            ftype=ftype,
-            ask_before_overwrite=ask_before_overwrite,
-            verbose=self._verbose,
-        )
+        self._save_results()
 
 
-# class PowerFOOOF(ProcMethod):
+class PowerFOOOF(ProcMethod):
+    """Performs power analysis on data using FOOOF.
+
+    PARAMETERS
+    ----------
+    signal : PowerMorlet
+    -   Power spectra data that will be processed using FOOOF.
+
+    verbose : bool; Optional, default True
+    -   Whether or not to print information about the information processing.
+
+    METHODS
+    -------
+    process
+    -   Performs FOOOF power analysis.
+
+    save_object
+    -   Saves the PowerMorlet object as a .pkl file.
+
+    save_results
+    -   Saves the results and additional information as a file.
+    """
+
+    def __init__(self, signal: PowerMorlet, verbose: bool = True) -> None:
+        super().__init__(signal=signal, verbose=verbose)
+
+        # Initialises aspects of the PowerFOOOF object that will be filled with
+        # information as the data is processed.
+        self.power = None
+        self.power_dims = None
+        self._power_dims_sorted = None
+
+        # Initialises aspects of the PowerFOOOF object that indicate which
+        # methods have been called (starting as 'False'), which can later be
+        # updated.
+        self._epochs_averaged = False
+        self._power_timepoints_averaged = False
+        self._power_in_dataframe = False
+
+    def process(
+        self,
+        freq_range: Optional[list[int, float]] = None,
+        peak_width_limits: list[Union[int, float]] = [0.5, 12],
+        max_n_peaks: Union[int, float("inf")] = float("inf"),
+        min_peak_height: Union[int, float] = 0,
+        peak_threshold: Union[int, float] = 2,
+        aperiodic_mode: Optional[str] = None,
+    ) -> None:
+        """Performs FOOOF analysis on the power data.
+
+        PARAMETERS
+        ----------
+        freq_range : list[int | float] | None; default None
+        -   The lower and upper frequency limits, respectively, in Hz, for
+            which the FOOOF analysis should be performed.
+        -   If 'None', the entire frequency range of the power spectra is used.
+
+        peak_width_limits : list[int | float]; default [0.5, 12]
+        -   Minimum and maximum limits, respectively, in Hz, for detecting peaks
+            in the data.
+
+        max_n_peaks : int | inf; default inf
+        -   The maximum number of peaks that will be fit.
+
+        min_peak_height : int | float; default 0
+        -   Minimum threshold, in units of the input data, for detecing peaks.
+
+        peak_threshold : int | float; 2
+        -   Relative threshold, in units of standard deviation of the input data
+            for detecting peaks.
+
+        aperiodic_mode : list[str | None] | None; default None
+        -   The mode for fitting the periodic component, can be "fixed" or
+            "knee".
+        -   If 'None', the user is shown, for each channel individually, the
+            results of the different fits and asked to choose the fits to use
+            for each channel.
+        -   If some entries are 'None', the user is show the results of the
+            different fits for these channels and asked to choose the fits to
+            use for each of these channels.
+        """
+
+        if self._processed:
+            ProcessingOrderError(
+                "The data in this object has already been processed. "
+                "Initialise a new instance of the object if you want to "
+                "perform other analyses on the data."
+            )
+
+        if self._verbose:
+            print("Performing FOOOF analysis on the data.")
+
+        # Pass to _get_result(), where model fitting performed one
+        # channel at a time (showing user result after each fit when
+        # requested, if aperiodic_mode provided, or automatically if no mode
+        # specified).
