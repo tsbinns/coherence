@@ -95,14 +95,14 @@ class Signal:
     epoch
     -   Divides the mne.io.Raw object into epochs of a specified duration.
 
-    save_data
+    save_object
+    -   Saves the Signal object as a .pkl file.
+
+    save_signals
     -   Saves the time-series data and additional information as a file.
     """
 
     def __init__(self, verbose: bool = True) -> None:
-
-        # Initialises inputs of the Signal object.
-        self._verbose = verbose
 
         # Initialises aspects of the Signal object that will be filled with
         # information as the data is processed.
@@ -112,6 +112,9 @@ class Signal:
         self.data = None
         self._path_raw = None
         self.data_dimensions = None
+
+        # Initialises inputs of the Signal object.
+        self._verbose = verbose
 
         # Initialises aspects of the Signal object that indicate which methods
         # have been called (starting as 'False'), which can later be updated.
@@ -247,7 +250,11 @@ class Signal:
 
         self._coordinates_set = True
         if self._verbose:
-            print(f"Setting channel coordinates to:\n{ch_coords}.")
+            print("Setting channel coordinates to:")
+            [
+                print(f"{ch_names[i]}: {ch_coords[i]}")
+                for i in range(len(ch_names))
+            ]
 
     def set_regions(self, ch_names: list[str], ch_regions: list[str]) -> None:
         """Adds channel regions to the extra_info dictionary.
@@ -275,7 +282,11 @@ class Signal:
 
         self._regions_set = True
         if self._verbose:
-            print(f"Setting channel regions to:\n{ch_regions}.")
+            print("Setting channel regions to:")
+            [
+                print(f"{ch_names[i]}: {ch_regions[i]}")
+                for i in range(len(ch_names))
+            ]
 
     def get_data(self) -> np.array:
         """Extracts the data array from the mne.io.Raw or mne.Epochs object,
@@ -526,13 +537,13 @@ class Signal:
     def _apply_rereference(
         self,
         reref_method: Reref,
-        ch_names_old: Union[list[str], list[list[str]]],
-        ch_names_new: Optional[list[Optional[str]]],
-        ch_types_new: Optional[list[Optional[str]]],
-        reref_types: Optional[list[Optional[str]]],
-        ch_coords_new: Optional[list[Optional[list[realnum]]]],
-        ch_regions_new: Optional[list[Optional[str]]],
-    ) -> tuple[mne.io.Raw, list[str], dict[str, str]]:
+        ch_names_old: list[Union[str, list[str]]],
+        ch_names_new: Union[list[Union[str, None]], None],
+        ch_types_new: Union[list[Union[str, None]], None],
+        reref_types: Union[list[Union[str, None]], None],
+        ch_coords_new: Union[list[Union[list[realnum], None]], None],
+        ch_regions_new: Union[list[Union[str, None]], None],
+    ) -> tuple[mne.io.Raw, list[str], dict[str], dict[str]]:
         """Applies a rereferencing method to the mne.io.Raw object.
 
         PARAMETERS
@@ -545,28 +556,40 @@ class Signal:
         -   If bipolar rereferencing, each entry of the list should be a list of
             two channel names (i.e. a cathode and an anode).
 
-        ch_names_new : list[str]
+        ch_names_new : list[str | None] | None
         -   The names of the newly rereferenced channels, corresponding to the
             channels used for rerefrencing in ch_names_old.
+        -   If some or all entries are None, names of the new channels are
+            determined based on those they are referenced from.
 
-        ch_types_new : list[str]
+        ch_types_new : list[str | None] | None
         -   The types of the newly rereferenced channels as recognised by MNE,
             corresponding to the channels in 'ch_names_new'.
+        -   If some or all entries are None, types of the new channels are
+            determined based on those they are referenced from.
 
-        reref_types : list[str]
+        reref_types : list[str | None] | None
         -   The rereferencing type applied to the channels, corresponding to the
             channels in 'ch_names_new'.
+        -   If some or all entries are None, types of the new channels are
+            determined based on those they are referenced from.
 
-        ch_coords_new : empty list | list[empty list | list[int | float]]
+        ch_coords_new : list[list[int | float] | None] | None
         -   The coordinates of the newly rereferenced channels, corresponding to
             the channels in 'ch_names_new'. The list should consist of sublists
             containing the x, y, and z coordinates of each channel.
-        -   If the input is '[]', the coordinates of the channels in
+        -   If the input is None, the coordinates of the channels in
             'ch_names_old' in the mne.io.Raw object are used.
-        -   If some sublists are '[]', those channels for which coordinates are
+        -   If some entries are None, those channels for which coordinates are
             given are used, whilst those channels for which the coordinates are
             missing have their coordinates taken from the mne.io.Raw object
             according to the corresponding channel in 'ch_names_old'.
+
+        ch_regions_new : list[str | None] | None
+        -   The regions of the rereferenced channels channels, corresponding to
+            the channels in 'ch_names_new'.
+        -   If some or all entries are None, regions of the new channels are
+            determined based on those they are referenced from.
 
         RETURNS
         -------
@@ -576,12 +599,16 @@ class Signal:
         list[str]
         -   Names of the channels that were produced by the rereferencing.
 
-        dict[str, str]
+        dict[str]
         -   Dictionary showing the rereferencing types applied to the channels,
             in which the key:value pairs are channel name : rereference type.
+
+        dict[str]
+        -   Dictionary showing the regions of the rereferenced channels, in
+            which the key:value pairs are channel name : region.
         """
 
-        reref_object = reref_method(
+        return reref_method(
             deepcopy(self.data),
             ch_names_old,
             ch_names_new,
@@ -589,9 +616,7 @@ class Signal:
             reref_types,
             ch_coords_new,
             ch_regions_new,
-        )
-
-        return reref_object.rereference()
+        ).rereference()
 
     def _check_conflicting_channels(
         self, ch_names_1: list[str], ch_names_2: list[str]
@@ -656,35 +681,27 @@ class Signal:
 
         self.data.add_channels([rerefed_raw])
 
-    def _add_rereferencing_info(self, reref_types: dict[str, str]) -> None:
+    def _add_rereferencing_info(self, info_to_add: dict) -> None:
         """Adds channel rereferencing information to 'extra_info'.
 
         PARAETERS
         ---------
-        reref_types : dict[str, str]
-        -   Dictionary with key:value pairs of channel name : rereferencing
-            type.
+        info_to_add : dict
+        -   A dictionary used for updating 'extra_info'.
+        -   The dictionary's keys are the names of the entries that will be
+            updated in 'extra_info' with the corresponding values.
         """
 
-        self.extra_info["reref_types"].update(reref_types)
-
-    def _add_ch_region_info(self, ch_regions: dict[str, str]) -> None:
-        """Adds channel region information to 'extra_info'.
-
-        PARAETERS
-        ---------
-        ch_regions : dict[str, str]
-        -   Dictionary with key:value pairs of channel name : channel region.
-        """
-
-        for ch_info in ch_regions.items():
-            self.extra_info["ch_regions"][ch_info[0]] = ch_info[1]
+        [
+            self.extra_info[key].update(info_to_add[key])
+            for key in info_to_add.keys()
+        ]
 
     def _get_channel_rereferencing_pairs(
         self,
-        ch_names_old: Union[list[str], list[list[str]]],
-        ch_names_new: list[str],
-    ) -> list:
+        ch_names_old: list[Union[str, list[str]]],
+        ch_names_new: list[Union[str, list[str]]],
+    ) -> list[str]:
         """Collects the names of the channels that were referenced and the newly
         generated channels together.
 
@@ -700,7 +717,7 @@ class Signal:
 
         RETURNS
         -------
-        list
+        list[str | list[str]]
         -   List of sublists, in which each sublist contains the name(s) of the
             channel(s) that was(were) rereferenced, and the name of the channel
             that was produced.
@@ -713,12 +730,12 @@ class Signal:
     def _rereference(
         self,
         reref_method: Reref,
-        ch_names_old: Union[list[str], list[list[str]]],
-        ch_names_new: Optional[list[Optional[str]]],
-        ch_types_new: Optional[list[Optional[str]]],
-        reref_types: Optional[list[Optional[str]]],
-        ch_coords_new: Optional[list[Optional[list[realnum]]]],
-        ch_regions_new: Optional[list[Optional[str]]],
+        ch_names_old: list[Union[str, list[str]]],
+        ch_names_new: Union[list[Union[str, None]], None],
+        ch_types_new: Union[list[Union[str, None]], None],
+        reref_types: Union[list[Union[str, None]], None],
+        ch_coords_new: Union[list[Union[list[realnum], None]], None],
+        ch_regions_new: Union[list[Union[str, None]], None],
     ) -> list[str]:
         """Parent method for calling on other methods to rereference the data,
         add it to the self mne.io.Raw object, and add the rereferecing
@@ -759,6 +776,12 @@ class Signal:
             missing have their coordinates taken from the mne.io.Raw object
             according to the corresponding channel in 'ch_names_old'.
 
+        ch_regions_new : list[str | None] | None
+        -   The regions of the rereferenced channels channels, corresponding to
+            the channels in 'ch_names_new'.
+        -   If some or all entries are None, regions of the new channels are
+            determined based on those they are referenced from.
+
         RETURNS
         -------
         ch_names_new : list[str]
@@ -783,7 +806,7 @@ class Signal:
             rerefed_raw,
             ch_names_new,
             reref_types_dict,
-            ch_regions_new,
+            ch_regions_dict,
         ) = self._apply_rereference(
             reref_method,
             ch_names_old,
@@ -794,8 +817,12 @@ class Signal:
             ch_regions_new,
         )
         self._append_rereferenced_raw(rerefed_raw)
-        self._add_rereferencing_info(reref_types_dict)
-        self._add_ch_region_info(ch_regions_new)
+        self._add_rereferencing_info(
+            info_to_add={
+                "reref_types": reref_types_dict,
+                "ch_regions": ch_regions_dict,
+            }
+        )
 
         self._rereferenced = True
 
@@ -804,17 +831,17 @@ class Signal:
     def rereference_bipolar(
         self,
         ch_names_old: list[list[str]],
-        ch_names_new: list[str],
-        ch_types_new: list[str],
-        reref_types: list[str],
-        ch_coords_new: Optional[list[Optional[list[realnum]]]],
-        ch_regions_new: list[str],
+        ch_names_new: Union[list[Union[str, None]], None],
+        ch_types_new: Union[list[Union[str, None]], None],
+        reref_types: Union[list[Union[str, None]], None],
+        ch_coords_new: Union[list[Union[list[realnum], None]], None],
+        ch_regions_new: Union[list[Union[str, None]], None],
     ) -> None:
         """Bipolar rereferences channels in the mne.io.Raw object.
 
         PARAMETERS
         ----------
-        ch_names_old : list[str]
+        ch_names_old : list[list[str]]
         -   The names of the channels in the mne.io.Raw object to rereference.
 
         ch_names_new : list[str | None] | None; default None
@@ -843,6 +870,12 @@ class Signal:
             given are used, whilst those channels for which the coordinates are
             missing have their coordinates taken from the mne.io.Raw object
             according to the corresponding channel in 'ch_names_old'.
+
+        ch_regions_new : list[str | None] | None
+        -   The regions of the rereferenced channels channels, corresponding to
+            the channels in 'ch_names_new'.
+        -   If some or all entries are None, regions of the new channels are
+            determined based on those they are referenced from.
         """
 
         ch_names_new = self._rereference(
@@ -869,12 +902,12 @@ class Signal:
 
     def rereference_common_average(
         self,
-        ch_names_old: list[list[str]],
-        ch_names_new: list[str],
-        ch_types_new: list[str],
-        reref_types: list[str],
-        ch_coords_new: Optional[list[Optional[list[realnum]]]],
-        ch_regions_new: list[str],
+        ch_names_old: list[str],
+        ch_names_new: Union[list[Union[str, None]], None],
+        ch_types_new: Union[list[Union[str, None]], None],
+        reref_types: Union[list[Union[str, None]], None],
+        ch_coords_new: Union[list[Union[list[realnum], None]], None],
+        ch_regions_new: Union[list[Union[str, None]], None],
     ) -> None:
         """Common-average rereferences channels in the mne.io.Raw object.
 
@@ -909,6 +942,12 @@ class Signal:
             given are used, whilst those channels for which the coordinates are
             missing have their coordinates taken from the mne.io.Raw object
             according to the corresponding channel in 'ch_names_old'.
+
+        ch_regions_new : list[str | None] | None
+        -   The regions of the rereferenced channels channels, corresponding to
+            the channels in 'ch_names_new'.
+        -   If some or all entries are None, regions of the new channels are
+            determined based on those they are referenced from.
         """
 
         ch_names_new = self._rereference(
@@ -936,12 +975,12 @@ class Signal:
 
     def rereference_pseudo(
         self,
-        ch_names_old: list[list[str]],
-        ch_names_new: list[str],
-        ch_types_new: list[str],
+        ch_names_old: list[str],
+        ch_names_new: Union[list[Union[str, None]], None],
+        ch_types_new: Union[list[Union[str, None]], None],
         reref_types: list[str],
         ch_coords_new: Optional[list[Optional[list[realnum]]]],
-        ch_regions_new: list[str],
+        ch_regions_new: Union[list[Union[str, None]], None],
     ) -> None:
         """Pseudo rereferences channels in the mne.io.Raw object.
         -   This allows e.g. rereferencing types, channel coordinates, etc... to
@@ -982,6 +1021,12 @@ class Signal:
             given are used, whilst those channels for which the coordinates are
             missing have their coordinates taken from the mne.io.Raw object
             according to the corresponding channel in 'ch_names_old'.
+
+        ch_regions_new : list[str | None] | None
+        -   The regions of the rereferenced channels channels, corresponding to
+            the channels in 'ch_names_new'.
+        -   If some or all entries are None, regions of the new channels are
+            determined based on those they are referenced from.
         """
 
         ch_names_new = self._rereference(
@@ -1037,7 +1082,7 @@ class Signal:
             )
         self.data_dimensions = ["epochs", "channels", "timepoints"]
 
-    def _extract_signals(self, rearrange: Optional[list[str]]) -> np.array:
+    def _extract_signals(self, rearrange: Union[list[str], None]) -> np.array:
         """Extracts the signals from the mne.io.Raw object.
 
         PARAMETERS
