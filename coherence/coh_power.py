@@ -6,6 +6,7 @@ PowerMorlet
 -   Performs power analysis on preprocessed data using Morlet wavelets.
 """
 
+from copy import deepcopy
 from typing import Optional, Union
 from mne import time_frequency
 import numpy as np
@@ -20,6 +21,7 @@ from coh_handle_entries import (
     ordered_list_from_dict,
     check_matching_entries,
 )
+from coh_normalisation import norm_percentage_total
 from coh_processing_methods import ProcMethod
 
 
@@ -68,6 +70,8 @@ class PowerMorlet(ProcMethod):
         self._itc_timepoints_averaged = False
         self._power_in_dataframe = False
         self._itc_in_dataframe = False
+        self._power_normalised = False
+        self._itc_normalised = False
 
     def _set_df_unique_vars(self, var_names: list[str]) -> dict:
         """Sets the variables which have unique values depending on the
@@ -716,6 +720,160 @@ class PowerMorlet(ProcMethod):
             "output": output,
         }
 
+    def _sort_normalisation_inputs(
+        self, norm_type: str, apply_to: str, within_dim: str
+    ) -> tuple[
+        Union[time_frequency.EpochsTFR, time_frequency.AverageTFR], list[str]
+    ]:
+        """Sorts the user inputs for the normalisation of results.
+
+        PARAMETERS
+        ----------
+        norm_type : str
+        -   The type of normalisation to apply.
+        -   Currently, only "percentage_total" is supported.
+
+        apply_to : str
+        -   The results to apply the normalisation to.
+        -   Can be "power" or "itc".
+
+        within_dim : str
+        -   The dimension to apply the normalisation within.
+
+        RETURNS
+        -------
+        results : MNE time_frequency.EpochsTFR | MNE time_frequency.AverageTFR
+        -   The results of the Morlet power analysis to normalise.
+
+        result_dims : list[str]
+        -   Descriptions of the dimensions of the data.
+
+        RAISES
+        ------
+        UnavailableProcessingError
+        -   Raised if the requested inputs or results to analyse do not meet the
+            requirements for normalisation.
+        """
+
+        supported_norm_types = ["percentage_total"]
+        supported_applications = ["power", "itc"]
+        max_supported_n_dims = 2
+
+        if norm_type not in supported_norm_types:
+            raise UnavailableProcessingError(
+                "Error when normalising the results of the Morlet power "
+                f"analysis:\nThe normalisation type '{norm_type}' is not "
+                "supported.\nThe supported normalisation types are "
+                f"{supported_norm_types}."
+            )
+
+        if apply_to == "power":
+            results = self.power
+            results_dims = self.power_dims
+        elif apply_to == "itc":
+            results = self.itc
+            results_dims = self.itc_dims
+        else:
+            raise UnavailableProcessingError(
+                "Error when normalising the results of the Morlet power "
+                f"analysis:\nNormalisation cannot be applied to '{apply_to}', "
+                f"only to {supported_applications}."
+            )
+
+        if len(results_dims) > max_supported_n_dims:
+            raise UnavailableProcessingError(
+                "Error when normalising the results of the Morlet power "
+                "analysis:\nCurrently, normalising the values of results with "
+                f"at most {max_supported_n_dims} is supported, but the results "
+                f"have {len(results_dims)} dimensions."
+            )
+
+        if within_dim not in results_dims:
+            raise UnavailableProcessingError(
+                "Error when normalising the results of the Morlet power "
+                f"analysis:\nThe dimension '{within_dim}' is not present in "
+                f"the results of dimensions {results_dims}."
+            )
+
+        return results, results_dims
+
+    def normalise(
+        self,
+        norm_type: str,
+        apply_to: str,
+        within_dim: str,
+        exclude_line_noise_window: Union[int, float] = 10,
+    ) -> None:
+        """Normalises the results of the Morlet power analysis.
+        -   Only one type of results (power and inter-trial coherence) can be
+            normalised in a single function call, but both types can be
+            normalised within the object.
+
+        PARAMETERS
+        ----------
+        norm_type : str
+        -   The type of normalisation to apply.
+        -   Currently, only "percentage_total" is supported.
+
+        apply_to : str
+        -   The results to apply the normalisation to.
+        -   Can be "power" or "itc".
+
+        within_dim : str
+        -   The dimension to apply the normalisation within.
+        -   E.g. if the data has dimensions "channels" and "frequencies",
+            setting 'within_dims' to "channels" would normalise the data across
+            the frequencies within each channel.
+        -   Currently, normalising only two-dimensional data is supported.
+
+        exclusion_line_noise_window : int | float; default 10
+        -   The size of the windows (in Hz) to exclude frequencies around the
+            line noise and harmonic frequencies from the calculations of what to
+            normalise the data by.
+        -   If 0, no frequencies are excluded.
+        -   E.g. if the line noise is 50 Hz and 'exclusion_line_noise_window' is
+            10, the results from 45 - 55 Hz would be ommited.
+        """
+
+        results, results_dims = self._sort_normalisation_inputs(
+            norm_type=norm_type, apply_to=apply_to, within_dim=within_dim
+        )
+
+        if apply_to == "power" and self._power_normalised:
+            raise ProcessingOrderError(
+                "Error when normalising the results of the Morlet power "
+                "analysis:\nThe power results have already been normalised."
+            )
+        elif apply_to == "itc" and self._itc_normalised:
+            raise ProcessingOrderError(
+                "Error when normalising the results of the Morlet power "
+                "analysis:\nThe inter-trial coherence results have already "
+                "been normalised."
+            )
+
+        if norm_type == "percentage_total":
+            data = norm_percentage_total(
+                data=deepcopy(results.data),
+                freqs=self.power.freqs,
+                data_dims=results_dims,
+                within_dim=within_dim,
+                line_noise_freq=results.info["line_freq"],
+                exclusion_window=exclude_line_noise_window,
+            )
+
+        if apply_to == "power":
+            self.power.data = data
+            self._power_normalised = True
+        elif apply_to == "itc":
+            self._itc_normalised = True
+            self.itc.data = data
+
+        self.processing_steps[f"{apply_to}_normalisation"] = {
+            "normalisation_type": norm_type,
+            "within_dim": within_dim,
+            "exclude_line_noise_window": exclude_line_noise_window,
+        }
+
     def save_object(
         self,
         fpath: str,
@@ -736,11 +894,13 @@ class PowerMorlet(ProcMethod):
 
         if ask_before_overwrite is None:
             ask_before_overwrite = self._verbose
-        self._ask_before_overwrite = ask_before_overwrite
-        self._fpath = fpath
-        self._to_save = self
 
-        self._save_object()
+        self._save_object(
+            to_save=self,
+            fpath=fpath,
+            ask_before_overwrite=ask_before_overwrite,
+            verbose=self._verbose,
+        )
 
     def save_results(
         self,
@@ -782,9 +942,6 @@ class PowerMorlet(ProcMethod):
 
         if ask_before_overwrite is None:
             ask_before_overwrite = self._verbose
-        self._ask_before_overwrite = self._ask_before_overwrite
-        self._fpath = fpath
-        self._ftype = ftype
 
         power = self._prepare_results_for_saving(
             self.power.data,
@@ -802,9 +959,10 @@ class PowerMorlet(ProcMethod):
                 "and in the results do not match."
             )
 
-        self._to_save = {
+        to_save = {
             "power": power,
             "power_dimensions": self._power_dims_sorted,
+            "freqs": self.power.freqs.tolist(),
             "ch_names": self.signal.data.ch_names,
             "ch_types": self.signal.data.get_channel_types(),
             "ch_coords": self.signal.get_coordinates(),
@@ -825,9 +983,15 @@ class PowerMorlet(ProcMethod):
                 results_dims=self.itc_dims,
                 rearrange=self._itc_dims_sorted,
             )
-            self._to_save.update(itc=itc, itc_dimensions=self._itc_dims_sorted)
+            to_save.update(itc=itc, itc_dimensions=self._itc_dims_sorted)
 
-        self._save_results()
+        self._save_results(
+            to_save=to_save,
+            fpath=fpath,
+            ftype=ftype,
+            ask_before_overwrite=ask_before_overwrite,
+            verbose=self._verbose,
+        )
 
 
 class PowerFOOOF(ProcMethod):
@@ -873,7 +1037,7 @@ class PowerFOOOF(ProcMethod):
         self,
         freq_range: Optional[list[int, float]] = None,
         peak_width_limits: list[Union[int, float]] = [0.5, 12],
-        max_n_peaks: Union[int, float("inf")] = float("inf"),
+        max_n_peaks: Union[int, float] = float("inf"),
         min_peak_height: Union[int, float] = 0,
         peak_threshold: Union[int, float] = 2,
         aperiodic_mode: Optional[str] = None,
