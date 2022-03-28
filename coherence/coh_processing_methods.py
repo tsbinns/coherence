@@ -402,7 +402,7 @@ class ProcMethod(ABC):
         self,
         to_save: dict,
         fpath: str,
-        ftype: Optional[str],
+        ftype: Union[str, None],
         ask_before_overwrite: bool,
         verbose: bool,
     ) -> None:
