@@ -85,6 +85,8 @@ def power_morlet_analysis(
     with open(analysis_settings_fpath, encoding="utf-8") as file:
         analysis_settings = json.load(file)
     morlet_settings = analysis_settings["power_morlet"]
+    power_norm_settings = morlet_settings["normalise_power"]
+    itc_norm_settings = morlet_settings["normalise_itc"]
 
     ### Data processing
     ## Morlet wavelet power analysis
@@ -92,7 +94,7 @@ def power_morlet_analysis(
     morlet.process(
         freqs=np.arange(
             morlet_settings["freqs"][0], morlet_settings["freqs"][1] + 1
-        ),
+        ).tolist(),
         n_cycles=morlet_settings["n_cycles"],
         use_fft=morlet_settings["use_fft"],
         return_itc=morlet_settings["return_itc"],
@@ -105,4 +107,22 @@ def power_morlet_analysis(
         average_timepoints_itc=morlet_settings["average_timepoints_itc"],
         output=morlet_settings["output"],
     )
+    if power_norm_settings["apply"]:
+        morlet.normalise(
+            norm_type=power_norm_settings["norm_type"],
+            apply_to="power",
+            within_dim=power_norm_settings["within_dim"],
+            exclude_line_noise_window=power_norm_settings[
+                "exclude_line_noise_window"
+            ],
+        )
+    if itc_norm_settings["apply"]:
+        morlet.normalise(
+            norm_type=itc_norm_settings["norm_type"],
+            apply_to="itc",
+            within_dim=itc_norm_settings["within_dim"],
+            exclude_line_noise_window=itc_norm_settings[
+                "exclude_line_noise_window"
+            ],
+        )
     morlet.save_results(morlet_fpath)
