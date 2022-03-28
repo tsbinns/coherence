@@ -460,7 +460,10 @@ class RerefBipolar(Reref):
             channel has not been specified.
         """
 
-        ch_types_old = self.raw.get_channel_types(self._ch_names_old)
+        ch_types_old = [
+            list(np.unique(self.raw.get_channel_types(ch_names)))
+            for ch_names in self._ch_names_old
+        ]
 
         if self._ch_types_new is None:
             self._ch_types_new = []
