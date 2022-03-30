@@ -327,10 +327,9 @@ class Reref(ABC):
         self._new_data_info = mne.create_info(
             self._ch_names_new, self._data_info["sfreq"], self._ch_types_new
         )
-        do_not_overwrite = ["ch_names", "chs", "nchan"]
-        for key, value in self._data_info.items():
-            if key not in do_not_overwrite:
-                self._new_data_info[key] = value
+        add_info = ["experimenter", "line_freq"]
+        for key in add_info:
+            self._new_data_info[key] = self._data_info[key]
 
     def rereference(self) -> tuple[mne.io.Raw, list[str], dict[str], dict[str]]:
         """Rereferences the data in an mne.io.Raw object.
