@@ -8,7 +8,7 @@ power_morlet_analysis
 
 power_FOOOF_analysis
 -   Takes a coh_signal.PowerMorlet object of power data and performs FOOOF power
-    nalysis.
+    analysis.
 """
 
 import json
