@@ -13,20 +13,11 @@ from abc import ABC, abstractmethod
 from copy import deepcopy
 from typing import Union
 import numpy as np
-import pandas as pd
 import coh_signal
 from coh_exceptions import (
-    DuplicateEntryError,
-    InputTypeError,
-    MissingEntryError,
     MissingFileExtensionError,
     UnavailableProcessingError,
     UnidenticalEntryError,
-)
-from coh_handle_entries import (
-    check_duplicates_list,
-    check_master_entries_in_sublists,
-    check_sublist_entries_in_master,
 )
 from coh_handle_files import check_ftype_present, identify_ftype
 from coh_saving import check_before_overwrite
