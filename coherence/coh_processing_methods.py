@@ -73,15 +73,12 @@ class ProcMethod(ABC):
 
         # Initialises aspects of the ProcMethod object that will be filled with
         # information as the data is processed.
-        self._fpath = None
-        self._ftype = None
-        self._ask_before_overwrite = None
-        self._to_save = None
+        self.processing_steps = None
+        self.extra_info = None
 
         # Initialises inputs of the ProcMethod object.
         self.signal = deepcopy(signal)
         self._verbose = verbose
-        self._sort_inputs()
 
         # Initialises aspects of the ProcMethod object that indicate which
         # methods have been called (starting as 'False'), which can later be
@@ -97,22 +94,10 @@ class ProcMethod(ABC):
     def process(self) -> None:
         """Performs the processing on the data."""
 
+    @abstractmethod
     def _sort_inputs(self):
         """Checks the inputs to the processing method object to ensure that they
-        match the requirements for processing and assigns inputs.
-
-        RAISES
-        ------
-        InputTypeError
-        -   Raised if the Signal object input does not contain epoched data,
-            which is necessary for power and connectivity analyses.
-        """
-
-        if "epochs" not in self.signal.data_dimensions:
-            raise InputTypeError(
-                "The provided Signal object does not contain epoched data. "
-                "Epoched data is required for power and connectivity analyses."
-            )
+        match the requirements for processing and assigns inputs."""
 
         self.processing_steps = deepcopy(self.signal.processing_steps)
         self.extra_info = deepcopy(self.signal.extra_info)
