@@ -30,10 +30,15 @@ check_sublist_entries_in_master
 
 ordered_list_from_dict
 -   Creates a list from entries in a dictionary, sorted based on a given order.
+
+ragged_array_to_list
+-   Converts a ragged numpy array of nested arrays to a ragged list of nested
+    lists.
 """
 
 from itertools import chain
 from typing import Optional, Union
+from numpy import typing as nptyping
 from coh_exceptions import DuplicateEntryError, EntryLengthError
 
 
@@ -196,8 +201,7 @@ def _find_lengths_list(
 def check_lengths_list_identical(
     to_check: list, ignore_values: Optional[list] = None
 ) -> tuple[bool, Union[int, list[int]]]:
-    """Checks whether the lengths of entries in the input dictionary are
-        identical.
+    """Checks whether the lengths of entries in the input list are identical.
 
     PARAMETERS
     ----------
@@ -474,3 +478,56 @@ def ordered_list_from_dict(list_order: list[str], dict_to_order: dict) -> list:
     """
 
     return [dict_to_order[key] for key in list_order]
+
+
+def check_if_ragged(
+    to_check: Union[
+        list[Union[list, nptyping.NDArray]],
+        nptyping.NDArray[Union[list, nptyping.NDArray]],
+    ]
+) -> bool:
+    """Checks whether a list or array of sublists or subarrays is 'ragged' (i.e.
+    has sublists or subarrays with different lengths).
+
+    PARAMETERS
+    ----------
+    to_check : list[list | numpy array] | numpy array[list | numpy array]
+    -   The list or array to check.
+
+    RETURNS
+    -------
+    ragged : bool
+    -   Whether or not 'to_check' is ragged.
+    """
+
+    identical, _ = check_lengths_list_identical(to_check=to_check)
+    if identical:
+        ragged = False
+    else:
+        ragged = True
+
+    return ragged
+
+
+def ragged_array_to_list(
+    ragged_array: nptyping.NDArray,
+) -> list[list]:
+    """Converts a ragged numpy array of nested arrays to a ragged list of nested
+    lists.
+
+    PARAMETERS
+    ----------
+    ragged_array : numpy array[numpy array]
+    -   The ragged array to convert to a list.
+
+    RETURNS
+    -------
+    ragged_list : list[list]
+    -   The ragged array as a list.
+    """
+
+    ragged_list = []
+    for array in ragged_array:
+        ragged_list.append(array.tolist())
+
+    return ragged_list
