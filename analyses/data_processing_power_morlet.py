@@ -57,6 +57,7 @@ if __name__ == "__main__":
         TASK,
         ACQUISITION,
         RUN,
+        save=True,
     )
 
     print("my name is jeff")
