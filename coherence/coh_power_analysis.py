@@ -7,8 +7,8 @@ power_morlet_analysis
     wavelet power analysis.
 
 power_FOOOF_analysis
--   Takes a coh_signal.Signal object of pre-processed data and performs FOOOF
-    power analysis.
+-   Takes a coh_signal.PowerMorlet object of power data and performs FOOOF power
+    nalysis.
 """
 
 import json
@@ -17,7 +17,7 @@ from coh_handle_files import (
     generate_analysiswise_fpath,
     generate_sessionwise_fpath,
 )
-from coh_power import PowerMorlet
+from coh_power import PowerFOOOF, PowerMorlet
 import coh_signal
 
 
@@ -31,6 +31,7 @@ def power_morlet_analysis(
     task: str,
     acquisition: str,
     run: str,
+    save: bool,
 ) -> None:
     """
     PARAMETERS
@@ -62,6 +63,9 @@ def power_morlet_analysis(
 
     run : str
     -   The name of the run for which the data will be analysed.
+
+    save : bool
+    -   Whether or not to save the results of the analysis.
     """
 
     ### Analysis setup
@@ -125,4 +129,107 @@ def power_morlet_analysis(
                 "exclude_line_noise_window"
             ],
         )
-    morlet.save_results(morlet_fpath)
+    if save:
+        morlet.save_results(morlet_fpath)
+
+    return morlet
+
+
+def power_fooof_analysis(
+    signal: PowerMorlet,
+    folderpath_extras: str,
+    dataset: str,
+    analysis: str,
+    subject: str,
+    session: str,
+    task: str,
+    acquisition: str,
+    run: str,
+    save: bool,
+) -> None:
+    """
+    PARAMETERS
+    ----------
+    signal : coh_power.PowerMorlet
+    -   The power spcetra to analyse.
+
+    folderpath_extras : str
+    -   The folderpath to the location of the datasets' 'extras', e.g. the
+        annotations, processing settings, etc...
+
+    dataset : str
+    -   The name of the dataset folder found in 'folderpath_data'.
+
+    analysis : str
+    -   The name of the analysis folder within "'folderpath_extras'/settings".
+
+    subject : str
+    -   The name of the subject whose data will be analysed.
+
+    session : str
+    -   The name of the session for which the data will be analysed.
+
+    task : str
+    -   The name of the task for which the data will be analysed.
+
+    acquisition : str
+    -   The name of the acquisition mode for which the data will be analysed.
+
+    run : str
+    -   The name of the run for which the data will be analysed.
+
+    save : bool
+    -   Whether or not to save the results of the analysis.
+    """
+
+    ### Analysis setup
+    ## Gets the relevant filepaths
+    analysis_settings_fpath = generate_analysiswise_fpath(
+        folderpath_extras + "\\settings", analysis, ".json"
+    )
+    fooof_fpath = generate_sessionwise_fpath(
+        folderpath_extras,
+        dataset,
+        subject,
+        session,
+        task,
+        acquisition,
+        run,
+        "power-FOOOF",
+        ".json",
+    )
+    data_settings_fpath = generate_sessionwise_fpath(
+        folderpath_extras,
+        dataset,
+        subject,
+        session,
+        task,
+        acquisition,
+        run,
+        "settings",
+        ".json",
+    )
+
+    ## Loads the analysis settings
+    with open(analysis_settings_fpath, encoding="utf-8") as file:
+        analysis_settings = json.load(file)
+    fooof_settings = analysis_settings["power_FOOOF"]
+    if fooof_settings["max_n_peaks"] == "infinity":
+        fooof_settings["max_n_peaks"] = float("inf")
+    with open(data_settings_fpath, encoding="utf-8") as json_file:
+        data_settings = json.load(json_file)
+
+    ### Data processing
+    ## FOOOF power analysis
+    fooof = PowerFOOOF(signal)
+    fooof.process(
+        freq_range=fooof_settings["freq_range"],
+        peak_width_limits=fooof_settings["peak_width_limits"],
+        max_n_peaks=fooof_settings["max_n_peaks"],
+        min_peak_height=fooof_settings["min_peak_height"],
+        peak_threshold=fooof_settings["peak_threshold"],
+        aperiodic_modes=data_settings["power_FOOOF"]["aperiodic_modes"],
+        show_fit=fooof_settings["show_fit"],
+    )
+    if save:
+        fooof.save_results(fooof_fpath)
