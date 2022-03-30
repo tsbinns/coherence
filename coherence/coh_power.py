@@ -1196,9 +1196,9 @@ class PowerFOOOF(ProcMethod):
 
         if aperiodic_mode is None:
             aperiodic_mode = self.aperiodic_modes[channel_index]
-            report_fit = False
-        else:
             report_fit = True
+        else:
+            report_fit = False
         if aperiodic_mode is None:
             raise UnavailableProcessingError(
                 "Error when fitting the FOOOF model:\nThe aperiodic mode is "
