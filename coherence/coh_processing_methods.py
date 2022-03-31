@@ -286,7 +286,7 @@ class ProcMethod(ABC):
             fpath += ftype
         else:
             raise MissingFileExtensionError(
-                "Error when trying to save the results of the analysis \nNo "
+                "Error when trying to save the results of the analysis:\nNo "
                 "filetype is given in the filepath and no filetype has been "
                 "specified."
             )

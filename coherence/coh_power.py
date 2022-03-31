@@ -22,11 +22,9 @@ from coh_exceptions import (
     UnavailableProcessingError,
 )
 from coh_handle_entries import (
-    check_if_ragged,
     check_lengths_list_identical,
     check_matching_entries,
     ordered_list_from_dict,
-    ragged_array_to_list,
 )
 from coh_normalisation import norm_percentage_total
 from coh_processing_methods import ProcMethod
@@ -818,7 +816,7 @@ class PowerFOOOF(ProcMethod):
     -   Performs FOOOF power analysis.
 
     save_object
-    -   Saves the PowerMorlet object as a .pkl file.
+    -   Saves the PowerFOOOF object as a .pkl file.
 
     save_results
     -   Saves the results and additional information as a file.

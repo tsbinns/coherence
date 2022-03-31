@@ -6,13 +6,11 @@ preprocessing
 -   Loads an mne.io.Raw object, preprocesses it, and epochs it.
 """
 
-
-import json
-
 from coh_handle_files import (
     generate_analysiswise_fpath,
     generate_raw_fpath,
     generate_sessionwise_fpath,
+    load_file,
 )
 from coh_settings import ExtractMetadata
 from coh_signal import Signal
@@ -99,11 +97,9 @@ def preprocessing(
     )
 
     ## Loads the analysis settings
-    with open(analysis_settings_fpath, encoding="utf-8") as json_file:
-        analysis_settings = json.load(json_file)
-        analysis_settings = analysis_settings["preprocessing"]
-    with open(data_settings_fpath, encoding="utf-8") as json_file:
-        data_settings = json.load(json_file)
+    analysis_settings = load_file(fpath=analysis_settings_fpath)
+    analysis_settings = analysis_settings["preprocessing"]
+    data_settings = load_file(fpath=data_settings_fpath)
 
     ### Data Pre-processing
     signal = Signal()

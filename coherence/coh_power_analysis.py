@@ -11,11 +11,11 @@ power_FOOOF_analysis
     analysis.
 """
 
-import json
 import numpy as np
 from coh_handle_files import (
     generate_analysiswise_fpath,
     generate_sessionwise_fpath,
+    load_file,
 )
 from coh_power import PowerFOOOF, PowerMorlet
 import coh_signal
@@ -86,8 +86,7 @@ def power_morlet_analysis(
     )
 
     ## Loads the analysis settings
-    with open(analysis_settings_fpath, encoding="utf-8") as file:
-        analysis_settings = json.load(file)
+    analysis_settings = load_file(analysis_settings_fpath)
     morlet_settings = analysis_settings["power_morlet"]
     power_norm_settings = morlet_settings["normalise_power"]
     itc_norm_settings = morlet_settings["normalise_itc"]
@@ -187,17 +186,6 @@ def power_fooof_analysis(
     analysis_settings_fpath = generate_analysiswise_fpath(
         folderpath_extras + "\\settings", analysis, ".json"
     )
-    fooof_fpath = generate_sessionwise_fpath(
-        folderpath_extras,
-        dataset,
-        subject,
-        session,
-        task,
-        acquisition,
-        run,
-        "power-FOOOF",
-        ".json",
-    )
     data_settings_fpath = generate_sessionwise_fpath(
         folderpath_extras,
         dataset,
@@ -209,27 +197,35 @@ def power_fooof_analysis(
         "settings",
         ".json",
     )
+    fooof_fpath = generate_sessionwise_fpath(
+        folderpath_extras,
+        dataset,
+        subject,
+        session,
+        task,
+        acquisition,
+        run,
+        "power-FOOOF",
+        ".json",
+    )
 
     ## Loads the analysis settings
-    with open(analysis_settings_fpath, encoding="utf-8") as file:
-        analysis_settings = json.load(file)
-    fooof_settings = analysis_settings["power_FOOOF"]
-    if fooof_settings["max_n_peaks"] == "infinity":
-        fooof_settings["max_n_peaks"] = float("inf")
-    with open(data_settings_fpath, encoding="utf-8") as json_file:
-        data_settings = json.load(json_file)
+    analysis_settings = load_file(fpath=analysis_settings_fpath)
+    analysis_settings = analysis_settings["power_FOOOF"]
+    data_settings = load_file(fpath=data_settings_fpath)
+    data_settings = data_settings["power_FOOOF"]
 
     ### Data processing
     ## FOOOF power analysis
     fooof = PowerFOOOF(signal)
     fooof.process(
-        freq_range=fooof_settings["freq_range"],
-        peak_width_limits=fooof_settings["peak_width_limits"],
-        max_n_peaks=fooof_settings["max_n_peaks"],
-        min_peak_height=fooof_settings["min_peak_height"],
-        peak_threshold=fooof_settings["peak_threshold"],
-        aperiodic_modes=data_settings["power_FOOOF"]["aperiodic_modes"],
-        show_fit=fooof_settings["show_fit"],
+        freq_range=analysis_settings["freq_range"],
+        peak_width_limits=analysis_settings["peak_width_limits"],
+        max_n_peaks=analysis_settings["max_n_peaks"],
+        min_peak_height=analysis_settings["min_peak_height"],
+        peak_threshold=analysis_settings["peak_threshold"],
+        aperiodic_modes=data_settings["aperiodic_modes"],
+        show_fit=analysis_settings["show_fit"],
     )
     if save:
         fooof.save_results(fooof_fpath)
