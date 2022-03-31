@@ -22,8 +22,15 @@ identify_ftype
 """
 
 import os
+import json
+import pickle
+from typing import Any, Optional
 import mne_bids
-from coh_exceptions import MissingFileExtensionError
+from coh_exceptions import (
+    MissingFileExtensionError,
+    UnavailableProcessingError,
+    UnidenticalEntryError,
+)
 
 
 def generate_raw_fpath(
@@ -218,3 +225,99 @@ def identify_ftype(fpath: str) -> str:
         )
 
     return fpath[fpath.rfind(".") + 1 :]
+
+
+def load_from_json(fpath: str) -> dict:
+    """Loads the contents of a json file as a dictionary.
+
+    PARAMETERS
+    ----------
+    fpath : str
+    -   Location of the file to load.
+
+    RETURNS
+    -------
+    contents : dict
+    -   The contents of the file in a dictionary.
+    """
+
+    with open(fpath, encoding="utf8") as file:
+        contents = json.load(file)
+
+    for key, value in contents.items():
+        if value == "INFINITY":
+            contents[key] = float("inf")
+
+    return contents
+
+
+def load_from_pkl(fpath: str) -> Any:
+    """Loads the contents of a pkl file.
+
+    PARAMETERS
+    ----------
+    fpath : str
+    -   Location of the file to load.
+
+    RETURNS
+    -------
+    Any
+    -   The contents of the file.
+    """
+
+    with open(fpath, "rb") as file:
+        return pickle.load(file)
+
+
+def load_file(
+    fpath: str, ftype: Optional[str] = None, verbose: bool = True
+) -> Any:
+    """Loads the contents of a json or pkl file.
+
+    PARAMETERS
+    ----------
+    fpath : str
+        -   Location where the data should be loaded from.
+
+    ftype : str
+    -   The filetype of the data that will be loaded, without the leading
+        period. E.g. for loading the file from the json format, this would be
+        "json", not ".json".
+
+    verbose : bool; default True
+    -   Whether or not to print a note of the loading process.
+    """
+
+    if check_ftype_present(fpath) and ftype is not None:
+        fpath_ftype = identify_ftype(fpath)
+        if fpath_ftype != ftype:
+            raise UnidenticalEntryError(
+                "Error when trying to save the results of the analysis:\n "
+                f"The filetypes in the filepath ({fpath_ftype}) and in the "
+                f"requested filetype ({ftype}) do not match."
+            )
+    elif check_ftype_present(fpath) and ftype is None:
+        ftype = identify_ftype(fpath)
+    elif not check_ftype_present(fpath) and ftype is not None:
+        fpath += ftype
+    else:
+        raise MissingFileExtensionError(
+            "Error when trying to save the results of the analysis:\nNo "
+            "filetype is given in the filepath and no filetype has been "
+            "specified."
+        )
+
+    if ftype == "json":
+        contents = load_from_json(fpath=fpath)
+    elif ftype == "pkl":
+        contents = load_from_pkl(fpath=fpath)
+    else:
+        raise UnavailableProcessingError(
+            f"Error when trying to load the file:\nThe {ftype} format for "
+            "loading is not supported."
+        )
+
+    if verbose:
+        print(f"Loading the contents of the filepath:\n'{fpath}'.")
+
+    return contents
