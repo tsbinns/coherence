@@ -104,7 +104,8 @@ def connectivity_coherence_analysis(
         coherence.process(
             method=method,
             mode=analysis_settings["mode"],
-            indices=data_settings["indices"],
+            seeds=data_settings["seeds"],
+            targets=data_settings["targets"],
             fmin=analysis_settings["fmin"],
             fmax=analysis_settings["fmax"],
             fskip=analysis_settings["fskip"],
@@ -118,6 +119,7 @@ def connectivity_coherence_analysis(
             cwt_n_cycles=analysis_settings["cwt_n_cycles"],
             shuffle_group=analysis_settings["shuffle_group"],
             n_shuffles=analysis_settings["n_shuffles"],
+            shuffle_rng_seed=analysis_settings["shuffle_rng_seed"],
             block_size=analysis_settings["block_size"],
             n_jobs=analysis_settings["n_jobs"],
         )
