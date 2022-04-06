@@ -1,4 +1,10 @@
-"""Contains functions for handling entries within objects.
+"""Contains functions and classes for handling entries within objects.
+
+CLASSES
+-------
+FillerObject
+-   Empty object that can be filled with attributes that would otherwise not be
+    accessible as a class attribute.
 
 METHODS
 -------
@@ -40,6 +46,13 @@ from itertools import chain
 from typing import Optional, Union
 from numpy import typing as nptyping
 from coh_exceptions import DuplicateEntryError, EntryLengthError
+
+
+class FillerObject:
+    """Creates an empty object that can be filled with attributes that would
+    otherwise not be accessible as a class attribute."""
+
+    pass
 
 
 def _find_lengths_dict(
