@@ -79,17 +79,6 @@ def connectivity_coherence_analysis(
         "settings",
         ".json",
     )
-    coherence_fpath = generate_sessionwise_fpath(
-        folderpath_extras,
-        dataset,
-        subject,
-        session,
-        task,
-        acquisition,
-        run,
-        "connectivity-coherence",
-        ".json",
-    )
 
     ## Loads the analysis settings
     analysis_settings = load_file(fpath=analysis_settings_fpath)
@@ -120,8 +109,20 @@ def connectivity_coherence_analysis(
             shuffle_group=analysis_settings["shuffle_group"],
             n_shuffles=analysis_settings["n_shuffles"],
             shuffle_rng_seed=analysis_settings["shuffle_rng_seed"],
+            average_timepoints=analysis_settings["average_timepoints"],
             block_size=analysis_settings["block_size"],
             n_jobs=analysis_settings["n_jobs"],
         )
         if save:
+            coherence_fpath = generate_sessionwise_fpath(
+                folderpath_extras,
+                dataset,
+                subject,
+                session,
+                task,
+                acquisition,
+                run,
+                f"connectivity-{method}",
+                ".json",
+            )
             coherence.save_results(coherence_fpath)
