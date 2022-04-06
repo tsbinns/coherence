@@ -195,15 +195,11 @@ class PowerMorlet(ProcMethod):
                 self._power_dims_sorted = self.power_dims
             else:
                 self.power_dims = ["channels", "frequencies", "timepoints"]
-                self._power_dims_sorted = [
-                    "channels",
-                    "timepoints",
-                    "frequencies",
-                ]
+                self._power_dims_sorted = self.power_dims
         else:
             if self._power_timepoints_averaged:
                 self.power_dims = ["epochs", "channels", "frequencies"]
-                self._power_dims_sorted = ["channels", "epochs", "frequencies"]
+                self._power_dims_sorted = ["channels", "frequencies", "epochs"]
             else:
                 self.power_dims = [
                     "epochs",
@@ -213,9 +209,9 @@ class PowerMorlet(ProcMethod):
                 ]
                 self._power_dims_sorted = [
                     "channels",
+                    "frequencies",
                     "epochs",
                     "timepoints",
-                    "frequencies",
                 ]
 
     def _establish_itc_dims(self) -> None:
