@@ -45,6 +45,10 @@ UnidenticalEntryError : Exception
 MissingFileExtensionError : Exception
 -   Class for raising exceptions/errors associated with a filename string
     missing a filetype extension.
+
+UnsupportedFileExtensionError : Exception
+-   Class for raising exceptions/errors associated with a filename string
+    containing a filetype extension for which saving is not supported.
 """
 
 
@@ -103,3 +107,8 @@ class UnidenticalEntryError(Exception):
 class MissingFileExtensionError(Exception):
     """Class for raising exceptions/errors associated with a filename string
     missing a filetype extension."""
+
+
+class UnsupportedFileExtensionError(Exception):
+    """Class for raising exceptions/errors associated with a filename string
+    containing a filetype extension for which saving is not supported."""
