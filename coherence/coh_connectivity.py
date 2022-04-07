@@ -1,6 +1,6 @@
 """Classes for calculating connectivity between signals.
 
-METHODS
+CLASSES
 -------
 ConnectivityCoherence : subclass of the abstract base class 'ProcMethod'
 -   Calculates the coherence (standard or imaginary) between signals.
@@ -278,7 +278,6 @@ class ConnectivityCoherence(ProcMethod):
     def _find_shuffled_indices_in_nodes(
         self,
         results: SpectroTemporalConnectivity,
-        all_indices: dict[int],
         shuffled_indices: dict[list[int]],
     ) -> dict[dict[list[int]]]:
         """Finds the indices in the connectivity results for each non-shuffled
@@ -290,11 +289,6 @@ class ConnectivityCoherence(ProcMethod):
         results : MNE-Connectivity SpectroTemporalConnectivity
         -   The connectivity results containing data from epoch-shuffled
             channels.
-
-        all_indices : dict[int]
-        -   Dictionary containing the indices of all channels in the
-            connectivity analysis, where the keys are the channel names and the
-            values are the indices of these channels in the connectivty results.
 
         shuffled_indices : dict[list[int]]
         -   Dictionary containing the indices of the shuffled channels derived
@@ -604,7 +598,6 @@ class ConnectivityCoherence(ProcMethod):
 
         connectivity_indices = self._find_shuffled_indices_in_nodes(
             results=results,
-            all_indices=all_indices,
             shuffled_indices=shuffled_indices,
         )
 
