@@ -8,6 +8,7 @@ Signal
 
 
 from copy import deepcopy
+from numpy.typing import NDArray
 from typing import Any, Optional, Union
 import csv
 import json
@@ -18,12 +19,16 @@ import numpy as np
 
 from coh_dtypes import realnum
 from coh_exceptions import (
+    ChannelTypeError,
     EntryLengthError,
     ProcessingOrderError,
     UnavailableProcessingError,
 )
 from coh_rereference import Reref, RerefBipolar, RerefCommonAverage, RerefPseudo
-from coh_handle_entries import ordered_list_from_dict
+from coh_handle_entries import (
+    check_lengths_list_identical,
+    ordered_list_from_dict,
+)
 from coh_handle_files import check_ftype_present, identify_ftype
 from coh_saving import check_before_overwrite
 
@@ -74,6 +79,10 @@ class Signal:
 
     resample
     -   Resamples the mne.io.Raw or mne.Epochs object.
+
+    combine_channels
+    -   Combines the data of multiple channels in the mne.io.Raw object through
+        addition and adds this combined data as a new channel.
 
     drop_unrereferenced_channels
     -   Drops channels that have not been rereferenced from the mne.io.Raw or
@@ -519,6 +528,434 @@ class Signal:
         self._update_processing_steps("resample", resample_freq)
         if self._verbose:
             print(f"Resampling the data at {resample_freq} Hz.")
+
+    def _check_combination_input_lengths(
+        self,
+        ch_names_old: list[list[str]],
+        ch_names_new: list[str],
+        ch_types_new: Union[list[Union[str, None]], None],
+        ch_coords_new: Union[list[Union[list[Union[int, float]], None]], None],
+        ch_regions_new: Union[list[Union[str, None]], None],
+    ) -> None:
+
+        identical, lengths = check_lengths_list_identical(
+            to_check=[
+                ch_names_old,
+                ch_names_new,
+                ch_types_new,
+                ch_coords_new,
+                ch_regions_new,
+            ],
+            ignore_values=[None],
+        )
+        if not identical:
+            raise EntryLengthError(
+                "Error when trying to combine data across channels:\n     The "
+                "lengths of the inputs do not match: 'ch_names_old' "
+                f"({lengths[0]}); 'ch_names_new' ({lengths[1]}); "
+                f"'ch_types_new' ({lengths[2]}); "
+                f"'ch_coords_new' ({lengths[3]}); "
+                f"'ch_regions_new' ({lengths[4]})."
+            )
+
+    def _sort_combination_inputs_strings(
+        self,
+        ch_names_old: list[list[str]],
+        inputs: Union[list[Union[str, None]], None],
+        input_type: str,
+    ) -> list[str]:
+        """Sorts the inputs for combining channels that consist of a list of
+        strings.
+
+        PARAMETERS
+        ----------
+        ch_names_old : list[list[str]]
+        -   A list containing sublists where the entries are the names of the
+            channels to combine together.
+
+        inputs : list[str | None] | None
+        -   Features of the new, combined channels.
+        -   If not None and no entries are None, no changes are made.
+        -   If some entries are None, the inputs are determined based on the
+            channels being combined. For this, the features of the channels
+            being combined should be identical.
+        -   If None, all entries are automatically determined.
+
+        input_type : str
+        -   The type of input being sorted.
+        -   Supported values are: 'ch_types'; and 'ch_regions'.
+
+        RETURNS
+        -------
+        inputs : list[str]
+        -   The sorted features of the new, combined channels.
+        """
+
+        supported_input_types = ["ch_types", "ch_regions"]
+        if input_type not in supported_input_types:
+            raise UnavailableProcessingError(
+                "Error when trying to combine data over channels:\n"
+                f"The 'input_type' '{input_type}' is not recognised. "
+                f"Supported values are {supported_input_types}."
+            )
+
+        if inputs is None:
+            inputs = [None] * len(ch_names_old)
+
+        for i, value in enumerate(inputs):
+            if value is None:
+                if input_type == "ch_types":
+                    existing_values = np.unique(
+                        self.data.get_channel_types(picks=ch_names_old[i])
+                    )
+                elif input_type == "ch_regions":
+                    existing_values = np.unique(
+                        [
+                            self.extra_info["ch_regions"][channel]
+                            for channel in ch_names_old[i]
+                        ]
+                    )
+                if len(existing_values) > 1:
+                    raise ChannelTypeError(
+                        "Error when trying to combine data over channels:\n"
+                        f"The '{input_type}' for the combination of channels "
+                        f"{ch_names_old[i]} is not specified, but cannot be "
+                        "automatically generated as the data is being combined "
+                        f"over channels with different '{input_type}' features "
+                        f"({existing_values})."
+                    )
+                else:
+                    inputs[i] = existing_values[0]
+
+        return inputs
+
+    def _sort_combination_inputs_numbers(
+        self,
+        ch_names_old: list[list[str]],
+        inputs: Union[list[Union[list[Union[int, float]], None]], None],
+        input_type: str,
+    ) -> list[str]:
+        """Sorts the inputs for combining channels that consist of a list of
+        lists of numbers.
+
+        PARAMETERS
+        ----------
+        ch_names_old : list[list[str]]
+        -   A list containing sublists where the entries are the names of the
+            channels to combine together.
+
+        inputs : list[list[int | float] | None] | None
+        -   Features of the new, combined channels.
+        -   If not None and no entries are None, no changes are made.
+        -   If some entries are None, the inputs are determined based on the
+            channels being combined. For this, the features of the channels
+            being combined should be identical.
+        -   If None, all entries are automatically determined.
+
+        input_type : str
+        -   The type of input being sorted.
+        -   Supported values are: 'ch_coords'.
+
+        RETURNS
+        -------
+        ch_types_new : list[str]
+        -   The sorted features of the new, combined channels.
+        """
+
+        supported_input_types = ["ch_coords"]
+        if input_type not in supported_input_types:
+            raise UnavailableProcessingError(
+                "Error when trying to combine data over channels:\n"
+                f"The 'input_type' '{input_type}' is not recognised. "
+                f"Supported values are {supported_input_types}."
+            )
+
+        if inputs is None:
+            inputs = [None] * len(ch_names_old)
+
+        for i, value in enumerate(inputs):
+            if value is None:
+                if input_type == "ch_coords":
+                    new_value = np.mean(
+                        [
+                            self.get_coordinates()[
+                                self.data.ch_names.index(channel)
+                            ]
+                            for channel in ch_names_old[i]
+                        ],
+                        axis=0,
+                    ).tolist()
+                inputs[i] = new_value
+
+        return inputs
+
+    def _sort_combination_inputs(
+        self,
+        ch_names_old: list[list[str]],
+        ch_names_new: list[str],
+        ch_types_new: Union[list[Union[str, None]], None],
+        ch_coords_new: Union[list[Union[list[Union[int, float]], None]], None],
+        ch_regions_new: Union[list[Union[str, None]], None],
+    ) -> tuple[list[str], list[Union[int, float]], list[str]]:
+        """Sorts the inputs for combining data over channels.
+
+        PARAMETERS
+        ----------
+        ch_names_old : list[list[str]]
+        -   A list containing sublists where the entries are the names of the
+            channels to combine together.
+
+        ch_names_new : list[str]
+        -   The names of the new, combined channels, corresponding to the
+            channel names in 'ch_names_old'.
+
+        ch_types_new : list[str | None] | None
+        -   The types of the new, combined channels.
+        -   If an entry is None, the type is determined based on the types of
+            the channels being combined. This only works if all channels being
+            combined are of the same type.
+        -   If None, all types are determined automatically.
+
+        ch_coords_new : list[list[int | float] | None] | None
+        -   The coordinates of the new, combined channels.
+        -   If an entry is None, the coordinates are determined by averaging
+            across the coordinates of the channels being combined.
+        -   If None, the coordinates are automatically determined for all
+            channels.
+
+        ch_regions_new : list[str | None] | None
+        -   The regions of the new, combined channels.
+        -   If an entry is None, the region is determined based on the regions
+            of the channels being combined. This only works if all channels
+            being combined are from the same region.
+        -   If None, all regions are determined automatically.
+        """
+
+        self._check_combination_input_lengths(
+            ch_names_old=ch_names_old,
+            ch_names_new=ch_names_new,
+            ch_types_new=ch_types_new,
+            ch_coords_new=ch_coords_new,
+            ch_regions_new=ch_regions_new,
+        )
+
+        ch_types_new = self._sort_combination_inputs_strings(
+            ch_names_old=ch_names_old,
+            inputs=ch_types_new,
+            input_type="ch_types",
+        )
+        ch_regions_new = self._sort_combination_inputs_strings(
+            ch_names_old=ch_names_old,
+            inputs=ch_regions_new,
+            input_type="ch_regions",
+        )
+        ch_coords_new = self._sort_combination_inputs_numbers(
+            ch_names_old=ch_names_old,
+            inputs=ch_coords_new,
+            input_type="ch_coords",
+        )
+
+        return ch_types_new, ch_coords_new, ch_regions_new
+
+    def _combine_channel_data(self, to_combine: list[list[str]]) -> NDArray:
+        """Combines the data of channels through addition.
+
+        PARAMETERS
+        ----------
+        to_combine : list[list[str]]
+        -   A list containing sublists where the entries are the names of the
+            channels to combine together.
+
+        RETURNS
+        -------
+        combined_data : list[numpy array]
+        -   The combined data of the channels in each sublist in 'to_combine'.
+        """
+
+        combined_data = []
+        for channels in to_combine:
+            data = np.sum(deepcopy(self.data.get_data(picks=channels)), axis=0)
+            combined_data.append(data)
+
+        return combined_data
+
+    def _create_raw(
+        self,
+        data: list[NDArray],
+        ch_names: list[str],
+        ch_types: list[str],
+        ch_coords: list[list[Union[int, float]]],
+    ) -> mne.io.Raw:
+        """Creates an MNE Raw object.
+        -   Data should have the same sampling frequency as the data of channels
+            already in the object.
+
+        PARAMETERS
+        ----------
+        data : list[numpy array]
+        -   The data of the channels.
+
+        ch_names : list[str]
+        -   The names of the channels.
+
+        ch_types : list[str]
+        -   The types of the channels.
+
+        ch_coords : list[list[int | float]]
+        -   The coordinates of the channels.
+
+        RETURNS
+        -------
+        raw : MNE Raw
+        -   The created MNE Raw object.
+        """
+
+        info = mne.create_info(
+            ch_names=ch_names,
+            sfreq=self.data.info["sfreq"],
+            ch_types=ch_types,
+            verbose=self._verbose,
+        )
+        raw = mne.io.RawArray(data=data, info=info, verbose=self._verbose)
+        raw._set_channel_positions(pos=ch_coords, names=ch_names)
+
+        return raw
+
+    def add_channels(
+        self,
+        data: list[NDArray],
+        ch_names: list[str],
+        ch_types: list[str],
+        ch_coords: list[list[Union[int, float]]],
+        ch_regions: list[str],
+    ) -> None:
+        """Adds channels to the Signal object.
+        -   Data for the new channels should have the same sampling frequency as
+            the data of channels already in the object.
+        -   Should be performed prior to rereferencing.
+
+        PARAMETERS
+        ----------
+        data : list[numpy array]
+        -   List containing the data for the new channels with each entry
+            consisting of a numpy array for the data of a channel.
+
+        ch_names : list[str]
+        -   The names of the new channels.
+
+        ch_types : list[str]
+        -   The types of the new channels.
+
+        ch_coords : list[list[int | float]]
+        -   The coordinates of the new channels, with each entry in the list
+            being a sublist containing the x-, y-, and z-axis coordinates of the
+            channel.
+
+        ch_regions : list[str]
+        -   The regions of the new channels.
+        """
+
+        if self._rereferenced:
+            raise ProcessingOrderError(
+                "Error when attempting to add new channels to the data:\nThe "
+                "data in the object has already been rereferenced, however "
+                "channels should be added prior to rereferencing."
+            )
+
+        new_channels = self._create_raw(
+            data=data, ch_names=ch_names, ch_types=ch_types, ch_coords=ch_coords
+        )
+        self.data.add_channels([new_channels], force_update_info=True)
+
+        for i, channel in enumerate(ch_names):
+            self.extra_info["reref_types"][channel] = "none"
+            self.extra_info["ch_regions"][channel] = ch_regions[i]
+
+    def combine_channels(
+        self,
+        ch_names_old: list[list[str]],
+        ch_names_new: list[str],
+        ch_types_new: Optional[list[Union[str, None]]] = None,
+        ch_coords_new: Optional[
+            list[Union[list[Union[int, float]], None]]
+        ] = None,
+        ch_regions_new: Optional[list[Union[str, None]]] = None,
+    ) -> None:
+        """Combines the data of multiple channels in the mne.io.Raw object through
+        addition and adds this combined data as a new channel.
+
+        PARAMETERS
+        ----------
+        ch_names_old : list[list[str]]
+        -   A list containing sublists where the entries are the names of the
+            channels to combine together.
+
+        ch_names_new : list[str]
+        -   The names of the new, combined channels, corresponding to the
+            channel names in 'ch_names_old'.
+
+        ch_types_new : list[str | None] | None; default None
+        -   The types of the new, comined channels.
+        -   If an entry is None, the type is determined based on the types of
+            the channels being combined. This only works if all channels being
+            combined are of the same type.
+        -   If None, all types are determined automatically.
+
+        ch_coords_new : list[list[int | float] | None] | None; default None
+        -   The coordinates of the new, combined channels.
+        -   If an entry is None, the coordinates are determined by averaging
+            across the coordinates of the channels being combined.
+        -   If None, the coordinates are automatically determined for all
+            channels.
+
+        ch_regions_new : list[str | None] | None; default None
+        -   The regions of the new, combined channels.
+        -   If an entry is None, the region is determined based on the regions
+            of the channels being combined. This only works if all channels
+            being combined are from the same region.
+        -   If None, all regions are determined automatically.
+        """
+
+        if self._epoched:
+            raise ProcessingOrderError(
+                "Error when attempting to combine data across channels:\nThis "
+                "is only supported for non-epoched data, however the data has "
+                "been epoched."
+            )
+
+        (
+            ch_types_new,
+            ch_coords_new,
+            ch_regions_new,
+        ) = self._sort_combination_inputs(
+            ch_names_old=ch_names_old,
+            ch_names_new=ch_names_new,
+            ch_types_new=ch_types_new,
+            ch_coords_new=ch_coords_new,
+            ch_regions_new=ch_regions_new,
+        )
+
+        combined_data = self._combine_channel_data(
+            to_combine=ch_names_old,
+        )
+
+        self.add_channels(
+            data=combined_data,
+            ch_names=ch_names_new,
+            ch_types=ch_types_new,
+            ch_coords=ch_coords_new,
+            ch_regions=ch_regions_new,
+        )
+
+        if self._verbose:
+            print(
+                "Creating new channels of data by combining the data of "
+                "pre-existing channels:"
+            )
+            [
+                print(f"{ch_names_old[i]} -> {ch_names_new[i]}")
+                for i in range(len(ch_names_old))
+            ]
 
     def drop_unrereferenced_channels(self) -> None:
         """Drops channels that have not been rereferenced from the mne.io.Raw or

@@ -115,6 +115,15 @@ def preprocessing(
         data_settings["ch_names"], data_settings["ch_coords"]
     )
     signal.set_regions(data_settings["ch_names"], data_settings["ch_regions"])
+    if "combine_channels" in data_settings.keys():
+        combine_settings = data_settings["combine_channels"]
+        signal.combine_channels(
+            ch_names_old=combine_settings["ch_names_old"],
+            ch_names_new=combine_settings["ch_names_new"],
+            ch_types_new=combine_settings["ch_types_new"],
+            ch_coords_new=combine_settings["ch_coords_new"],
+            ch_regions_new=combine_settings["ch_regions_new"],
+        )
     for key in data_settings["rereferencing"].keys():
         reref_settings = data_settings["rereferencing"][key]
         if key == "pseudo":
