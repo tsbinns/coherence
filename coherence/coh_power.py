@@ -52,6 +52,10 @@ class PowerMorlet(ProcMethod):
 
     save_results
     -   Saves the results and additional information as a file.
+
+    results_as_dict
+    -   Returns the results (power and inter-trial coherence, if applicable)
+        and additional information as a dictionary.
     """
 
     def __init__(self, signal: coh_signal.Signal, verbose: bool = True) -> None:
@@ -736,9 +740,10 @@ class PowerMorlet(ProcMethod):
 
         RAISES
         ------
-        UnavailableProcessingError
-        -   Raised if the given format for saving the file is in an unsupported
-            format.
+        ChannelOrderError
+        -   Raised if the channel names in the pre-processed data and the
+            analysis results do not match. This should only occur if outside
+            tampering on the object has been performed.
         """
 
         if ask_before_overwrite is None:
@@ -794,6 +799,67 @@ class PowerMorlet(ProcMethod):
             verbose=self._verbose,
         )
 
+    def results_as_dict(self) -> None:
+        """Returns the results (power and inter-trial coherence, if applicable)
+        and additional information as a dictionary.
+
+        RETURNS
+        -------
+        results : dict
+        -   The results and additional information, stored as a dictionary.
+
+        RAISES
+        ------
+        ChannelOrderError
+        -   Raised if the channel names in the pre-processed data and the
+            analysis results do not match. This should only occur if outside
+            tampering on the object has been performed.
+        """
+
+        power = self._prepare_results_for_saving(
+            self.power.data,
+            results_dims=self.power_dims,
+            rearrange=self._power_dims_sorted,
+        )
+
+        objects = [self.signal.data.ch_names, self.power.ch_names]
+        if self._itc_returned:
+            objects.append(self.itc.ch_names)
+        if not check_matching_entries(objects=objects):
+            raise ChannelOrderError(
+                "Error when trying to save the results of the Morlet wavelet "
+                "power analysis:\nThe channel names in the preprocessed data "
+                "and in the results do not match."
+            )
+
+        results = {
+            "power": power,
+            "power_dimensions": self._power_dims_sorted,
+            "freqs": self.power.freqs.tolist(),
+            "ch_names": self.signal.data.ch_names,
+            "ch_types": self.signal.data.get_channel_types(),
+            "ch_coords": self.signal.get_coordinates(),
+            "ch_regions": ordered_list_from_dict(
+                self.power.ch_names, self.extra_info["ch_regions"]
+            ),
+            "reref_types": ordered_list_from_dict(
+                self.power.ch_names, self.extra_info["reref_types"]
+            ),
+            "samp_freq": self.signal.data.info["sfreq"],
+            "metadata": self.extra_info["metadata"],
+            "processing_steps": self.processing_steps,
+            "subject_info": self.signal.data.info["subject_info"],
+        }
+        if self._itc_returned:
+            itc = self._prepare_results_for_saving(
+                self.itc.data,
+                results_dims=self.itc_dims,
+                rearrange=self._itc_dims_sorted,
+            )
+            results.update(itc=itc, itc_dimensions=self._itc_dims_sorted)
+
+        return results
+
 
 class PowerFOOOF(ProcMethod):
     """Performs power analysis on data using FOOOF.
@@ -816,6 +882,10 @@ class PowerFOOOF(ProcMethod):
 
     save_results
     -   Saves the results and additional information as a file.
+
+    results_as_dict
+    -   Returns the FOOOF analysis results and additional information as a
+        dictionary.
     """
 
     def __init__(self, signal: PowerMorlet, verbose: bool = True) -> None:
@@ -1367,8 +1437,8 @@ class PowerFOOOF(ProcMethod):
         ftype: Optional[str] = None,
         ask_before_overwrite: Optional[bool] = None,
     ) -> None:
-        """Saves the results (power and inter-trial coherence, if applicable)
-        and additional information as a file.
+        """Saves the FOOOF analysis results and additional information as a
+        file.
 
         PARAMETERS
         ----------
@@ -1394,9 +1464,9 @@ class PowerFOOOF(ProcMethod):
 
         RAISES
         ------
-        UnavailableProcessingError
-        -   Raised if the given format for saving the file is in an unsupported
-            format.
+        EntryLengthError
+        -   Raised if the number of channels in the pre-processed data does not
+            match the number of channels in the results.
         """
 
         if ask_before_overwrite is None:
@@ -1405,6 +1475,7 @@ class PowerFOOOF(ProcMethod):
         identical, lengths = check_lengths_list_identical(
             to_check=[
                 self.power["periodic_component"],
+                self.power["aperiodic_component"],
                 self.signal.power.ch_names,
             ]
         )
@@ -1444,3 +1515,57 @@ class PowerFOOOF(ProcMethod):
             ask_before_overwrite=ask_before_overwrite,
             verbose=self._verbose,
         )
+
+    def results_as_dict(self) -> None:
+        """Returns the FOOOF analysis results and additional information as a
+        dictionary.
+
+        RETURNS
+        -------
+        results : dict
+        -   The results and additional information, stored as a dictionary.
+
+        RAISES
+        ------
+        EntryLengthError
+        -   Raised if the number of channels in the pre-processed data does not
+            match the number of channels in the results.
+        """
+
+        identical, lengths = check_lengths_list_identical(
+            to_check=[
+                self.power["periodic_component"],
+                self.power["aperiodic_component"],
+                self.signal.power.ch_names,
+            ]
+        )
+        if not identical:
+            raise EntryLengthError(
+                "Error when trying to save the results of the FOOOF power "
+                "analysis:\nThe number of channels in the power data "
+                f"({lengths[1]}) and in the FOOOF results ({lengths[0]}) do "
+                "not match."
+            )
+
+        results = {
+            "power_periodic": self.power["periodic_component"].tolist(),
+            "power_aperiodic": self.power["aperiodic_component"].tolist(),
+            "r_squared": self.power["r_squared"].tolist(),
+            "error": self.power["error"].tolist(),
+            "freqs": self.signal.power.freqs.tolist(),
+            "ch_names": self.signal.power.ch_names,
+            "ch_types": self.signal.power.get_channel_types(),
+            "ch_coords": self.signal.signal.get_coordinates(),
+            "ch_regions": ordered_list_from_dict(
+                self.signal.power.ch_names, self.extra_info["ch_regions"]
+            ),
+            "reref_types": ordered_list_from_dict(
+                self.signal.power.ch_names, self.extra_info["reref_types"]
+            ),
+            "samp_freq": self.signal.power.info["sfreq"],
+            "metadata": self.extra_info["metadata"],
+            "processing_steps": self.processing_steps,
+            "subject_info": self.signal.power.info["subject_info"],
+        }
+
+        return results

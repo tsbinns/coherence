@@ -47,6 +47,9 @@ class ConnectivityCoherence(ProcMethod):
 
     save_results
     -   Saves the results and additional information as a file.
+
+    results_as_dict
+    -   Returns the results and additional information as a dictionary.
     """
 
     def __init__(self, signal: coh_signal.Signal, verbose: bool = True) -> None:
@@ -1155,12 +1158,6 @@ class ConnectivityCoherence(ProcMethod):
             automatically.
         -   By default, this is set to None, in which case the value of the
             verbosity when the Signal object was instantiated is used.
-
-        RAISES
-        ------
-        UnavailableProcessingError
-        -   Raised if the given format for saving the file is in an unsupported
-            format.
         """
 
         if ask_before_overwrite is None:
@@ -1193,3 +1190,33 @@ class ConnectivityCoherence(ProcMethod):
             ask_before_overwrite=ask_before_overwrite,
             verbose=self._verbose,
         )
+
+    def results_as_dict(self) -> None:
+        """Returns the coherence results and additional information as a
+        dictionary.
+
+        RETURNS
+        -------
+        dict
+        -   The results and additional information stored as a dictionary.
+        """
+
+        return {
+            "coherence": self.coherence._data.tolist(),
+            "coherence_dimensions": self.coherence_dims,
+            "freqs": self.coherence.freqs,
+            "seed_names": self.extra_info["node_ch_names"][0],
+            "seed_types": self.extra_info["node_ch_types"][0],
+            "seed_coords": self.extra_info["node_ch_coords"][0],
+            "seed_regions": self.extra_info["node_ch_regions"][0],
+            "seed_reref_types": self.extra_info["node_reref_types"][0],
+            "target_names": self.extra_info["node_ch_names"][1],
+            "target_types": self.extra_info["node_ch_types"][1],
+            "target_coords": self.extra_info["node_ch_coords"][1],
+            "target_regions": self.extra_info["node_ch_regions"][1],
+            "target_reref_types": self.extra_info["node_reref_types"][1],
+            "samp_freq": self.signal.data.info["sfreq"],
+            "metadata": self.extra_info["metadata"],
+            "processing_steps": self.processing_steps,
+            "subject_info": self.signal.data.info["subject_info"],
+        }
