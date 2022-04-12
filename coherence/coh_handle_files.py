@@ -175,6 +175,64 @@ def generate_analysiswise_fpath(
     return os.path.join(folderpath, analysis_name + filetype)
 
 
+def generate_results_fpath(
+    folderpath: str,
+    subject: str,
+    session: str,
+    task: str,
+    acquisition: str,
+    run: str,
+    result_type: str,
+    filetype: str,
+) -> str:
+    """Generates an mne_bids.BIDSPath object for loading an mne.io.Raw object.
+
+    PARAMETERS
+    ----------
+    folderpath : str
+    -   The path of the folder where the datasets are located.
+
+    dataset : str
+    -   The name of the dataset folder within the folder given in 'folderpath'.
+
+    subject : str
+    -   The name of the subject for which the filepath should be generated.
+
+    session : str
+    -   The name of the session for which the filepath should be generated.
+
+    task : str
+    -   The name of the task for which the filepath should be generated.
+
+    acquisition : str
+    -   The name of the acquisition mode for which the filepath should be
+        generated.
+
+    run : str
+    -   The name of the run for which the filepath should be generated.
+
+    result_type : str
+    -   The type of the result for which the filepath should be
+        generates, e.g. 'power-morlet', 'connectivity-coh', etc...
+
+    filetype : str
+    -   The file extension, prefixed with a period, e.g. '.json', '.csv'.
+
+    RETURNS
+    -------
+    str
+    -   The filepath of the object.
+    """
+
+    subfolders = f"sub-{subject}\\ses-{session}"
+    filename = (
+        f"sub-{subject}_ses-{session}_task-{task}_acq-{acquisition}_run-{run}_"
+        f"{result_type}{filetype}"
+    )
+
+    return os.path.join(folderpath, subfolders, filename)
+
+
 def check_ftype_present(fpath: str) -> bool:
     """Checks whether a filetype is present in a filepath string based on the
     presence of a period ('.').

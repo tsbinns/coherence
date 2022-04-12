@@ -44,15 +44,14 @@ ragged_array_to_list
 
 from itertools import chain
 from typing import Optional, Union
-from numpy import typing as nptyping
+from numpy.typing import NDArray
+import numpy as np
 from coh_exceptions import DuplicateEntryError, EntryLengthError
 
 
 class FillerObject:
     """Creates an empty object that can be filled with attributes that would
     otherwise not be accessible as a class attribute."""
-
-    pass
 
 
 def _find_lengths_dict(
@@ -181,7 +180,7 @@ def check_lengths_dict_equals_n(
 
 
 def _find_lengths_list(
-    to_check: list, ignore_values: Optional[list]
+    to_check: list, ignore_values: Optional[list], axis: int
 ) -> list[int]:
     """Finds the lengths of entries within a list.
 
@@ -190,10 +189,13 @@ def _find_lengths_list(
     to_check : list
     -   The list for which the lengths of the entries should be checked.
 
-    ignore_values : list | None; default None
+    ignore_values : list | None
     -   The values of entries within 'to_check' to ignore when checking the
         lengths of entries.
-    -   If None (default), no values are ignored.
+    -   If None, no values are ignored.
+
+    axis : int
+    -   The axis of the list whose lengths should be checked.
 
     RETURNS
     -------
@@ -206,13 +208,13 @@ def _find_lengths_list(
     entry_lengths = []
     for value in to_check:
         if value not in ignore_values:
-            entry_lengths.append(len(value))
+            entry_lengths.append(np.shape(value)[axis])
 
     return entry_lengths
 
 
 def check_lengths_list_identical(
-    to_check: list, ignore_values: Optional[list] = None
+    to_check: list, ignore_values: Optional[list] = None, axis: int = 0
 ) -> tuple[bool, Union[int, list[int]]]:
     """Checks whether the lengths of entries in the input list are identical.
 
@@ -225,6 +227,9 @@ def check_lengths_list_identical(
     -   The values of entries within 'to_check' to ignore when checking the
         lengths of entries.
     -   If None (default), no values are ignored.
+
+    axis : int | default 0
+    -   The axis of the list whose length should be checked.
 
     RETURNS
     -------
@@ -239,7 +244,7 @@ def check_lengths_list_identical(
     """
 
     entry_lengths = _find_lengths_list(
-        to_check=to_check, ignore_values=ignore_values
+        to_check=to_check, ignore_values=ignore_values, axis=axis
     )
 
     if entry_lengths.count(entry_lengths[0]) == len(entry_lengths):
@@ -253,7 +258,7 @@ def check_lengths_list_identical(
 
 
 def check_lengths_list_equals_n(
-    to_check: list, n: int, ignore_values: Optional[list] = None
+    to_check: list, n: int, ignore_values: Optional[list] = None, axis: int = 0
 ) -> bool:
     """Checks whether the lengths of entries in the input dictionary are equal
     to a given number.
@@ -271,6 +276,9 @@ def check_lengths_list_equals_n(
         lengths of entries.
     -   If None (default), no values are ignored.
 
+    axis : int | default 0
+    -   The axis of the list whose lengths should be checked.
+
     RETURNS
     -------
     all_n : bool
@@ -278,7 +286,7 @@ def check_lengths_list_equals_n(
     """
 
     entry_lengths = _find_lengths_list(
-        to_check=to_check, ignore_values=ignore_values
+        to_check=to_check, ignore_values=ignore_values, axis=axis
     )
 
     if entry_lengths.count(n) == len(entry_lengths):
@@ -495,8 +503,8 @@ def ordered_list_from_dict(list_order: list[str], dict_to_order: dict) -> list:
 
 def check_if_ragged(
     to_check: Union[
-        list[Union[list, nptyping.NDArray]],
-        nptyping.NDArray[Union[list, nptyping.NDArray]],
+        list[Union[list, NDArray]],
+        NDArray,
     ]
 ) -> bool:
     """Checks whether a list or array of sublists or subarrays is 'ragged' (i.e.
@@ -523,7 +531,7 @@ def check_if_ragged(
 
 
 def ragged_array_to_list(
-    ragged_array: nptyping.NDArray,
+    ragged_array: NDArray,
 ) -> list[list]:
     """Converts a ragged numpy array of nested arrays to a ragged list of nested
     lists.

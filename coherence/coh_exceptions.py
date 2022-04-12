@@ -42,6 +42,10 @@ UnidenticalEntryError : Exception
 -   Class for raising exceptions/errors associated with two objects being
     unidentical.
 
+PreexistingAttributeError
+-   Class for raising exceptions/errors associated with an attribute already
+    existing within an object.
+
 MissingFileExtensionError : Exception
 -   Class for raising exceptions/errors associated with a filename string
     missing a filetype extension.
@@ -79,8 +83,8 @@ class DuplicateEntryError(Exception):
 
 
 class MissingEntryError(Exception):
-    """Class for raising exceptions/errors associated with missing entries between
-    objects."""
+    """Class for raising exceptions/errors associated with missing entries
+    between objects."""
 
 
 class ChannelOrderError(Exception):
@@ -102,6 +106,11 @@ class InputTypeError(Exception):
 class UnidenticalEntryError(Exception):
     """Class for raising exceptions/errors associated with two objects being
     unidentical."""
+
+
+class PreexistingAttributeError(Exception):
+    """Class for raising exceptions/errors associated with an attribute already
+    existing within an object."""
 
 
 class MissingFileExtensionError(Exception):
