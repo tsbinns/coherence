@@ -2,11 +2,11 @@
 
 METHODS
 -------
-power_morlet_analysis
+morlet_analysis
 -   Takes a coh_signal.Signal object of pre-processed data and performs Morlet
     wavelet power analysis.
 
-power_FOOOF_analysis
+fooof_analysis
 -   Takes a coh_signal.PowerMorlet object of power data and performs FOOOF power
     analysis.
 """
@@ -21,7 +21,7 @@ from coh_power import PowerFOOOF, PowerMorlet
 import coh_signal
 
 
-def power_morlet_analysis(
+def morlet_analysis(
     signal: coh_signal.Signal,
     folderpath_extras: str,
     dataset: str,
@@ -134,7 +134,7 @@ def power_morlet_analysis(
     return morlet
 
 
-def power_fooof_analysis(
+def fooof_analysis(
     signal: PowerMorlet,
     folderpath_extras: str,
     dataset: str,

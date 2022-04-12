@@ -1,4 +1,4 @@
-"""Processes ECoG and LFP data to generate coherence values."""
+"""Processes ECoG and LFP data to generate power spectra."""
 
 
 import os
@@ -7,7 +7,7 @@ from pathlib import Path
 
 cd_path = Path(__file__).absolute().parent.parent
 sys.path.append(os.path.join(cd_path, "coherence"))
-from coh_connectivity_analysis import connectivity_coherence_analysis
+from coh_power_processing import fooof_analysis, morlet_analysis
 from coh_preprocess_data import preprocessing
 
 
@@ -40,8 +40,21 @@ if __name__ == "__main__":
         RUN,
     )
 
-    connectivity_coherence_analysis(
+    power = morlet_analysis(
         preprocessed,
+        FOLDERPATH_EXTRAS,
+        DATASET,
+        ANALYSIS,
+        SUBJECT,
+        SESSION,
+        TASK,
+        ACQUISITION,
+        RUN,
+        save=False,
+    )
+
+    fooof_analysis(
+        power,
         FOLDERPATH_EXTRAS,
         DATASET,
         ANALYSIS,
