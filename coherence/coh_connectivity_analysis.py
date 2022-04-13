@@ -6,7 +6,7 @@ coherence_analysis
 -   Analyses coherence results.
 """
 
-from coh_postprocess import load_results_of_types
+from coh_process_results import load_results_of_types
 
 
 def coherence_analysis(
