@@ -32,7 +32,7 @@ check_master_entries_in_sublists
 -   Checks whether all values in a master list are present in a set of sublists.
 
 check_sublist_entries_in_master
--   Checks whether all values in a set of sublusts are present in a master list.
+-   Checks whether all values in a set of sublists are present in a master list.
 
 ordered_list_from_dict
 -   Creates a list from entries in a dictionary, sorted based on a given order.
