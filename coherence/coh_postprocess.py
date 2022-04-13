@@ -1,18 +1,30 @@
-"""Class for applying post-processing to data.
+"""Classes and methods for applying post-processing to results.
 
 CLASSES
 -------
 PostProcess
 -   Class for the post-processing of results derived from raw signals.
+
+METHODS
+-------
+load_results_of_types
+-   Loads results of a multiple types of data and merges them into a single
+    PostProcess object.
+
+load_results_of_type
+-   Loads results of a single type of data and appends them into a single
+    PostProcess object
 """
 
-import numpy as np
-import pandas as pd
 from copy import deepcopy
 from typing import Optional, Union
+import numpy as np
+import pandas as pd
 from numpy.typing import NDArray
+from coh_handle_files import generate_results_fpath, load_file
 
 from coh_exceptions import (
+    DuplicateEntryError,
     EntryLengthError,
     InputTypeError,
     MissingEntryError,
@@ -402,13 +414,13 @@ class PostProcess:
 
         return pd.DataFrame.from_dict(data=results, orient="columns")
 
-    def _check_non_duplicates(self, results: dict) -> None:
+    def _check_non_duplicates(self, results: Union[dict, pd.DataFrame]) -> None:
         """Checks that the existing results and the results being added contain
         all the same keys.
 
         PARAMETERS
         ----------
-        results : dict
+        results : dict | pandas DataFrame
         -   The results being added.
 
         RAISES
@@ -434,27 +446,485 @@ class PostProcess:
                 "used."
             )
 
-    def append(
+    def append_from_dict(
         self,
-        results: dict,
+        new_results: dict,
         extract_from_dicts: Optional[dict[list[str]]] = None,
         identical_entries: Optional[list[str]] = None,
         discard_entries: Optional[list[str]] = None,
     ) -> None:
-        """Appends other dictionaries of results to the list of result
-        dictionaries stored in the PostProcess object."""
+        """Appends a dictionary of results to the results stored in the
+        PostProcess object.
 
-        results = self._sort_inputs(
-            results=results,
+        PARAMETERS
+        ----------
+        new_results : dict
+        -   A dictionary containing results to add.
+        -   The entries in the dictionary should be either lists, numpy arrays,
+            or dictionaries.
+        -   Entries which are dictionaries will have their values treated as
+            being identical for all values in the 'results' dictionary, given
+            they are extracted from these dictionaries into the results.
+
+        extract_from_dicts : dict[list[str]] | None; default None
+        -   The entries of dictionaries within 'results' to include in the
+            processing.
+        -   Entries which are extracted are treated as being identical for all
+            values in the 'results' dictionary.
+
+        identical_entries : list[str] | None; default None
+        -   The entries in 'results' which are identical across channels and for
+            which only one copy is present.
+
+        discard_entries : list[str] | None; default None
+        -   The entries which should be discarded immediately without
+            processing.
+        """
+
+        new_results = self._sort_inputs(
+            results=new_results,
             extract_from_dicts=extract_from_dicts,
             identical_entries=identical_entries,
             discard_entries=discard_entries,
         )
 
-        self._check_non_duplicates(results=results)
+        self._check_non_duplicates(results=new_results)
 
-        results = self._results_to_df(results=results)
+        new_results = self._results_to_df(results=new_results)
 
         self._results = pd.concat(
-            objs=[self._results, results], ignore_index=True
+            objs=[self._results, new_results], ignore_index=True
         )
+
+    def append_from_df(
+        self,
+        new_results: pd.DataFrame,
+    ) -> None:
+        """Appends a DataFrame of results to the results stored in the
+        PostProcess object.
+
+        PARAMETERS
+        ----------
+        new_results : pandas DataFrame
+        -   The new results to append.
+        """
+
+        self._check_non_duplicates(results=new_results)
+
+        self._results = pd.concat(
+            objs=[self._results, new_results], ignore_index=True
+        )
+
+    def _make_results_mergeable(
+        self, results_1: pd.DataFrame, results_2: pd.DataFrame
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Converts results DataFrames into a format that can be handled by the
+        pandas function 'merge' by converting any lists into tuples.
+
+        PARAMETERS
+        ----------
+        results_1: pandas DataFrame
+        -   The first DataFrame to make mergeable.
+
+        results_2: pandas DataFrame
+        -   The second DataFrame to make mergeable.
+
+        RETURNS
+        -------
+        pandas DataFrame
+        -   The first DataFrame made mergeable.
+
+        pandas DataFrame
+        -   The second DataFrame made mergeable.
+        """
+
+        dataframes = [results_1, results_2]
+
+        for df_i, dataframe in enumerate(dataframes):
+            for row_i in dataframe.index:
+                for key in dataframe.keys():
+                    if isinstance(dataframe[key][row_i], list):
+                        dataframe[key][row_i] = tuple(dataframe[key][row_i])
+            dataframes[df_i] = dataframe
+
+        return dataframes[0], dataframes[1]
+
+    def _restore_results_after_merge(
+        self, results: pd.DataFrame
+    ) -> pd.DataFrame:
+        """Converts a results DataFrame into its original format after merging
+        by converting any tuples back to lists.
+
+        PARAMETERS
+        ----------
+        results : pandas DataFrame
+        -   The DataFrame with lists to restore from tuples.
+
+        RETURNS
+        -------
+        results : pandas DataFrame
+        -   The restored DataFrame.
+        """
+
+        for row_i in results.index:
+            for key in results.keys():
+                if isinstance(results[key][row_i], tuple):
+                    results[key][row_i] = list(results[key][row_i])
+
+        return results
+
+    def _check_missing_before_merge(
+        self, results_1: pd.DataFrame, results_2: pd.DataFrame
+    ) -> None:
+        """Checks that merging pandas DataFrames with the 'merge' method and
+        the 'how' parameter set to 'outer' will not introduce new rows into the
+        merged results DataFrame, resulting in some rows having NaN values for
+        columns not present in their original DataFrame, but present in the
+        other DataFrames being merged.
+        -   This can occur if the column names which are shared between the
+            DataFrames do not have all the same entries between the DataFrames,
+            leading to new rows being added to the merged DataFrame.
+
+        PARAMETERS
+        ----------
+        results_1 : pandas DataFrame
+        -   The first DataFrame to check.
+
+        results_2 : pandas DataFrame
+        -   The second DataFrame to check.
+
+        RAISES
+        ------
+        MissingEntryError
+        -   Raised if the DataFrames' shared columns do not have values that are
+            identical in the other DataFrame, leading to rows being excluded
+            from the merged DataFrame.
+        """
+
+        if len(results_1.index) == len(results_2.index):
+            test_merge = pd.merge(results_1, results_2, how="inner")
+            if len(test_merge.index) != len(results_1.index):
+                raise EntryLengthError(
+                    "Error when trying to merge two sets of results with "
+                    "'allow_missing' set to 'False':\nThe shared columns of "
+                    "the DataFrames being merged do not have identical values "
+                    "in the other DataFrame, leading to "
+                    f"{len(results_1.index)-len(test_merge.index)} row(s) "
+                    "being excluded from the merged DataFrame.\nIf you still "
+                    "want to merge these results, set 'allow_missing' to "
+                    "'True'."
+                )
+        else:
+            raise EntryLengthError(
+                "Error when trying to merge two sets of results with "
+                "'allow_missing' set to 'False':\nThere is an unequal number "
+                "of channels present in the two sets of results being merged "
+                f"({len(results_1.index)} and {len(results_2.index)}). Merging "
+                "these results will lead to some attributes of the results "
+                "having NaN values.\nIf you still want to merge these results, "
+                "set 'allow_missing' to 'True'."
+            )
+
+    def _check_keys_before_merge(self, new_results: pd.DataFrame) -> None:
+        """Checks that the column names in the DataFrames being merged are not
+        identical.
+
+        PARAMETERS
+        ----------
+        new_results : pandas DataFrame
+        -   The new results being added.
+
+        RAISES
+        ------
+        DuplicateEntryError
+        -   Raised if there are no columns that are unique to the DataFrames
+            being merged.
+        """
+
+        duplicates = []
+        for key in new_results.keys():
+            if key in self._results.keys():
+                duplicates.append(True)
+            else:
+                duplicates.append(False)
+
+        if all(duplicates):
+            raise DuplicateEntryError(
+                "Error when trying to merge results:\nThere are no new columns "
+                "in the results being added. If you still want to add the "
+                "results, use the append methods."
+            )
+
+    def merge_from_dict(
+        self,
+        new_results: dict,
+        extract_from_dicts: Optional[dict[list[str]]] = None,
+        identical_entries: Optional[list[str]] = None,
+        discard_entries: Optional[list[str]] = None,
+        allow_missing: bool = False,
+    ) -> None:
+        """Merges a dictionary of results to the results stored in the
+        PostProcess object.
+
+        PARAMETERS
+        ----------
+        new_results : dict
+        -   A dictionary containing results to add.
+        -   The entries in the dictionary should be either lists, numpy arrays,
+            or dictionaries.
+        -   Entries which are dictionaries will have their values treated as
+            being identical for all values in the 'results' dictionary, given
+            they are extracted from these dictionaries into the results.
+
+        extract_from_dicts : dict[list[str]] | None; default None
+        -   The entries of dictionaries within 'results' to include in the
+            processing.
+        -   Entries which are extracted are treated as being identical for all
+            values in the 'results' dictionary.
+
+        identical_entries : list[str] | None; default None
+        -   The entries in 'results' which are identical across channels and for
+            which only one copy is present.
+
+        discard_entries : list[str] | None; default None
+        -   The entries which should be discarded immediately without
+            processing.
+
+        allow_missing : bool; default False
+        -   Whether or not to allow new rows to be present in the merged results
+            with NaN values for columns not shared between the results being
+            merged if the shared columns do not have matching values.
+        -   I.e. if you want to make sure you are merging results from the same
+            channels, set this to False, otherwise results from different
+            channels will be merged and any missing information will be set to
+            NaN.
+        """
+
+        new_results = self._sort_inputs(
+            results=new_results,
+            extract_from_dicts=extract_from_dicts,
+            identical_entries=identical_entries,
+            discard_entries=discard_entries,
+        )
+
+        new_results = self._results_to_df(results=new_results)
+
+        self._check_keys_before_merge(new_results=new_results)
+
+        current_results, new_results = self._make_results_mergeable(
+            results_1=self._results, results_2=new_results
+        )
+
+        if not allow_missing:
+            self._check_missing_before_merge(
+                results_1=current_results, results_2=new_results
+            )
+
+        merged_results = pd.merge(current_results, new_results, how="outer")
+
+        self._results = self._restore_results_after_merge(
+            results=merged_results
+        )
+
+    def merge_from_df(
+        self,
+        new_results: pd.DataFrame,
+        allow_missing: bool = False,
+    ) -> None:
+        """Merges a dictionary of results to the results stored in the
+        PostProcess object.
+
+        PARAMETERS
+        ----------
+        new_results : pandas DataFrame
+        -   A DataFrame containing results to add.
+
+        allow_missing : bool; default False
+        -   Whether or not to allow new rows to be present in the merged results
+            with NaN values for columns not shared between the results being
+            merged if the shared columns do not have matching values.
+        -   I.e. if you want to make sure you are merging results from the same
+            channels, set this to False, otherwise results from different
+            channels will be merged and any missing information will be set to
+            NaN.
+        """
+
+        self._check_keys_before_merge(new_results=new_results)
+
+        current_results, new_results = self._make_results_mergeable(
+            results_1=self._results, results_2=new_results
+        )
+
+        if not allow_missing:
+            self._check_missing_before_merge(
+                results_1=current_results, results_2=new_results
+            )
+
+        merged_results = pd.merge(current_results, new_results, how="outer")
+
+        self._results = self._restore_results_after_merge(
+            results=merged_results
+        )
+
+    def as_df(self) -> pd.DataFrame:
+        """Returns the results as a pandas DataFrame.
+
+        RETURNS
+        -------
+        results : pandas DataFrame
+        -   The results as a pandas DataFrame.
+        """
+
+        return self._results
+
+
+def load_results_of_types(
+    results_folderpath: str,
+    to_analyse: dict[str],
+    result_types: list[str],
+    extract_from_dicts: Optional[dict[list[str]]] = None,
+    identical_entries: Optional[list[str]] = None,
+    discard_entries: Optional[list[str]] = None,
+    allow_missing: bool = False,
+) -> PostProcess:
+    """Loads results of a multiple types and merges them into a single
+    PostProcess object.
+
+    PARAMETERS
+    ----------
+    results_folderpath : str
+    -   Folderpath to where the results are located.
+
+    to_analyse : dict[str]
+    -   Dictionary in which each entry represents a different piece of results.
+    -   Contains the keys: 'sub' (subject ID); 'ses' (session name); 'task'
+        (task name); 'acq' (acquisition type); and 'run' (run number).
+
+    result_types : list[str]
+    -   The types of results to analyse.
+
+    extract_from_dicts : dict[list[str]] | None; default None
+    -   The entries of dictionaries within 'results' to include in the
+        processing.
+    -   Entries which are extracted are treated as being identical for all
+        values in the 'results' dictionary.
+
+    identical_entries : list[str] | None; default None
+    -   The entries in 'results' which are identical across channels and for
+        which only one copy is present.
+
+    discard_entries : list[str] | None; default None
+    -   The entries which should be discarded immediately without
+        processing.
+
+    allow_missing : bool; default False
+    -   Whether or not to allow new rows to be present in the merged results
+        with NaN values for columns not shared between the results being
+        merged if the shared columns do not have matching values.
+    -   I.e. if you want to make sure you are merging results from the same
+        channels, set this to False, otherwise results from different
+        channels will be merged and any missing information will be set to
+        NaN.
+
+    RETURNS
+    -------
+    results : PostProcess
+    -   The results merged across the specified result types.
+    """
+
+    first_type = True
+    for result_type in result_types:
+        results = load_results_of_type(
+            results_folderpath=results_folderpath,
+            to_analyse=to_analyse,
+            result_type=result_type,
+            extract_from_dicts=extract_from_dicts,
+            identical_entries=identical_entries,
+            discard_entries=discard_entries,
+        )
+        if first_type:
+            all_results = deepcopy(results)
+            first_type = False
+        else:
+            all_results.merge_from_df(
+                new_results=deepcopy(results.as_df()),
+                allow_missing=allow_missing,
+            )
+
+    return results
+
+
+def load_results_of_type(
+    results_folderpath: str,
+    to_analyse: dict[str],
+    result_type: str,
+    extract_from_dicts: Optional[dict[list[str]]] = None,
+    identical_entries: Optional[list[str]] = None,
+    discard_entries: Optional[list[str]] = None,
+) -> PostProcess:
+    """Loads results of a single type and appends them into a single PostProcess
+    object.
+
+    PARAMETERS
+    ----------
+    results_folderpath : str
+    -   Folderpath to where the results are located.
+
+    to_analyse : dict[str]
+    -   Dictionary in which each entry represents a different piece of results.
+    -   Contains the keys: 'sub' (subject ID); 'ses' (session name); 'task'
+        (task name); 'acq' (acquisition type); and 'run' (run number).
+
+    result_type : str
+    -   The type of results to analyse.
+
+    extract_from_dicts : dict[list[str]] | None; default None
+    -   The entries of dictionaries within 'results' to include in the
+        processing.
+    -   Entries which are extracted are treated as being identical for all
+        values in the 'results' dictionary.
+
+    identical_entries : list[str] | None; default None
+    -   The entries in 'results' which are identical across channels and for
+        which only one copy is present.
+
+    discard_entries : list[str] | None; default None
+    -   The entries which should be discarded immediately without
+        processing.
+
+    RETURNS
+    -------
+    results : PostProcess
+    -   The appended results for a single type of data.
+    """
+
+    first_result = True
+    for result_info in to_analyse.values():
+        result_fpath = generate_results_fpath(
+            folderpath=results_folderpath,
+            subject=result_info["sub"],
+            session=result_info["ses"],
+            task=result_info["task"],
+            acquisition=result_info["acq"],
+            run=result_info["run"],
+            result_type=result_type,
+            filetype=".json",
+        )
+        result = load_file(fpath=result_fpath)
+        if first_result:
+            results = PostProcess(
+                results=result,
+                extract_from_dicts=extract_from_dicts,
+                identical_entries=identical_entries,
+                discard_entries=discard_entries,
+            )
+            first_result = False
+        else:
+            results.append_from_dict(
+                new_results=result,
+                extract_from_dicts=extract_from_dicts,
+                identical_entries=identical_entries,
+                discard_entries=discard_entries,
+            )
+
+    return results
