@@ -1164,8 +1164,8 @@ class ConnectivityCoherence(ProcMethod):
             ask_before_overwrite = self._verbose
 
         to_save = {
-            "coherence": self.coherence._data.tolist(),
-            "coherence_dimensions": self.coherence_dims,
+            self._method: self.coherence._data.tolist(),
+            f"{self._method}_dimensions": self.coherence_dims,
             "freqs": self.coherence.freqs,
             "seed_names": self.extra_info["node_ch_names"][0],
             "seed_types": self.extra_info["node_ch_types"][0],
@@ -1202,8 +1202,8 @@ class ConnectivityCoherence(ProcMethod):
         """
 
         return {
-            "coherence": self.coherence._data.tolist(),
-            "coherence_dimensions": self.coherence_dims,
+            self._method: self.coherence._data.tolist(),
+            f"{self._method}_dimensions": self.coherence_dims,
             "freqs": self.coherence.freqs,
             "seed_names": self.extra_info["node_ch_names"][0],
             "seed_types": self.extra_info["node_ch_types"][0],

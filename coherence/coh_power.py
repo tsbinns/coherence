@@ -709,8 +709,10 @@ class PowerMorlet(ProcMethod):
 
     def save_results(
         self,
-        fpath: str,
-        ftype: Optional[str] = None,
+        fpath_power: str,
+        ftype_power: Optional[str] = None,
+        fpath_itc: Optional[str] = None,
+        ftype_itc: Optional[str] = None,
         ask_before_overwrite: Optional[bool] = None,
     ) -> None:
         """Saves the results (power and inter-trial coherence, if applicable)
@@ -718,13 +720,13 @@ class PowerMorlet(ProcMethod):
 
         PARAMETERS
         ----------
-        fpath : str
-        -   Location where the data should be saved.
+        fpath_power : str
+        -   Location where the power results should be saved.
 
-        ftype : str | None; default None
-        -   The filetype of the data that will be saved, without the leading
-            period. E.g. for saving the file in the json format, this would be
-            "json", not ".json".
+        ftype_power : str | None; default None
+        -   The filetype of the power results that will be saved, without the
+            leading period. E.g. for saving the file in the json format, this
+            would be "json", not ".json".
         -   The information being saved must be an appropriate type for saving
             in this format.
         -   If None, the filetype is determined based on 'fpath', and so the
@@ -738,6 +740,22 @@ class PowerMorlet(ProcMethod):
         -   By default, this is set to None, in which case the value of the
             verbosity when the Signal object was instantiated is used.
 
+        fpath_itc : str | None; default None
+        -   Location where the inter-trial coherence results should be saved.
+        -   Only has to be given if inter-trial coherence results have been
+            computed.
+
+        ftype_itc : str | None; default None
+        -   The filetype of the inter-trial coherence results that will be
+            saved, without the leading period. E.g. for saving the file in the
+            json format, this would be "json", not ".json".
+        -   The information being saved must be an appropriate type for saving
+            in this format.
+        -   If None, the filetype is determined based on 'fpath', and so the
+            extension must be included in the path.
+        -   Only has to be given if inter-trial coherence results have been
+            computed.
+
         RAISES
         ------
         ChannelOrderError
@@ -749,12 +767,6 @@ class PowerMorlet(ProcMethod):
         if ask_before_overwrite is None:
             ask_before_overwrite = self._verbose
 
-        power = self._prepare_results_for_saving(
-            self.power.data,
-            results_dims=self.power_dims,
-            rearrange=self._power_dims_sorted,
-        )
-
         objects = [self.signal.data.ch_names, self.power.ch_names]
         if self._itc_returned:
             objects.append(self.itc.ch_names)
@@ -765,9 +777,14 @@ class PowerMorlet(ProcMethod):
                 "and in the results do not match."
             )
 
-        to_save = {
-            "power": power,
-            "power_dimensions": self._power_dims_sorted,
+        power = self._prepare_results_for_saving(
+            self.power.data,
+            results_dims=self.power_dims,
+            rearrange=self._power_dims_sorted,
+        )
+        power_to_save = {
+            "power_morlet": power,
+            "power_morlet_dimensions": self._power_dims_sorted,
             "freqs": self.power.freqs.tolist(),
             "ch_names": self.signal.data.ch_names,
             "ch_types": self.signal.data.get_channel_types(),
@@ -783,21 +800,51 @@ class PowerMorlet(ProcMethod):
             "processing_steps": self.processing_steps,
             "subject_info": self.signal.data.info["subject_info"],
         }
+        self._save_results(
+            to_save=power_to_save,
+            fpath=fpath_power,
+            ftype=ftype_power,
+            ask_before_overwrite=ask_before_overwrite,
+            verbose=self._verbose,
+        )
+
         if self._itc_returned:
             itc = self._prepare_results_for_saving(
                 self.itc.data,
                 results_dims=self.itc_dims,
                 rearrange=self._itc_dims_sorted,
             )
-            to_save.update(itc=itc, itc_dimensions=self._itc_dims_sorted)
-
-        self._save_results(
-            to_save=to_save,
-            fpath=fpath,
-            ftype=ftype,
-            ask_before_overwrite=ask_before_overwrite,
-            verbose=self._verbose,
-        )
+            itc_to_save = {
+                "itc_morlet": itc,
+                "itc_morlet_dimensions": self._itc_dims_sorted,
+                "freqs": self.power.freqs.tolist(),
+                "ch_names": self.signal.data.ch_names,
+                "ch_types": self.signal.data.get_channel_types(),
+                "ch_coords": self.signal.get_coordinates(),
+                "ch_regions": ordered_list_from_dict(
+                    self.power.ch_names, self.extra_info["ch_regions"]
+                ),
+                "reref_types": ordered_list_from_dict(
+                    self.power.ch_names, self.extra_info["reref_types"]
+                ),
+                "samp_freq": self.signal.data.info["sfreq"],
+                "metadata": self.extra_info["metadata"],
+                "processing_steps": self.processing_steps,
+                "subject_info": self.signal.data.info["subject_info"],
+            }
+            if fpath_itc is None:
+                raise TypeError(
+                    "Error when trying to save the inter-trial coherence "
+                    "results:\nNo filepath for where to save the results has "
+                    "been provided."
+                )
+            self._save_results(
+                to_save=itc_to_save,
+                fpath=fpath_itc,
+                ftype=ftype_itc,
+                ask_before_overwrite=ask_before_overwrite,
+                verbose=self._verbose,
+            )
 
     def results_as_dict(self) -> None:
         """Returns the results (power and inter-trial coherence, if applicable)
@@ -805,8 +852,14 @@ class PowerMorlet(ProcMethod):
 
         RETURNS
         -------
-        results : dict
+        results : dict | list[dict]
         -   The results and additional information, stored as a dictionary.
+        -   If inter-trial coherence is not computed, returns a dictionary
+            containing the power results.
+        -   If inter-trial coherence is computed, returns a list of length 2,
+            where the first entry is a dictionary containing the power
+            results, and the second entry is a dictionary containing the
+            inter-trial coherence results.
 
         RAISES
         ------
@@ -816,12 +869,6 @@ class PowerMorlet(ProcMethod):
             tampering on the object has been performed.
         """
 
-        power = self._prepare_results_for_saving(
-            self.power.data,
-            results_dims=self.power_dims,
-            rearrange=self._power_dims_sorted,
-        )
-
         objects = [self.signal.data.ch_names, self.power.ch_names]
         if self._itc_returned:
             objects.append(self.itc.ch_names)
@@ -832,9 +879,16 @@ class PowerMorlet(ProcMethod):
                 "and in the results do not match."
             )
 
-        results = {
-            "power": power,
-            "power_dimensions": self._power_dims_sorted,
+        results = []
+
+        power = self._prepare_results_for_saving(
+            self.power.data,
+            results_dims=self.power_dims,
+            rearrange=self._power_dims_sorted,
+        )
+        power_results = {
+            "power_morlet": power,
+            "power_morlet_dimensions": self._power_dims_sorted,
             "freqs": self.power.freqs.tolist(),
             "ch_names": self.signal.data.ch_names,
             "ch_types": self.signal.data.get_channel_types(),
@@ -850,13 +904,34 @@ class PowerMorlet(ProcMethod):
             "processing_steps": self.processing_steps,
             "subject_info": self.signal.data.info["subject_info"],
         }
+
         if self._itc_returned:
             itc = self._prepare_results_for_saving(
                 self.itc.data,
                 results_dims=self.itc_dims,
                 rearrange=self._itc_dims_sorted,
             )
-            results.update(itc=itc, itc_dimensions=self._itc_dims_sorted)
+            itc_results = {
+                "itc_morlet": itc,
+                "itc_morlet_dimensions": self._itc_dims_sorted,
+                "freqs": self.power.freqs.tolist(),
+                "ch_names": self.signal.data.ch_names,
+                "ch_types": self.signal.data.get_channel_types(),
+                "ch_coords": self.signal.get_coordinates(),
+                "ch_regions": ordered_list_from_dict(
+                    self.power.ch_names, self.extra_info["ch_regions"]
+                ),
+                "reref_types": ordered_list_from_dict(
+                    self.power.ch_names, self.extra_info["reref_types"]
+                ),
+                "samp_freq": self.signal.data.info["sfreq"],
+                "metadata": self.extra_info["metadata"],
+                "processing_steps": self.processing_steps,
+                "subject_info": self.signal.data.info["subject_info"],
+            }
+            results = [power_results, itc_results]
+        else:
+            results = power_results
 
         return results
 
@@ -1550,8 +1625,8 @@ class PowerFOOOF(ProcMethod):
         results = {
             "power_periodic": self.power["periodic_component"].tolist(),
             "power_aperiodic": self.power["aperiodic_component"].tolist(),
-            "r_squared": self.power["r_squared"].tolist(),
-            "error": self.power["error"].tolist(),
+            "fm_r_squared": self.power["r_squared"].tolist(),
+            "fm_error": self.power["error"].tolist(),
             "freqs": self.signal.power.freqs.tolist(),
             "ch_names": self.signal.power.ch_names,
             "ch_types": self.signal.power.get_channel_types(),

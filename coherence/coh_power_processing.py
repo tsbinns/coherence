@@ -73,7 +73,7 @@ def morlet_analysis(
     analysis_settings_fpath = generate_analysiswise_fpath(
         folderpath_extras + "\\settings", analysis, ".json"
     )
-    morlet_fpath = generate_sessionwise_fpath(
+    power_fpath = generate_sessionwise_fpath(
         folderpath_extras,
         dataset,
         subject,
@@ -82,6 +82,17 @@ def morlet_analysis(
         acquisition,
         run,
         "power-morlet",
+        ".json",
+    )
+    itc_fpath = generate_sessionwise_fpath(
+        folderpath_extras,
+        dataset,
+        subject,
+        session,
+        task,
+        acquisition,
+        run,
+        "connectivity-itc_morlet",
         ".json",
     )
 
@@ -129,7 +140,7 @@ def morlet_analysis(
             ],
         )
     if save:
-        morlet.save_results(morlet_fpath)
+        morlet.save_results(fpath_power=power_fpath, fpath_itc=itc_fpath)
 
     return morlet
 
