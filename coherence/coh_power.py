@@ -707,6 +707,50 @@ class PowerMorlet(ProcMethod):
             verbose=self._verbose,
         )
 
+    def _get_results_dict(
+        self, data: list, data_dimensions: list[str], data_name: str
+    ) -> dict:
+        """Organises the results into a dictionary.
+
+        PARAMETERS
+        ----------
+        data : list
+        -   The results of the processing.
+
+        data_dimensions : list[str]
+        -   Names of the axes of the results in 'data'.
+
+        data_name : str
+        -   The name of the results of the processing being organised.
+
+        RETURNS
+        -------
+        dict
+        -   The organised results.
+        """
+
+        return {
+            f"{data_name}": data,
+            f"{data_name}_dimensions": data_dimensions,
+            "freqs": self.power.freqs.tolist(),
+            "ch_names": self.signal.data.ch_names,
+            "ch_types": self.signal.data.get_channel_types(),
+            "ch_coords": self.signal.get_coordinates(),
+            "ch_regions": ordered_list_from_dict(
+                self.power.ch_names, self.extra_info["ch_regions"]
+            ),
+            "ch_hemispheres": ordered_list_from_dict(
+                self.power.ch_names, self.extra_info["ch_hemispheres"]
+            ),
+            "reref_types": ordered_list_from_dict(
+                self.power.ch_names, self.extra_info["reref_types"]
+            ),
+            "samp_freq": self.signal.data.info["sfreq"],
+            "metadata": self.extra_info["metadata"],
+            "processing_steps": self.processing_steps,
+            "subject_info": self.signal.data.info["subject_info"],
+        }
+
     def save_results(
         self,
         fpath_power: str,
@@ -782,24 +826,11 @@ class PowerMorlet(ProcMethod):
             results_dims=self.power_dims,
             rearrange=self._power_dims_sorted,
         )
-        power_to_save = {
-            "power_morlet": power,
-            "power_morlet_dimensions": self._power_dims_sorted,
-            "freqs": self.power.freqs.tolist(),
-            "ch_names": self.signal.data.ch_names,
-            "ch_types": self.signal.data.get_channel_types(),
-            "ch_coords": self.signal.get_coordinates(),
-            "ch_regions": ordered_list_from_dict(
-                self.power.ch_names, self.extra_info["ch_regions"]
-            ),
-            "reref_types": ordered_list_from_dict(
-                self.power.ch_names, self.extra_info["reref_types"]
-            ),
-            "samp_freq": self.signal.data.info["sfreq"],
-            "metadata": self.extra_info["metadata"],
-            "processing_steps": self.processing_steps,
-            "subject_info": self.signal.data.info["subject_info"],
-        }
+        power_to_save = self._get_results_dict(
+            data=power,
+            data_dimensions=self._power_dims_sorted,
+            data_name="power_morlet",
+        )
         self._save_results(
             to_save=power_to_save,
             fpath=fpath_power,
@@ -814,24 +845,11 @@ class PowerMorlet(ProcMethod):
                 results_dims=self.itc_dims,
                 rearrange=self._itc_dims_sorted,
             )
-            itc_to_save = {
-                "itc_morlet": itc,
-                "itc_morlet_dimensions": self._itc_dims_sorted,
-                "freqs": self.power.freqs.tolist(),
-                "ch_names": self.signal.data.ch_names,
-                "ch_types": self.signal.data.get_channel_types(),
-                "ch_coords": self.signal.get_coordinates(),
-                "ch_regions": ordered_list_from_dict(
-                    self.power.ch_names, self.extra_info["ch_regions"]
-                ),
-                "reref_types": ordered_list_from_dict(
-                    self.power.ch_names, self.extra_info["reref_types"]
-                ),
-                "samp_freq": self.signal.data.info["sfreq"],
-                "metadata": self.extra_info["metadata"],
-                "processing_steps": self.processing_steps,
-                "subject_info": self.signal.data.info["subject_info"],
-            }
+            itc_to_save = self._get_results_dict(
+                data=itc,
+                data_dimensions=self._itc_dims_sorted,
+                data_name="itc_morlet",
+            )
             if fpath_itc is None:
                 raise TypeError(
                     "Error when trying to save the inter-trial coherence "
@@ -886,24 +904,11 @@ class PowerMorlet(ProcMethod):
             results_dims=self.power_dims,
             rearrange=self._power_dims_sorted,
         )
-        power_results = {
-            "power_morlet": power,
-            "power_morlet_dimensions": self._power_dims_sorted,
-            "freqs": self.power.freqs.tolist(),
-            "ch_names": self.signal.data.ch_names,
-            "ch_types": self.signal.data.get_channel_types(),
-            "ch_coords": self.signal.get_coordinates(),
-            "ch_regions": ordered_list_from_dict(
-                self.power.ch_names, self.extra_info["ch_regions"]
-            ),
-            "reref_types": ordered_list_from_dict(
-                self.power.ch_names, self.extra_info["reref_types"]
-            ),
-            "samp_freq": self.signal.data.info["sfreq"],
-            "metadata": self.extra_info["metadata"],
-            "processing_steps": self.processing_steps,
-            "subject_info": self.signal.data.info["subject_info"],
-        }
+        power_results = self._get_results_dict(
+            data=power,
+            data_dimensions=self._power_dims_sorted,
+            data_name="power_morlet",
+        )
 
         if self._itc_returned:
             itc = self._prepare_results_for_saving(
@@ -911,24 +916,11 @@ class PowerMorlet(ProcMethod):
                 results_dims=self.itc_dims,
                 rearrange=self._itc_dims_sorted,
             )
-            itc_results = {
-                "itc_morlet": itc,
-                "itc_morlet_dimensions": self._itc_dims_sorted,
-                "freqs": self.power.freqs.tolist(),
-                "ch_names": self.signal.data.ch_names,
-                "ch_types": self.signal.data.get_channel_types(),
-                "ch_coords": self.signal.get_coordinates(),
-                "ch_regions": ordered_list_from_dict(
-                    self.power.ch_names, self.extra_info["ch_regions"]
-                ),
-                "reref_types": ordered_list_from_dict(
-                    self.power.ch_names, self.extra_info["reref_types"]
-                ),
-                "samp_freq": self.signal.data.info["sfreq"],
-                "metadata": self.extra_info["metadata"],
-                "processing_steps": self.processing_steps,
-                "subject_info": self.signal.data.info["subject_info"],
-            }
+            itc_results = self._get_results_dict(
+                data=itc,
+                data_dimensions=self._itc_dims_sorted,
+                data_name="itc_morlet",
+            )
             results = [power_results, itc_results]
         else:
             results = power_results
@@ -1506,6 +1498,38 @@ class PowerFOOOF(ProcMethod):
             verbose=self._verbose,
         )
 
+    def _get_results_dict(self) -> dict:
+        """Organises the results into a dictionary.
+
+        RETURNS
+        dict
+        -   The results dictionary.
+        """
+
+        return {
+            "power_periodic": self.power["periodic_component"].tolist(),
+            "power_aperiodic": self.power["aperiodic_component"].tolist(),
+            "r_squared": self.power["r_squared"].tolist(),
+            "error": self.power["error"].tolist(),
+            "freqs": self.signal.power.freqs.tolist(),
+            "ch_names": self.signal.power.ch_names,
+            "ch_types": self.signal.power.get_channel_types(),
+            "ch_coords": self.signal.signal.get_coordinates(),
+            "ch_regions": ordered_list_from_dict(
+                self.signal.power.ch_names, self.extra_info["ch_regions"]
+            ),
+            "ch_hemispheres": ordered_list_from_dict(
+                self.signal.power.ch_names, self.extra_info["ch_hemispheres"]
+            ),
+            "reref_types": ordered_list_from_dict(
+                self.signal.power.ch_names, self.extra_info["reref_types"]
+            ),
+            "samp_freq": self.signal.power.info["sfreq"],
+            "metadata": self.extra_info["metadata"],
+            "processing_steps": self.processing_steps,
+            "subject_info": self.signal.power.info["subject_info"],
+        }
+
     def save_results(
         self,
         fpath: str,
@@ -1562,29 +1586,8 @@ class PowerFOOOF(ProcMethod):
                 "not match."
             )
 
-        to_save = {
-            "power_periodic": self.power["periodic_component"].tolist(),
-            "power_aperiodic": self.power["aperiodic_component"].tolist(),
-            "r_squared": self.power["r_squared"].tolist(),
-            "error": self.power["error"].tolist(),
-            "freqs": self.signal.power.freqs.tolist(),
-            "ch_names": self.signal.power.ch_names,
-            "ch_types": self.signal.power.get_channel_types(),
-            "ch_coords": self.signal.signal.get_coordinates(),
-            "ch_regions": ordered_list_from_dict(
-                self.signal.power.ch_names, self.extra_info["ch_regions"]
-            ),
-            "reref_types": ordered_list_from_dict(
-                self.signal.power.ch_names, self.extra_info["reref_types"]
-            ),
-            "samp_freq": self.signal.power.info["sfreq"],
-            "metadata": self.extra_info["metadata"],
-            "processing_steps": self.processing_steps,
-            "subject_info": self.signal.power.info["subject_info"],
-        }
-
         self._save_results(
-            to_save=to_save,
+            to_save=self._get_results_dict(),
             fpath=fpath,
             ftype=ftype,
             ask_before_overwrite=ask_before_overwrite,
@@ -1622,25 +1625,4 @@ class PowerFOOOF(ProcMethod):
                 "not match."
             )
 
-        results = {
-            "power_periodic": self.power["periodic_component"].tolist(),
-            "power_aperiodic": self.power["aperiodic_component"].tolist(),
-            "fm_r_squared": self.power["r_squared"].tolist(),
-            "fm_error": self.power["error"].tolist(),
-            "freqs": self.signal.power.freqs.tolist(),
-            "ch_names": self.signal.power.ch_names,
-            "ch_types": self.signal.power.get_channel_types(),
-            "ch_coords": self.signal.signal.get_coordinates(),
-            "ch_regions": ordered_list_from_dict(
-                self.signal.power.ch_names, self.extra_info["ch_regions"]
-            ),
-            "reref_types": ordered_list_from_dict(
-                self.signal.power.ch_names, self.extra_info["reref_types"]
-            ),
-            "samp_freq": self.signal.power.info["sfreq"],
-            "metadata": self.extra_info["metadata"],
-            "processing_steps": self.processing_steps,
-            "subject_info": self.signal.power.info["subject_info"],
-        }
-
-        return results
+        return self._get_results_dict()

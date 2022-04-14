@@ -19,7 +19,7 @@ import numpy as np
 
 from coh_dtypes import realnum
 from coh_exceptions import (
-    ChannelTypeError,
+    ChannelAttributeError,
     EntryLengthError,
     ProcessingOrderError,
     UnavailableProcessingError,
@@ -27,6 +27,7 @@ from coh_exceptions import (
 from coh_rereference import Reref, RerefBipolar, RerefCommonAverage, RerefPseudo
 from coh_handle_entries import (
     check_lengths_list_identical,
+    ordered_dict_keys_from_list,
     ordered_list_from_dict,
 )
 from coh_handle_files import check_ftype_present, identify_ftype
@@ -132,6 +133,7 @@ class Signal:
         self._channels_picked = False
         self._coordinates_set = False
         self._regions_set = False
+        self._hemispheres_set = False
         self._bandpass_filtered = False
         self._notch_filtered = False
         self._resampled = False
@@ -171,9 +173,25 @@ class Signal:
 
         self.extra_info["metadata"] = metadata
 
+    def _order_extra_info(self, order: list[str]) -> None:
+        """Order channels in 'extra_info'.
+
+        PARAMETERS
+        ----------
+        order : list[str]
+        -   The order in which the channels should appear in the attributes of
+            the 'extra_info' dictionary.
+        """
+
+        to_order = ["reref_types", "ch_regions", "ch_hemispheres"]
+        for key in to_order:
+            self.extra_info[key] = ordered_dict_keys_from_list(
+                dict_to_order=self.extra_info[key], keys_order=order
+            )
+
     def order_channels(self, ch_names: list[str]) -> None:
-        """Orders channels in the mne.io.Raw or mne.Epochs object based on a
-        given order.
+        """Orders channels in the mne.io.Raw or mne.Epochs object, as well as
+        the 'extra_info_ dictionary, based on a given order.
 
         PARAMETERS
         ----------
@@ -183,6 +201,11 @@ class Signal:
         """
 
         self.data.reorder_channels(ch_names)
+        self._order_extra_info(order=ch_names)
+
+        if self._verbose:
+            print("Reordering the channels in the following order:")
+            [print(name) for name in ch_names]
 
     def get_coordinates(self) -> list[list[realnum]]:
         """Extracts coordinates of the channels from the mne.io.Raw or
@@ -297,6 +320,38 @@ class Signal:
                 for i in range(len(ch_names))
             ]
 
+    def set_hemispheres(
+        self, ch_names: list[str], ch_hemispheres: list[str]
+    ) -> None:
+        """Adds channel hemispheres to the extra_info dictionary.
+
+        PARAMETERS
+        ----------
+        ch_names : list[str]
+        -   Names of the channels.
+
+        ch_hemispheres : list[str]
+        -   Hemispheres of the channels.
+        """
+
+        if len(ch_names) != len(ch_hemispheres):
+            raise EntryLengthError(
+                "The channel names and regions do not have the same length "
+                f"({len(ch_names)} and {len(ch_hemispheres)}, respectively)."
+            )
+
+        for i, ch_name in enumerate(ch_names):
+            self.extra_info["ch_hemispheres"][ch_name] = ch_hemispheres[i]
+        self.data.ch_hemispheres = self.extra_info["ch_hemispheres"]
+
+        self._hemispheres_set = True
+        if self._verbose:
+            print("Setting channel hemispheres to:")
+            [
+                print(f"{ch_names[i]}: {ch_hemispheres[i]}")
+                for i in range(len(ch_names))
+            ]
+
     def get_data(self) -> np.array:
         """Extracts the data array from the mne.io.Raw or mne.Epochs object,
         excluding data based on the annotations.
@@ -314,14 +369,14 @@ class Signal:
         should only be called when the data is initially loaded.
         """
 
-        self.extra_info["reref_types"] = {
-            ch_name: "none" for ch_name in self.data.info["ch_names"]
-        }
-        self.extra_info["ch_regions"] = {
-            ch_name: "none" for ch_name in self.data.info["ch_names"]
-        }
+        info_to_set = ["reref_types", "ch_regions", "ch_hemispheres"]
+        for info in info_to_set:
+            self.extra_info[info] = {
+                ch_name: "none" for ch_name in self.data.info["ch_names"]
+            }
 
         self.data.ch_regions = self.extra_info["ch_regions"]
+        self.data.ch_hemispheres = self.extra_info["ch_hemispheres"]
         self.data_dimensions = ["channels", "timepoints"]
 
     def load_raw(self, path_raw: mne_bids.BIDSPath) -> None:
@@ -481,6 +536,7 @@ class Signal:
         self.data.drop_channels(ch_names)
         self._drop_extra_info(ch_names)
         self.data.ch_regions = self.extra_info["ch_regions"]
+        self.data.ch_hemispheres = self.extra_info["ch_hemispheres"]
 
     def pick_channels(self, ch_names: list[str]) -> None:
         """Retains only certain channels in the mne.io.Raw or mne.Epochs object,
@@ -495,6 +551,7 @@ class Signal:
         self.data.pick_channels(ch_names)
         self._pick_extra_info(ch_names)
         self.data.ch_regions = self.extra_info["ch_regions"]
+        self.data.ch_hemispheres = self.extra_info["ch_hemispheres"]
 
         self._channels_picked = True
         self._update_processing_steps("channel_picks", ch_names)
@@ -578,7 +635,43 @@ class Signal:
         ch_types_new: Union[list[Union[str, None]], None],
         ch_coords_new: Union[list[Union[list[Union[int, float]], None]], None],
         ch_regions_new: Union[list[Union[str, None]], None],
+        ch_hemispheres_new: Union[list[Union[str, None]], None],
     ) -> None:
+        """Checks that the input for combining channels are all of the same
+        length.
+
+        PARAMETERS
+        ----------
+        ch_names_old : list[list[str]]
+        -   A list containing sublists where the entries are the names of the
+            channels to combine together.
+
+        ch_names_new : list[str]
+        -   The names of the combined channels.
+
+        ch_types_new : list[str | None] | None
+        -   The types of the new channels.
+        -   If None or if some entries are None, the type is determined based on
+            the channels being combined, in which case they must be of the same
+            type.
+
+        ch_coords_new : list[list[int | float] | None] | None
+        -   The coordinates of the combined channels.
+        -   If None or if some entries are None, the coordinates are determined
+            based on the channels being combined.
+
+        ch_regions_new : list[str | None] | None
+        -   The regions of the new channels.
+        -   If None or if some entries are None, the region is determined based
+            on the channels being combined, in which case they must be from the
+            same region.
+
+        ch_hemispheres_new : list[str | None] | None
+        -   The hemispheres of the new channels.
+        -   If None or if some entries are None, the hemisphere is determined
+            based on the channels being combined, in which case they must be
+            from the same hemisphere.
+        """
 
         identical, lengths = check_lengths_list_identical(
             to_check=[
@@ -587,17 +680,19 @@ class Signal:
                 ch_types_new,
                 ch_coords_new,
                 ch_regions_new,
+                ch_hemispheres_new,
             ],
             ignore_values=[None],
         )
         if not identical:
             raise EntryLengthError(
-                "Error when trying to combine data across channels:\n     The "
+                "Error when trying to combine data across channels:\nThe "
                 "lengths of the inputs do not match: 'ch_names_old' "
                 f"({lengths[0]}); 'ch_names_new' ({lengths[1]}); "
                 f"'ch_types_new' ({lengths[2]}); "
                 f"'ch_coords_new' ({lengths[3]}); "
-                f"'ch_regions_new' ({lengths[4]})."
+                f"'ch_regions_new' ({lengths[4]}); "
+                f"'ch_hemispheres_new' ({lengths[5]});"
             )
 
     def _sort_combination_inputs_strings(
@@ -625,7 +720,8 @@ class Signal:
 
         input_type : str
         -   The type of input being sorted.
-        -   Supported values are: 'ch_types'; and 'ch_regions'.
+        -   Supported values are: 'ch_types'; 'ch_hemispheres'; and
+            'ch_regions'.
 
         RETURNS
         -------
@@ -633,7 +729,7 @@ class Signal:
         -   The sorted features of the new, combined channels.
         """
 
-        supported_input_types = ["ch_types", "ch_regions"]
+        supported_input_types = ["ch_types", "ch_hemispheres", "ch_regions"]
         if input_type not in supported_input_types:
             raise UnavailableProcessingError(
                 "Error when trying to combine data over channels:\n"
@@ -657,8 +753,15 @@ class Signal:
                             for channel in ch_names_old[i]
                         ]
                     )
+                elif input_type == "ch_hemispheres":
+                    existing_values = np.unique(
+                        [
+                            self.extra_info["ch_hemispheres"][channel]
+                            for channel in ch_names_old[i]
+                        ]
+                    )
                 if len(existing_values) > 1:
-                    raise ChannelTypeError(
+                    raise ChannelAttributeError(
                         "Error when trying to combine data over channels:\n"
                         f"The '{input_type}' for the combination of channels "
                         f"{ch_names_old[i]} is not specified, but cannot be "
@@ -738,6 +841,7 @@ class Signal:
         ch_types_new: Union[list[Union[str, None]], None],
         ch_coords_new: Union[list[Union[list[Union[int, float]], None]], None],
         ch_regions_new: Union[list[Union[str, None]], None],
+        ch_hemispheres_new: Union[list[Union[str, None]], None],
     ) -> tuple[list[str], list[Union[int, float]], list[str]]:
         """Sorts the inputs for combining data over channels.
 
@@ -771,6 +875,13 @@ class Signal:
             of the channels being combined. This only works if all channels
             being combined are from the same region.
         -   If None, all regions are determined automatically.
+
+        ch_hemispheres_new : list[str | None] | None
+        -   The hemispheres of the new, combined channels.
+        -   If an entry is None, the hemisphere is determined based on the
+            hemispheres of the channels being combined. This only works if all
+            channels being combined are from the same hemisphere.
+        -   If None, all hemispheres are determined automatically.
         """
 
         self._check_combination_input_lengths(
@@ -779,6 +890,7 @@ class Signal:
             ch_types_new=ch_types_new,
             ch_coords_new=ch_coords_new,
             ch_regions_new=ch_regions_new,
+            ch_hemispheres_new=ch_hemispheres_new,
         )
 
         ch_types_new = self._sort_combination_inputs_strings(
@@ -791,13 +903,18 @@ class Signal:
             inputs=ch_regions_new,
             input_type="ch_regions",
         )
+        ch_hemispheres_new = self._sort_combination_inputs_strings(
+            ch_names_old=ch_names_old,
+            inputs=ch_hemispheres_new,
+            input_type="ch_hemispheres",
+        )
         ch_coords_new = self._sort_combination_inputs_numbers(
             ch_names_old=ch_names_old,
             inputs=ch_coords_new,
             input_type="ch_coords",
         )
 
-        return ch_types_new, ch_coords_new, ch_regions_new
+        return ch_types_new, ch_coords_new, ch_regions_new, ch_hemispheres_new
 
     def _combine_channel_data(self, to_combine: list[list[str]]) -> NDArray:
         """Combines the data of channels through addition.
@@ -870,6 +987,7 @@ class Signal:
         ch_types: list[str],
         ch_coords: list[list[Union[int, float]]],
         ch_regions: list[str],
+        ch_hemispheres: list[str],
     ) -> None:
         """Adds channels to the Signal object.
         -   Data for the new channels should have the same sampling frequency as
@@ -895,6 +1013,9 @@ class Signal:
 
         ch_regions : list[str]
         -   The regions of the new channels.
+
+        ch_hemispheres : list[str]
+        -   The hemispheres of the new channels.
         """
 
         if self._rereferenced:
@@ -912,6 +1033,7 @@ class Signal:
         for i, channel in enumerate(ch_names):
             self.extra_info["reref_types"][channel] = "none"
             self.extra_info["ch_regions"][channel] = ch_regions[i]
+            self.extra_info["ch_hemispheres"][channel] = ch_hemispheres[i]
 
     def combine_channels(
         self,
@@ -922,6 +1044,7 @@ class Signal:
             list[Union[list[Union[int, float]], None]]
         ] = None,
         ch_regions_new: Optional[list[Union[str, None]]] = None,
+        ch_hemispheres_new: Optional[list[Union[str, None]]] = None,
     ) -> None:
         """Combines the data of multiple channels in the mne.io.Raw object through
         addition and adds this combined data as a new channel.
@@ -956,6 +1079,13 @@ class Signal:
             of the channels being combined. This only works if all channels
             being combined are from the same region.
         -   If None, all regions are determined automatically.
+
+        ch_hemispheres_new : list[str | None] | None; default None
+        -   The hemispheres of the new, combined channels.
+        -   If an entry is None, the hemisphere is determined based on the
+            hemispheres of the channels being combined. This only works if all
+            channels being combined are from the same hemisphere.
+        -   If None, all hemispheres are determined automatically.
         """
 
         if self._epoched:
@@ -969,12 +1099,14 @@ class Signal:
             ch_types_new,
             ch_coords_new,
             ch_regions_new,
+            ch_hemispheres_new,
         ) = self._sort_combination_inputs(
             ch_names_old=ch_names_old,
             ch_names_new=ch_names_new,
             ch_types_new=ch_types_new,
             ch_coords_new=ch_coords_new,
             ch_regions_new=ch_regions_new,
+            ch_hemispheres_new=ch_hemispheres_new,
         )
 
         combined_data = self._combine_channel_data(
@@ -987,6 +1119,7 @@ class Signal:
             ch_types=ch_types_new,
             ch_coords=ch_coords_new,
             ch_regions=ch_regions_new,
+            ch_hemispheres=ch_hemispheres_new,
         )
 
         if self._verbose:
@@ -1022,6 +1155,7 @@ class Signal:
         reref_types: Union[list[Union[str, None]], None],
         ch_coords_new: Union[list[Union[list[realnum], None]], None],
         ch_regions_new: Union[list[Union[str, None]], None],
+        ch_hemispheres_new: Union[list[Union[str, None]], None],
     ) -> tuple[mne.io.Raw, list[str], dict[str], dict[str]]:
         """Applies a rereferencing method to the mne.io.Raw object.
 
@@ -1070,6 +1204,12 @@ class Signal:
         -   If some or all entries are None, regions of the new channels are
             determined based on those they are referenced from.
 
+        ch_hemispheres_new : list[str | None] | None
+        -   The hemispheres of the rereferenced channels channels, corresponding
+            to the channels in 'ch_names_new'.
+        -   If some or all entries are None, hemispheres of the new channels are
+            determined based on those they are referenced from.
+
         RETURNS
         -------
         mne.io.Raw
@@ -1095,6 +1235,7 @@ class Signal:
             reref_types,
             ch_coords_new,
             ch_regions_new,
+            ch_hemispheres_new,
         ).rereference()
 
     def _check_conflicting_channels(
@@ -1215,6 +1356,7 @@ class Signal:
         reref_types: Union[list[Union[str, None]], None],
         ch_coords_new: Union[list[Union[list[realnum], None]], None],
         ch_regions_new: Union[list[Union[str, None]], None],
+        ch_hemispheres_new: Union[list[Union[str, None]], None],
     ) -> list[str]:
         """Parent method for calling on other methods to rereference the data,
         add it to the self mne.io.Raw object, and add the rereferecing
@@ -1261,6 +1403,12 @@ class Signal:
         -   If some or all entries are None, regions of the new channels are
             determined based on those they are referenced from.
 
+        ch_hemispheres_new : list[str | None] | None
+        -   The hemispheres of the rereferenced channels channels, corresponding
+            to the channels in 'ch_names_new'.
+        -   If some or all entries are None, hemispheres of the new channels are
+            determined based on those they are referenced from.
+
         RETURNS
         -------
         ch_names_new : list[str]
@@ -1286,6 +1434,7 @@ class Signal:
             ch_names_new,
             reref_types_dict,
             ch_regions_dict,
+            ch_hemispheres_dict,
         ) = self._apply_rereference(
             reref_method,
             ch_names_old,
@@ -1294,12 +1443,14 @@ class Signal:
             reref_types,
             ch_coords_new,
             ch_regions_new,
+            ch_hemispheres_new,
         )
         self._append_rereferenced_raw(rerefed_raw)
         self._add_rereferencing_info(
             info_to_add={
                 "reref_types": reref_types_dict,
                 "ch_regions": ch_regions_dict,
+                "ch_hemispheres": ch_hemispheres_dict,
             }
         )
 
@@ -1315,6 +1466,7 @@ class Signal:
         reref_types: Union[list[Union[str, None]], None],
         ch_coords_new: Union[list[Union[list[realnum], None]], None],
         ch_regions_new: Union[list[Union[str, None]], None],
+        ch_hemispheres_new: Union[list[Union[str, None]], None],
     ) -> None:
         """Bipolar rereferences channels in the mne.io.Raw object.
 
@@ -1355,6 +1507,12 @@ class Signal:
             the channels in 'ch_names_new'.
         -   If some or all entries are None, regions of the new channels are
             determined based on those they are referenced from.
+
+        ch_hemispheres_new : list[str | None] | None
+        -   The hemispheres of the rereferenced channels channels, corresponding
+            to the channels in 'ch_names_new'.
+        -   If some or all entries are None, hemispheres of the new channels are
+            determined based on those they are referenced from.
         """
 
         ch_names_new = self._rereference(
@@ -1365,6 +1523,7 @@ class Signal:
             reref_types,
             ch_coords_new,
             ch_regions_new,
+            ch_hemispheres_new,
         )
 
         self._rereferenced_bipolar = True
@@ -1387,6 +1546,7 @@ class Signal:
         reref_types: Union[list[Union[str, None]], None],
         ch_coords_new: Union[list[Union[list[realnum], None]], None],
         ch_regions_new: Union[list[Union[str, None]], None],
+        ch_hemispheres_new: Union[list[Union[str, None]], None],
     ) -> None:
         """Common-average rereferences channels in the mne.io.Raw object.
 
@@ -1427,6 +1587,12 @@ class Signal:
             the channels in 'ch_names_new'.
         -   If some or all entries are None, regions of the new channels are
             determined based on those they are referenced from.
+
+        ch_hemispheres_new : list[str | None] | None
+        -   The hemispheres of the rereferenced channels channels, corresponding
+            to the channels in 'ch_names_new'.
+        -   If some or all entries are None, hemispheres of the new channels are
+            determined based on those they are referenced from.
         """
 
         ch_names_new = self._rereference(
@@ -1437,6 +1603,7 @@ class Signal:
             reref_types,
             ch_coords_new,
             ch_regions_new,
+            ch_hemispheres_new,
         )
 
         self._rereferenced_common_average = True
@@ -1460,6 +1627,7 @@ class Signal:
         reref_types: list[str],
         ch_coords_new: Optional[list[Optional[list[realnum]]]],
         ch_regions_new: Union[list[Union[str, None]], None],
+        ch_hemispheres_new: Union[list[Union[str, None]], None],
     ) -> None:
         """Pseudo rereferences channels in the mne.io.Raw object.
         -   This allows e.g. rereferencing types, channel coordinates, etc... to
@@ -1506,6 +1674,12 @@ class Signal:
             the channels in 'ch_names_new'.
         -   If some or all entries are None, regions of the new channels are
             determined based on those they are referenced from.
+
+        ch_hemispheres_new : list[str | None] | None
+        -   The hemispheres of the rereferenced channels channels, corresponding
+            to the channels in 'ch_names_new'.
+        -   If some or all entries are None, hemispheres of the new channels are
+            determined based on those they are referenced from.
         """
 
         ch_names_new = self._rereference(
@@ -1516,6 +1690,7 @@ class Signal:
             reref_types,
             ch_coords_new,
             ch_regions_new,
+            ch_hemispheres_new,
         )
 
         self._rereferenced_pseudo = True
@@ -1719,6 +1894,9 @@ class Signal:
             "ch_coords": self.get_coordinates(),
             "ch_regions": ordered_list_from_dict(
                 self.data.ch_names, self.extra_info["ch_regions"]
+            ),
+            "ch_hemispheres": ordered_list_from_dict(
+                self.data.ch_names, self.extra_info["ch_hemispheres"]
             ),
             "reref_types": ordered_list_from_dict(
                 self.data.ch_names, self.extra_info["reref_types"]

@@ -21,7 +21,7 @@ from typing import Optional
 import mne
 import numpy as np
 from coh_dtypes import realnum
-from coh_exceptions import ChannelTypeError, EntryLengthError
+from coh_exceptions import ChannelAttributeError, EntryLengthError
 from coh_handle_entries import (
     check_lengths_list_equals_n,
     check_lengths_list_identical,
@@ -61,6 +61,7 @@ class Reref(ABC):
         reref_types: Optional[list[Optional[str]]] = None,
         ch_coords_new: Optional[list[Optional[list[realnum]]]] = None,
         ch_regions_new: Optional[list[Optional[str]]] = None,
+        ch_hemispheres_new: Optional[list[Optional[str]]] = None,
     ) -> None:
 
         # Initialises aspects of the Reref object that will be filled with
@@ -71,6 +72,7 @@ class Reref(ABC):
         self._n_channels = None
         self.reref_types = None
         self.ch_regions = None
+        self.ch_hemispheres = None
 
         # Initialises inputs of the Reref object.
         self.raw = raw
@@ -88,6 +90,7 @@ class Reref(ABC):
         self._ch_types_new = ch_types_new
         self._ch_coords_new = ch_coords_new
         self._ch_regions_new = ch_regions_new
+        self._ch_hemispheres_new = ch_hemispheres_new
         self._reref_types = reref_types
         self._sort_inputs()
 
@@ -146,6 +149,7 @@ class Reref(ABC):
                 self._reref_types,
                 self._ch_coords_new,
                 self._ch_regions_new,
+                self._ch_hemispheres_new,
             ],
             ignore_values=[None],
         )
@@ -256,6 +260,22 @@ class Reref(ABC):
         if self._ch_regions_new is None:
             self._ch_regions_new = [None] * self._n_channels
 
+    def _sort_ch_hemispheres_new(self) -> None:
+        """Resolves any missing entries from the channels hemispheres of the new
+        channels, based on the regions of channels they will be rereferenced
+        from."""
+
+        ch_hemispheres_old = [
+            self.raw.ch_hemispheres[ch_name] for ch_name in self._ch_names_old
+        ]
+
+        if self._ch_hemispheres_new is None:
+            self._ch_hemispheres_new = ch_hemispheres_old
+        elif any(item is None for item in self._ch_hemispheres_new):
+            for i, ch_hemisphere in enumerate(self._ch_hemispheres_new):
+                if ch_hemisphere is None:
+                    self._ch_hemispheres_new[i] = ch_hemispheres_old[i]
+
     def _data_from_raw(
         self, raw: mne.io.Raw
     ) -> tuple[np.ndarray, mne.Info, list[str], list[list[realnum]]]:
@@ -320,6 +340,15 @@ class Reref(ABC):
             for i in range(len(self._ch_names_new))
         }
 
+    def _store_ch_hemispheres(self) -> None:
+        """Generates a dictionary of key:value pairs consisting of channel name
+        : channel hemisphere."""
+
+        self.ch_hemispheres = {
+            self._ch_names_new[i]: self._ch_hemispheres_new[i]
+            for i in range(len(self._ch_names_new))
+        }
+
     def _set_data_info(self) -> None:
         """Creates an mne.Info object containing information about the newly
         rereferenced data."""
@@ -349,7 +378,11 @@ class Reref(ABC):
 
         dict[str]
         -   Dictionary containing information about the regions of each new
-            channel, with key:value pairs of channel name : rereference type.
+            channel, with key:value pairs of channel name : region.
+
+        dict[str]
+        -   Dictionary containing information about the hemispheres of each new
+            channel, with key:value pairs of channel name : hemisphere.
         """
 
         self._set_data()
@@ -358,8 +391,15 @@ class Reref(ABC):
         self._raw_from_data()
         self._store_rereference_types()
         self._store_ch_regions()
+        self._store_ch_hemispheres()
 
-        return self.raw, self._ch_names_new, self.reref_types, self.ch_regions
+        return (
+            self.raw,
+            self._ch_names_new,
+            self.reref_types,
+            self.ch_regions,
+            self.ch_hemispheres,
+        )
 
 
 class RerefBipolar(Reref):
@@ -470,7 +510,7 @@ class RerefBipolar(Reref):
                 if len(np.unique(ch_types)) == 1:
                     self._ch_types_new.append(ch_types[0])
                 else:
-                    raise ChannelTypeError(
+                    raise ChannelAttributeError(
                         "Error when trying to bipolar rereference data:\nNo "
                         "channel types of rereferenced channels have been "
                         "specified, and they cannot be generated based on the "
@@ -483,7 +523,7 @@ class RerefBipolar(Reref):
                     if len(np.unique(ch_types_old[i])) == 1:
                         self._ch_types_new.append(ch_types_old[i][0])
                     else:
-                        raise ChannelTypeError(
+                        raise ChannelAttributeError(
                             "Error when trying to bipolar rereference data:\n"
                             "Some channel types of rereferenced channels have "
                             "not been specified, and they cannot be generated "
@@ -530,6 +570,56 @@ class RerefBipolar(Reref):
                 "present, but the rereferencing settings specify otherwise."
             )
 
+    def _sort_ch_hemispheres_new(self) -> None:
+        """Resolves any missing entries from the channels hemispheres of the new
+        channels, based on the types of channels they will be rereferenced from.
+
+        RAISES
+        ------
+        ChannelTypeError
+        -   Raised if two channels which are being rereferenced into a new
+            channel do not have the same channel hemisphere and the hemisphere
+            of this new channel has not been specified.
+        """
+
+        ch_hemispheres_old = []
+        for ch_index in self._ch_index:
+            ch_hemispheres_old.append(
+                np.unique(
+                    [
+                        self.raw.ch_hemispheres[self._ch_names[ch_i]]
+                        for ch_i in ch_index
+                    ]
+                ).tolist()
+            )
+
+        if self._ch_hemispheres_new is None:
+            self._ch_hemispheres_new = []
+            for ch_hemisphere in ch_hemispheres_old:
+                if len(np.unique(ch_hemisphere)) == 1:
+                    self._ch_hemispheres_new.append(ch_hemisphere[0])
+                else:
+                    raise ChannelAttributeError(
+                        "Error when trying to bipolar rereference data:\nNo "
+                        "channel hemispheres of rereferenced channels have "
+                        "been specified, and they cannot be generated based on "
+                        "the channels being rereferenced as they are from "
+                        "different hemispheres."
+                    )
+        elif any(item is None for item in self._ch_hemispheres_new):
+            for i, ch_hemisphere in enumerate(self._ch_hemispheres_new):
+                if ch_hemisphere is None:
+                    if len(np.unique(ch_hemispheres_old[i])) == 1:
+                        self._ch_types_new.append(ch_hemispheres_old[i][0])
+                    else:
+                        raise ChannelAttributeError(
+                            "Error when trying to bipolar rereference data:\n"
+                            "No channel hemispheres of rereferenced channels "
+                            "have been specified, and they cannot be generated "
+                            "based on the channels being rereferenced as they "
+                            "are from different hemispheres."
+                        )
+
     def _sort_inputs(self) -> None:
         """Checks that rereferencing settings are compatible and discards
         rereferencing-irrelevant channels from the data.
@@ -546,6 +636,7 @@ class RerefBipolar(Reref):
         self._sort_reref_types(fill_type="bipolar")
         self._sort_ch_coords_new()
         self._sort_ch_regions_new()
+        self._sort_ch_hemispheres_new()
 
     def _index_old_channels(
         self, ch_names: list[str], reref_ch_names: list[str]
@@ -696,6 +787,7 @@ class RerefCommonAverage(Reref):
         self._sort_reref_types(fill_type="common_average")
         self._sort_ch_coords_new()
         self._sort_ch_regions_new()
+        self._sort_ch_hemispheres_new()
 
     def _set_data(self) -> None:
         """Common-average rereferences the data, subtracting the average of all
@@ -851,6 +943,7 @@ class RerefPseudo(Reref):
         self._sort_reref_types()
         self._sort_ch_coords_new()
         self._sort_ch_regions_new()
+        self._sort_ch_hemispheres_new()
 
     def _set_data(self) -> None:
         """Pseudo rereferences the data, setting the data for each new,

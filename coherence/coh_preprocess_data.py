@@ -115,6 +115,9 @@ def preprocessing(
         data_settings["ch_names"], data_settings["ch_coords"]
     )
     signal.set_regions(data_settings["ch_names"], data_settings["ch_regions"])
+    signal.set_hemispheres(
+        data_settings["ch_names"], data_settings["ch_hemispheres"]
+    )
     if "combine_channels" in data_settings.keys():
         combine_settings = data_settings["combine_channels"]
         signal.combine_channels(
@@ -144,6 +147,7 @@ def preprocessing(
             reref_settings["reref_types"],
             reref_settings["ch_coords_new"],
             reref_settings["ch_regions_new"],
+            reref_settings["ch_hemispheres_new"],
         )
     signal.drop_unrereferenced_channels()
     signal.notch_filter(analysis_settings["line_noise"])
