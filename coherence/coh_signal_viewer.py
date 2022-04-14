@@ -137,8 +137,9 @@ class SignalViewer:
         """Plots the raw signals along with the loaded annotations, if
         applicable."""
 
-        self.signal.data.plot(scalings="auto")
+        self.signal.data.plot(scalings="auto", show=False)
         plt.tight_layout()
+        plt.show(block=True)
 
     def save_annotations(
         self, fpath: str, ask_before_overwrite: bool = True
