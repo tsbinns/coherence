@@ -50,5 +50,3 @@ if __name__ == "__main__":
         ACQUISITION,
         RUN,
     )
-
-    print("my name is jeff")
