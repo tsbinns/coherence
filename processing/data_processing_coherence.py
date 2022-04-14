@@ -52,5 +52,3 @@ if __name__ == "__main__":
         RUN,
         save=True,
     )
-
-    print("my name is jeff")
