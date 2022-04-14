@@ -37,6 +37,9 @@ check_sublist_entries_in_master
 ordered_list_from_dict
 -   Creates a list from entries in a dictionary, sorted based on a given order.
 
+ordered_dict_from_list
+-   Creates a dictionary with keys occuring in a given order.
+
 ragged_array_to_list
 -   Converts a ragged numpy array of nested arrays to a ragged list of nested
     lists.
@@ -499,6 +502,32 @@ def ordered_list_from_dict(list_order: list[str], dict_to_order: dict) -> list:
     """
 
     return [dict_to_order[key] for key in list_order]
+
+
+def ordered_dict_keys_from_list(
+    dict_to_order: dict, keys_order: list[str]
+) -> dict:
+    """Reorders a dictionary so that the keys occur in a given order.
+
+    PARAMETERS
+    ----------
+    dict_to_order : dict
+    -   The dictionary to be ordered.
+
+    keys_order : list[str]
+    -   The order in which the keys should occur in the ordered dictionary.
+
+    RETURNS
+    -------
+    ordered_dict : dict
+    -   The dictionary with keys in a given order.
+    """
+
+    ordered_dict = {}
+    for key in keys_order:
+        ordered_dict[key] = dict_to_order[key]
+
+    return ordered_dict
 
 
 def check_if_ragged(

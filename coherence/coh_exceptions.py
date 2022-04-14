@@ -30,9 +30,9 @@ ChannelOrderError : Exception
 -   Class for raising exceptions/errors associated with lists of channel names
     being in different orders.
 
-ChannelTypeError : Exception
+ChannelAttributeError : Exception
 -   Class for raising exceptions/errors associated with trying to handle
-    channels of different types.
+    channels with different attributes.
 
 InputTypeError : Exception
 -   Class for raising exceptions/errors associated with input objects being of
@@ -93,9 +93,9 @@ class ChannelOrderError(Exception):
     """
 
 
-class ChannelTypeError(Exception):
+class ChannelAttributeError(Exception):
     """Class for raising exceptions/errors associated with trying to handle
-    channels of different types."""
+    channels with different attributes."""
 
 
 class InputTypeError(Exception):
