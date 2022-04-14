@@ -359,6 +359,43 @@ class Signal:
         if self._verbose:
             print(f"Loading the data from the filepath:\n{path_raw}.")
 
+    def _remove_bad_annotations(
+        self,
+    ) -> tuple[mne.annotations.Annotations, int]:
+        """Removes segments annotated as 'bad' from the Annotations object.
+
+        RETURNS
+        -------
+        MNE annotations Annotations
+        -   The annotations with 'bad' segments removed.
+
+        int
+        -   The number of segments annotated as 'bad'.
+        """
+
+        annotations = deepcopy(self.data.annotations)
+        bad_annot_idcs = []
+        for annot_i, annot_name in enumerate(annotations.description):
+            if annot_name[:3] == "BAD":
+                bad_annot_idcs.append(annot_i)
+
+        return annotations.delete(bad_annot_idcs), len(bad_annot_idcs)
+
+    def _remove_bad_segments(self) -> None:
+        """Removes segments annotated as 'bad' from the Raw object."""
+
+        new_annotations, n_bad_segments = self._remove_bad_annotations()
+        new_data = self.data.get_data(reject_by_annotation="omit")
+
+        self.data = mne.io.RawArray(data=new_data, info=self.data.info)
+        self.data.set_annotations(annotations=new_annotations)
+
+        if self._verbose:
+            print(
+                f"Removing {n_bad_segments} segment(s) marked as 'bad' from "
+                "the data."
+            )
+
     def load_annotations(self, path_annots: str) -> None:
         """Loads annotations corresponding to the mne.io.Raw object.
 
@@ -392,8 +429,13 @@ class Signal:
 
         try:
             self.data.set_annotations(mne.read_annotations(path_annots))
+            annotations_present = True
         except:
             print("There are no events to read from the annotations file.")
+            annotations_present = False
+
+        if annotations_present:
+            self._remove_bad_segments()
 
         self._annotations_loaded = True
 
