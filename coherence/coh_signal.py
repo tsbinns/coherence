@@ -191,7 +191,7 @@ class Signal:
 
     def order_channels(self, ch_names: list[str]) -> None:
         """Orders channels in the mne.io.Raw or mne.Epochs object, as well as
-        the 'extra_info_ dictionary, based on a given order.
+        the 'extra_info' dictionary, based on a given order.
 
         PARAMETERS
         ----------
