@@ -285,6 +285,83 @@ def identify_ftype(fpath: str) -> str:
     return fpath[fpath.rfind(".") + 1 :]
 
 
+def nested_changes_list(contents: list, changes: dict) -> None:
+    """Makes changes to the specified values occuring within nested dictionaries
+    of lists of a parent list.
+
+    PARAMETERS
+    ----------
+    contents : list
+    -   The list containing nested dictionaries and lists whose values should be
+        changed.
+
+    changes : dict
+    -   Dictionary specifying the changes to make, with the keys being the
+        values that should be changed, and the values being what the values
+        should be changed to.
+    """
+
+    for value in contents:
+        if isinstance(value, list):
+            nested_changes_list(contents=value, changes=changes)
+        elif isinstance(value, dict):
+            nested_changes_dict(contents=value, changes=changes)
+        else:
+            if value in changes.keys():
+                value = changes[value]
+
+
+def nested_changes_dict(contents: dict, changes: dict) -> None:
+    """Makes changes to the specified values occuring within nested
+    dictionaries or lists of a parent dictionary.
+
+    PARAMETERS
+    ----------
+    contents : dict
+    -   The dictionary containing nested dictionaries and lists whose values
+        should be changed.
+
+    changes : dict
+    -   Dictionary specifying the changes to make, with the keys being the
+        values that should be changed, and the values being what the values
+        should be changed to.
+    """
+
+    for key, value in contents.items():
+        if isinstance(value, list):
+            nested_changes_list(contents=value, changes=changes)
+        elif isinstance(value, dict):
+            nested_changes_dict(contents=value, changes=changes)
+        else:
+            if value in changes.keys():
+                contents[key] = changes[value]
+
+
+def extra_deserialise_json(contents: dict) -> dict:
+    """Performs custom deserialisation on a dictionary loaded from a json file
+    with changes not present in the default deserialisation used in the 'load'
+    method of the 'json' package.
+    -   Current extra changes include: converting "INFINITY" strings into
+        infinity floats.
+
+    PARAMETERS
+    ----------
+    contents : dict
+    -   The contents of the dictionary loaded from a json file.
+
+    RETURNS
+    -------
+    dict
+    -   The contents of the dictionary with additional changes made.
+    """
+
+    deserialise = {"INFINITY": float("inf")}
+
+    nested_changes_dict(contents=contents, changes=deserialise)
+
+    return contents
+
+
 def load_from_json(fpath: str) -> dict:
     """Loads the contents of a json file as a dictionary.
 
@@ -300,11 +377,7 @@ def load_from_json(fpath: str) -> dict:
     """
 
     with open(fpath, encoding="utf8") as file:
-        contents = json.load(file)
-
-    for key, value in contents.items():
-        if value == "INFINITY":
-            contents[key] = float("inf")
+        contents = extra_deserialise_json(contents=json.load(file))
 
     return contents
 
