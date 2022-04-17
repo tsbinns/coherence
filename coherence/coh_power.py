@@ -241,7 +241,7 @@ class PowerMorlet(ProcMethod):
             self._itc_dims_sorted = self.itc_dims
         else:
             self.itc_dims = ["channels", "frequencies", "timepoints"]
-            self._itc_dims_sorted = ["channels", "timepoints", "frequencies"]
+            self._itc_dims_sorted = self.itc_dims
 
     def _get_result(
         self,
@@ -678,6 +678,12 @@ class PowerMorlet(ProcMethod):
             "within_dim": within_dim,
             "exclude_line_noise_window": exclude_line_noise_window,
         }
+        if self._verbose:
+            print(
+                f"Normalising results with type {norm_type} on the "
+                f"{within_dim} dimension using a line noise exclusion window "
+                f"of {exclude_line_noise_window} Hz."
+            )
 
     def save_object(
         self,
@@ -707,31 +713,23 @@ class PowerMorlet(ProcMethod):
             verbose=self._verbose,
         )
 
-    def _get_results_dict(
-        self, data: list, data_dimensions: list[str], data_name: str
-    ) -> dict:
-        """Organises the results into a dictionary.
-
-        PARAMETERS
-        ----------
-        data : list
-        -   The results of the processing.
-
-        data_dimensions : list[str]
-        -   Names of the axes of the results in 'data'.
-
-        data_name : str
-        -   The name of the results of the processing being organised.
+    def _get_power_results_dict(self) -> dict:
+        """Organises the power results into a dictionary.
 
         RETURNS
         -------
-        dict
+        results : dict
         -   The organised results.
         """
 
-        return {
-            f"{data_name}": data,
-            f"{data_name}_dimensions": data_dimensions,
+        power = self._prepare_results_for_saving(
+            self.power.data,
+            results_dims=self.power_dims,
+            rearrange=self._power_dims_sorted,
+        )
+        results = {
+            "power_morlet": power,
+            "power_morlet_dimensions": self._power_dims_sorted,
             "freqs": self.power.freqs.tolist(),
             "ch_names": self.signal.data.ch_names,
             "ch_types": self.signal.data.get_channel_types(),
@@ -750,6 +748,46 @@ class PowerMorlet(ProcMethod):
             "processing_steps": self.processing_steps,
             "subject_info": self.signal.data.info["subject_info"],
         }
+
+        return results
+
+    def _get_itc_results_dict(self) -> dict:
+        """Organises the inter-trial coherence results into a dictionary.
+
+        RETURNS
+        -------
+        results : dict
+        -   The organised results.
+        """
+
+        itc = self._prepare_results_for_saving(
+            self.itc.data,
+            results_dims=self.itc_dims,
+            rearrange=self._itc_dims_sorted,
+        )
+        results = {
+            "itc_morlet": itc,
+            "itc_morlet_dimensions": self._itc_dims_sorted,
+            "freqs": self.power.freqs.tolist(),
+            "ch_names": self.signal.data.ch_names,
+            "ch_types": self.signal.data.get_channel_types(),
+            "ch_coords": self.signal.get_coordinates(),
+            "ch_regions": ordered_list_from_dict(
+                self.power.ch_names, self.extra_info["ch_regions"]
+            ),
+            "ch_hemispheres": ordered_list_from_dict(
+                self.power.ch_names, self.extra_info["ch_hemispheres"]
+            ),
+            "reref_types": ordered_list_from_dict(
+                self.power.ch_names, self.extra_info["reref_types"]
+            ),
+            "samp_freq": self.signal.data.info["sfreq"],
+            "metadata": self.extra_info["metadata"],
+            "processing_steps": self.processing_steps,
+            "subject_info": self.signal.data.info["subject_info"],
+        }
+
+        return results
 
     def save_results(
         self,
@@ -821,18 +859,8 @@ class PowerMorlet(ProcMethod):
                 "and in the results do not match."
             )
 
-        power = self._prepare_results_for_saving(
-            self.power.data,
-            results_dims=self.power_dims,
-            rearrange=self._power_dims_sorted,
-        )
-        power_to_save = self._get_results_dict(
-            data=power,
-            data_dimensions=self._power_dims_sorted,
-            data_name="power_morlet",
-        )
         self._save_results(
-            to_save=power_to_save,
+            to_save=self._get_power_results_dict(),
             fpath=fpath_power,
             ftype=ftype_power,
             ask_before_overwrite=ask_before_overwrite,
@@ -840,16 +868,6 @@ class PowerMorlet(ProcMethod):
         )
 
         if self._itc_returned:
-            itc = self._prepare_results_for_saving(
-                self.itc.data,
-                results_dims=self.itc_dims,
-                rearrange=self._itc_dims_sorted,
-            )
-            itc_to_save = self._get_results_dict(
-                data=itc,
-                data_dimensions=self._itc_dims_sorted,
-                data_name="itc_morlet",
-            )
             if fpath_itc is None:
                 raise TypeError(
                     "Error when trying to save the inter-trial coherence "
@@ -857,7 +875,7 @@ class PowerMorlet(ProcMethod):
                     "been provided."
                 )
             self._save_results(
-                to_save=itc_to_save,
+                to_save=self._get_itc_results_dict(),
                 fpath=fpath_itc,
                 ftype=ftype_itc,
                 ask_before_overwrite=ask_before_overwrite,
@@ -898,29 +916,9 @@ class PowerMorlet(ProcMethod):
             )
 
         results = []
-
-        power = self._prepare_results_for_saving(
-            self.power.data,
-            results_dims=self.power_dims,
-            rearrange=self._power_dims_sorted,
-        )
-        power_results = self._get_results_dict(
-            data=power,
-            data_dimensions=self._power_dims_sorted,
-            data_name="power_morlet",
-        )
-
+        power_results = self._get_power_results_dict()
         if self._itc_returned:
-            itc = self._prepare_results_for_saving(
-                self.itc.data,
-                results_dims=self.itc_dims,
-                rearrange=self._itc_dims_sorted,
-            )
-            itc_results = self._get_results_dict(
-                data=itc,
-                data_dimensions=self._itc_dims_sorted,
-                data_name="itc_morlet",
-            )
+            itc_results = self._get_itc_results_dict()
             results = [power_results, itc_results]
         else:
             results = power_results
