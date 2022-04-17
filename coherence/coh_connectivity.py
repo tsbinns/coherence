@@ -112,6 +112,10 @@ class ConnectivityCoherence(ProcMethod):
 
         super()._sort_inputs()
 
+        self.extra_info["epoch_orders"] = {
+            ch_name: "original" for ch_name in self.signal.data.ch_names
+        }
+
     def _generate_indices(self) -> None:
         """Generates MNE-readable indices for calculating connectivity between
         signals."""
@@ -567,6 +571,10 @@ class ConnectivityCoherence(ProcMethod):
             self.extra_info["ch_regions"][shuffled_name] = self.extra_info[
                 "ch_regions"
             ][name]
+            self.extra_info["ch_hemispheres"][shuffled_name] = self.extra_info[
+                "ch_hemispheres"
+            ][name]
+            self.extra_info["epoch_orders"][shuffled_name] = "shuffled"
 
     def _sort_shuffled_results(
         self, results: SpectroTemporalConnectivity
@@ -595,7 +603,7 @@ class ConnectivityCoherence(ProcMethod):
             )
 
         (
-            all_indices,
+            _,
             shuffled_indices,
         ) = self._find_channel_indices_in_names(channel_names=results.names)
 
@@ -845,6 +853,78 @@ class ConnectivityCoherence(ProcMethod):
 
         return node_ch_regions
 
+    def _generate_node_ch_hemispheres(
+        self, node_ch_names: list[list[str]]
+    ) -> list[list[str]]:
+        """Gets the hemispheres of channels in the connectivity results.
+
+        PARAMETERS
+        ----------
+        node_ch_names : list[list[str]]
+        -   List containing two sublists consisting of the channel names of the
+            seeds and targets, respectively, for each node in the connectivity
+            results.
+
+        RETURNS
+        -------
+        node_ch_hemispheres : list[list[str]]
+        -   List containing two sublists consisting of the hemispheres of the
+            seeds and targets, respectively, for each node in the connectivity
+            results.
+        """
+
+        node_ch_hemispheres = [[], []]
+
+        for group_i in range(2):
+            node_ch_hemispheres[group_i] = ordered_list_from_dict(
+                list_order=node_ch_names[group_i],
+                dict_to_order=self.extra_info["ch_hemispheres"],
+            )
+
+        return node_ch_hemispheres
+
+    def _generate_node_epoch_orders(
+        self, node_ch_names: list[list[str]]
+    ) -> list[list[str]]:
+        """Gets the epoch orders of channels in the connectivity results.
+
+        PARAMETERS
+        ----------
+        node_ch_names : list[list[str]]
+        -   List containing two sublists consisting of the channel names of the
+            seeds and targets, respectively, for each node in the connectivity
+            results.
+
+        RETURNS
+        -------
+        node_epoch_orders : list[str]
+        -   List containing the epoch orders of the seeds and targets for each
+            node in the connectivity results. If either the seed or target has
+            a 'shuffled' epoch order, the epoch order of the node is 'shuffled',
+            otherwise it is 'original'.
+        """
+
+        seed_epoch_orders = ordered_list_from_dict(
+            list_order=node_ch_names[0],
+            dict_to_order=self.extra_info["epoch_orders"],
+        )
+        target_epoch_orders = ordered_list_from_dict(
+            list_order=node_ch_names[1],
+            dict_to_order=self.extra_info["epoch_orders"],
+        )
+
+        node_epoch_orders = []
+        for node_i in range(len(seed_epoch_orders)):
+            if (
+                seed_epoch_orders[node_i] == "original"
+                and target_epoch_orders[node_i] == "original"
+            ):
+                node_epoch_orders.append("original")
+            else:
+                node_epoch_orders.append("shuffled")
+
+        return node_epoch_orders
+
     def _generate_extra_info(self) -> None:
         """Generates additional information related to the connectivity
         analysis, including: the node channel indices as channel names; the
@@ -863,6 +943,14 @@ class ConnectivityCoherence(ProcMethod):
             node_ch_names=self.extra_info["node_ch_names"]
         )
         self.extra_info["node_ch_regions"] = self._generate_node_ch_regions(
+            node_ch_names=self.extra_info["node_ch_names"]
+        )
+        self.extra_info[
+            "node_ch_hemispheres"
+        ] = self._generate_node_ch_hemispheres(
+            node_ch_names=self.extra_info["node_ch_names"]
+        )
+        self.extra_info["node_epoch_orders"] = self._generate_node_epoch_orders(
             node_ch_names=self.extra_info["node_ch_names"]
         )
 
@@ -1171,12 +1259,15 @@ class ConnectivityCoherence(ProcMethod):
             "seed_types": self.extra_info["node_ch_types"][0],
             "seed_coords": self.extra_info["node_ch_coords"][0],
             "seed_regions": self.extra_info["node_ch_regions"][0],
+            "seed_hemispheres": self.extra_info["node_ch_hemispheres"][0],
             "seed_reref_types": self.extra_info["node_reref_types"][0],
             "target_names": self.extra_info["node_ch_names"][1],
             "target_types": self.extra_info["node_ch_types"][1],
             "target_coords": self.extra_info["node_ch_coords"][1],
             "target_regions": self.extra_info["node_ch_regions"][1],
+            "target_hemispheres": self.extra_info["node_ch_hemispheres"][1],
             "target_reref_types": self.extra_info["node_reref_types"][1],
+            "node_epoch_orders": self.extra_info["node_epoch_orders"],
             "samp_freq": self.signal.data.info["sfreq"],
             "metadata": self.extra_info["metadata"],
             "processing_steps": self.processing_steps,
