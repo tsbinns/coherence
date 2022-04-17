@@ -356,7 +356,7 @@ class Reref(ABC):
         self._new_data_info = mne.create_info(
             self._ch_names_new, self._data_info["sfreq"], self._ch_types_new
         )
-        add_info = ["experimenter", "line_freq", "description"]
+        add_info = ["experimenter", "line_freq", "description", "subject_info"]
         for key in add_info:
             self._new_data_info[key] = self._data_info[key]
 
