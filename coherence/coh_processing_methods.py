@@ -11,10 +11,12 @@ import json
 import pickle
 from abc import ABC, abstractmethod
 from copy import deepcopy
+from numpy.typing import NDArray
 from typing import Union
 import numpy as np
 import coh_signal
 from coh_exceptions import (
+    EntryLengthError,
     MissingFileExtensionError,
     UnavailableProcessingError,
     UnidenticalEntryError,
@@ -311,3 +313,136 @@ class ProcMethod(ABC):
 
             if verbose:
                 print(f"Saving the analysis results to:\n'{fpath}'.")
+
+
+def get_freq_band_results_of_channels(
+    freqs: list[Union[int, float]],
+    freq_bands: list[list[Union[int, float]]],
+    results: Union[list[list[Union[int, float]]], NDArray],
+) -> tuple[
+    list[list[Union[int, float]]],
+    list[list[Union[int, float]]],
+    list[list[Union[int, float]]],
+]:
+    """Calculates the results averaged across specified frequency bands for
+    multiple channels of data.
+
+    PARAMETERS
+    ----------
+    freqs : list[int | float]
+    -   The frequencies, in Hz, in the results.
+
+    freq_bands : list[list[int | float]]
+    -   The frequency bands to process.
+    -   Each entry is a list containing the lower and upper bounds of the
+        frequency bands to analyse, in Hz.
+
+    results : list[list[int | float]] | numpy array
+    -   The results to process, consisting of a list of lists, where each
+        list corresponds to the results of a single channel, of which each
+        element corresponds to the frequencies in 'freqs'.
+
+    RETURNS
+    -------
+    freq_bands_avg : list[int | float]
+    -   The average values in each frequency band.
+
+    freq_bands_max : list[int | float]
+    -   The maximum values in each frequency band.
+
+    freq_bands_max_freq : list[int | float]
+    -   The frequencies at which the maximum values in each frequency band
+        occur.
+    """
+
+    freq_bands_avg = []
+    freq_bands_max = []
+    freq_bands_max_freq = []
+
+    for ch_results in results:
+        avg_vals, max_vals, max_freq_vals = get_freq_band_results_of_channel(
+            freqs=freqs, freq_bands=freq_bands, results=ch_results
+        )
+        freq_bands_avg.append(avg_vals)
+        freq_bands_max.append(max_vals)
+        freq_bands_max_freq.append(max_freq_vals)
+
+    return freq_bands_avg, freq_bands_max, freq_bands_max_freq
+
+
+def get_freq_band_results_of_channel(
+    freqs: list[Union[int, float]],
+    freq_bands: list[list[Union[int, float]]],
+    results: Union[list[Union[int, float]], NDArray],
+) -> tuple[
+    list[Union[int, float]],
+    list[Union[int, float]],
+    list[Union[int, float]],
+]:
+    """Calculates the results averaged across specified frequency bands for
+    a single channel of data.
+
+    PARAMETERS
+    ----------
+    freqs : list[int | float]
+    -   The frequencies, in Hz, in the results.
+
+    results : list[int | float] | numpy array
+    -   The results to process. Can be one- or multi-dimensional.
+    -   If multi-dimensional, the 0th axis is assumed to correspond to the
+        frequencies in 'freqs'.
+
+    freq_bands : list[list[int | float]]
+    -   The frequency bands to process.
+    -   Each entry is a list containing the lower and upper bounds of the
+        frequency bands to analyse, in Hz.
+
+    RETURNS
+    -------
+    freq_bands_avg : list[int | float]
+    -   The average values in each frequency band.
+
+    freq_bands_max : list[int | float]
+    -   The maximum values in each frequency band.
+
+    freq_bands_max_freq : list[int | float]
+    -   The frequencies at which the maximum values in each frequency band
+        occur.
+
+    RAISES
+    ------
+    EntryLengthError
+    -   Raised if the length of the 0th axis of 'results' is not equal to the
+        number of frequencies in 'freqs'.
+    """
+
+    if np.shape(results)[0] != len(freqs):
+        raise EntryLengthError(
+            "Error when trying to calculate the results within frequency "
+            "bands:\nThe 0th axis of the results (length: "
+            f"{np.shape(results[0])}) must correspond to the frequencies "
+            f"(length: {len(freqs)})."
+        )
+
+    freq_bands_avg = []
+    freq_bands_max = []
+    freq_bands_max_freq = []
+
+    for band in freq_bands:
+        try:
+            band_idcs = [freqs.index(freq) for freq in band]
+        except:
+            raise ValueError(
+                "Error when trying to calculate the frequency band results:\n"
+                f"The frequency band {band_idcs} is not present in the results "
+                f"with frequency range [{freqs[0]}, {freqs[-1]}]."
+            )
+
+        band_values = results[band_idcs[0] : band_idcs[1] + 1].tolist()
+        freq_bands_avg.append(float(np.mean(band_values)))
+        freq_bands_max.append(float(np.max(band_values)))
+        freq_bands_max_freq.append(
+            freqs[band_values.index(freq_bands_max[-1]) + band_idcs[0]]
+        )
+
+    return freq_bands_avg, freq_bands_max, freq_bands_max_freq
