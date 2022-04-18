@@ -241,7 +241,13 @@ class PostProcess:
         """
 
         for entry in discard_entries:
-            del results[entry]
+            if entry in results.keys():
+                del results[entry]
+            else:
+                print(
+                    f"The '{entry}' attribute is not present in the results "
+                    "dictionary, so cannot be deleted."
+                )
 
         return results
 
@@ -828,7 +834,7 @@ def load_results_of_types(
 
     RETURNS
     -------
-    results : PostProcess
+    all_results : PostProcess
     -   The results merged across the specified result types.
     """
 
@@ -851,7 +857,7 @@ def load_results_of_types(
                 allow_missing=allow_missing,
             )
 
-    return results
+    return all_results
 
 
 def load_results_of_type(
