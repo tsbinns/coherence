@@ -7,7 +7,7 @@ from pathlib import Path
 
 cd_path = Path(__file__).absolute().parent.parent
 sys.path.append(os.path.join(cd_path, "coherence"))
-from coh_preprocess_data import preprocessing_for_annotating
+from coh_preprocess_data import preprocessing
 from coh_view_data import annotate_data
 
 
@@ -18,9 +18,9 @@ FOLDERPATH_DATA = (
 )
 FOLDERPATH_EXTRAS = "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN"
 DATASET = "BIDS_Berlin_ECOG_LFP"
-ANALYSIS = "ECOG-LFP_coherence"
+ANALYSIS = "ECOG-LFP_coherence-annotations_processing"
 SUBJECT = "001"
-SESSION = "EcogLfpMedOff01"
+SESSION = "EcogLfpMedOn02"
 TASK = "Rest"
 ACQUISITION = "StimOff"
 RUN = "1"
@@ -28,7 +28,7 @@ RUN = "1"
 
 if __name__ == "__main__":
 
-    preprocessed = preprocessing_for_annotating(
+    preprocessed = preprocessing(
         FOLDERPATH_DATA,
         FOLDERPATH_EXTRAS,
         DATASET,
