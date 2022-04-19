@@ -241,7 +241,7 @@ class Reref(ABC):
         if self._ch_coords_new is None:
             self._ch_coords_new = ch_coords_old
         elif any(item is None for item in self._ch_coords_new):
-            for i, ch_coords in self._ch_coords_new:
+            for i, ch_coords in enumerate(self._ch_coords_new):
                 if ch_coords is None:
                     self._ch_coords_new[i] = ch_coords_old[i]
 
@@ -254,11 +254,19 @@ class Reref(ABC):
 
     def _sort_ch_regions_new(self) -> None:
         """Resolves any missing entries from the channels regions of the new
-        channels, setting missing entries to None (as these cannot yet be
-        determined based on coordinates)."""
+        channels, based on the regions of channels they will be rereferenced
+        from."""
+
+        ch_regions_old = [
+            self.raw.ch_regions[ch_name] for ch_name in self._ch_names_old
+        ]
 
         if self._ch_regions_new is None:
-            self._ch_regions_new = [None] * self._n_channels
+            self._ch_regions_new = ch_regions_old
+        elif any(item is None for item in self._ch_regions_new):
+            for i, ch_region in enumerate(self._ch_regions_new):
+                if ch_region is None:
+                    self._ch_regions_new[i] = ch_regions_old[i]
 
     def _sort_ch_hemispheres_new(self) -> None:
         """Resolves any missing entries from the channels hemispheres of the new
@@ -557,7 +565,7 @@ class RerefBipolar(Reref):
                 for i in range(self._n_channels)
             ]
         elif any(item is None for item in self._ch_coords_new):
-            for i, ch_coords in self._ch_coords_new:
+            for i, ch_coords in enumerate(self._ch_coords_new):
                 if ch_coords is None:
                     self._ch_coords_new[i] = np.around(
                         np.mean(ch_coords_old[i], axis=0), 2
@@ -569,6 +577,14 @@ class RerefBipolar(Reref):
                 "Three, and only three coordinates (x, y, and z) must be "
                 "present, but the rereferencing settings specify otherwise."
             )
+
+    def _sort_ch_regions_new(self) -> None:
+        """Resolves any missing entries from the channels regions of the new
+        channels, setting missing entries to None (as these cannot yet be
+        determined based on coordinates)."""
+
+        if self._ch_regions_new is None:
+            self._ch_regions_new = [None] * self._n_channels
 
     def _sort_ch_hemispheres_new(self) -> None:
         """Resolves any missing entries from the channels hemispheres of the new
@@ -912,22 +928,6 @@ class RerefPseudo(Reref):
                 "new channel must be specified, there can be no missing entries"
                 "."
             )
-
-    def _sort_ch_regions_new(self) -> None:
-        """Resolves any missing entries from the channels regions of the new
-        channels, based on the regions of channels they will be rereferenced
-        from."""
-
-        ch_regions_old = [
-            self.raw.ch_regions[ch_name] for ch_name in self._ch_names_old
-        ]
-
-        if self._ch_regions_new is None:
-            self._ch_regions_new = ch_regions_old
-        elif any(item is None for item in self._ch_regions_new):
-            for i, ch_region in enumerate(self._ch_regions_new):
-                if ch_region is None:
-                    self._ch_regions_new[i] = ch_regions_old[i]
 
     def _sort_inputs(self) -> None:
         """Checks that rereferencing settings are compatible and discards
