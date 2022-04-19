@@ -6,14 +6,14 @@ coherence_analysis
 -   Analyses coherence results.
 """
 
-from collections import OrderedDict
+from coh_handle_entries import drop_from_list
 from coh_process_results import load_results_of_types
 
 
 def coherence_analysis(
     results_folderpath: str,
     to_analyse: dict[str],
-    analysis_steps: OrderedDict,
+    analysis_steps: list[list],
     result_types: list[str] = ["connectivity-coh", "connectivity-imcoh"],
 ) -> None:
     """Analyses coherence results.
@@ -28,14 +28,15 @@ def coherence_analysis(
     -   Contains the keys: 'sub' (subject ID); 'ses' (session name); 'task'
         (task name); 'acq' (acquisition type); and 'run' (run number).
 
-    analysis_steps : OrderedDict
-    -   Instructions for how to analyse the results. Each key should be the type
-        of processing to apply to the results, with the entry declaring the
-        attributes of the results to apply this processing to.
-    -   The order in which the entries occur is the order in which the
-        processing will be applied.
-    -   E.g. {"average": "run", "average": "session", "average": "subject"}
-        would average the results across runs, then sessions, then subjects.
+    analysis_steps : list[list]
+    -   Instructions for how to analyse the results.
+    -   Each entry should be a list with three entries, where: the first is the
+        type of processing to apply; the second is the attribute of the results
+        to apply this to; and the third specifies which values selected in the
+        second entry should be processed.
+    -   E.g. ["average", "runs", "ALL"] would average the results across all
+        runs. ["average", "ch_types", ["dbs"]] would average the results across
+        all channels of type 'dbs'.
 
     result_types : list[str]
     -   The types of results to analyse. Includes coherence and the imaginary
@@ -49,8 +50,7 @@ def coherence_analysis(
     discard_entries = [
         "samp_freq",
         "subject_info",
-        "coh_dimensions",
-        "imcoh_dimensions",
+        *[f"{results_type}_dimensions" for results_type in result_types],
     ]
 
     results = load_results_of_types(
@@ -62,7 +62,23 @@ def coherence_analysis(
         discard_entries=discard_entries,
     )
 
-    for analysis, attribute in analysis_steps.items():
-        print("jeff")
-        # if analysis == "average":
-        # results.average(over_keys=attribute, data_keys=, group_keys=, identical_keys=)
+    identical_keys = ["freqs", "seed_coords", "target_coords"]
+    var_measures = ["sem"]
+    for analysis in analysis_steps:
+        method = analysis[0]
+        attribute = analysis[1]
+        entries = analysis[2]
+
+        group_keys = drop_from_list(
+            obj=results.as_df().keys(),
+            drop=[attribute, *result_types, *identical_keys],
+        )
+
+        if method == "average":
+            results.average(
+                over_key=attribute,
+                group_keys=group_keys,
+                over_entries=entries,
+                identical_keys=identical_keys,
+                var_measures=var_measures,
+            )

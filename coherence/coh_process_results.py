@@ -17,10 +17,11 @@ load_results_of_type
 """
 
 from copy import deepcopy
-from typing import Optional, Union
+from typing import Any, Optional, Union
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
+from scipy import stats
 from coh_handle_files import generate_results_fpath, load_file
 
 from coh_exceptions import (
@@ -29,6 +30,8 @@ from coh_exceptions import (
     InputTypeError,
     MissingEntryError,
     PreexistingAttributeError,
+    UnavailableProcessingError,
+    UnidenticalEntryError,
 )
 from coh_handle_entries import check_lengths_list_identical
 
@@ -59,6 +62,14 @@ class PostProcess:
     discard_entries : list[str] | None; default None
     -   The entries which should be discarded immediately without processing.
 
+    freq_bands : dict | None; default None
+    -   Dictionary containing the frequency bands whose results should also be
+        calculated.
+    -   Each key is the name of the frequency band, and each value is a list of
+        numbers representing the lower- and upper-most boundaries of the
+        frequency band, respectively, in the frequency units present in the
+        results.
+
     METHODS
     -------
     average
@@ -82,6 +93,8 @@ class PostProcess:
         extract_from_dicts: Optional[dict[list[str]]] = None,
         identical_entries: Optional[list[str]] = None,
         discard_entries: Optional[list[str]] = None,
+        freq_bands: Optional[dict] = None,
+        verbose: bool = True,
     ) -> None:
 
         # Initialises inputs of the object.
@@ -91,10 +104,13 @@ class PostProcess:
             identical_entries=identical_entries,
             discard_entries=discard_entries,
         )
+        self._results = self._results_to_df(results=results)
+        self._fbands = freq_bands
+        self._verbose = verbose
 
         # Initialises aspects of the object that will be filled with information
         # as the data is processed.
-        self._results = self._results_to_df(results=results)
+        self._var_measures = None
 
     def _check_input_entry_lengths(
         self, results: dict, identical_entries: Union[list[str], None]
@@ -615,8 +631,8 @@ class PostProcess:
                     "'allow_missing' set to 'False':\nThe shared columns of "
                     "the DataFrames being merged do not have identical values "
                     "in the other DataFrame, leading to "
-                    f"{len(results_1.index)-len(test_merge.index)} row(s) "
-                    "being excluded from the merged DataFrame.\nIf you still "
+                    f"{len(test_merge.index)-len(results_1.index)} new row(s) "
+                    "being included in the merged DataFrame.\nIf you still "
                     "want to merge these results, set 'allow_missing' to "
                     "'True'."
                 )
@@ -783,6 +799,382 @@ class PostProcess:
 
         return self._results
 
+    def _check_identical_keys(
+        self, indices: list[list[int]], keys: list[str]
+    ) -> None:
+        """Checks that the values for keys marked as identical are.
+
+        PARAMETERS
+        ----------
+        indices : list[list[int]]
+        -   The indices whose values should be checked.
+        -   Each entry is a list of integers corresponding to the indices of
+            the results to compare.
+
+        keys : list[str]
+        -   The names of the attributes of the data whose values should be
+            compared
+
+        RAISES
+        ------
+        UnidenticalEntryError
+        -   Raised if the values being compared for any of the keys and indices
+            are not identical.
+        """
+
+        for key in keys:
+            for idcs in indices:
+                if len(idcs) > 1:
+                    for entry_i, idx in enumerate(idcs):
+                        if entry_i == 0:
+                            compare_against = self._results[key][idx]
+                        else:
+                            if self._results[key][idx] != compare_against:
+                                raise UnidenticalEntryError(
+                                    "Error when checking that the attributes "
+                                    "of results belonging to the same group "
+                                    "share the same values:\nThe values of "
+                                    f"'{key}' in rows {idcs[0]} and {idx} do "
+                                    "not match."
+                                )
+
+    def _get_indices_to_process(
+        self,
+        unique_entry_idcs: list[list[int]],
+        over_key: str,
+        over_entries: list,
+    ) -> list[list[int]]:
+        """Gets the unique indices of nodes in the results that should be
+        processed.
+
+        PARAMETERS
+        ----------
+        unique_entry_idcs : list[list[int]]
+        -   Indices of each unique set of nodes in the results.
+
+        over_key : str
+        -   Name of the attribute in the results to process over.
+
+        over_entries : list
+        -   The values of the 'over_key' attribute in the results to process.
+        -   Indices without 'over_entries' values in the 'over_key' attribute
+            of the results are not included in the indices to process.
+
+        RETURNS
+        -------
+        entry_idcs_to_process : list[list[int]]
+        -   Unique indices of nodes in the results that should be processed.
+        """
+
+        entry_idcs_to_process = []
+        for idcs in unique_entry_idcs:
+            process_idcs = [
+                idx
+                for idx in idcs
+                if self._results[over_key][idx] in over_entries
+            ]
+            if process_idcs != []:
+                entry_idcs_to_process.append(process_idcs)
+
+        return entry_idcs_to_process
+
+    def _get_combined_entries(self, group_keys: list[str]) -> list[str]:
+        """Combines the values of the data for each node.
+
+        PARAMETERS
+        ----------
+        group_keys : list[str]
+        -   Names of the attributes in the results whose values will be
+            combined.
+
+        RETURNS
+        -------
+        combined_entries : list[str]
+        -   Combined values of all requested attributes in the results, with
+            each entry corresponding to the values of each node in the results.
+        """
+
+        combined_entries = []
+        for row_i in range(len(self._results.index)):
+            combined_entries.append("")
+            for key in group_keys:
+                combined_entries[row_i] += str(self._results[key][row_i])
+
+        return combined_entries
+
+    def _get_unique_indices(
+        self, combined_entries: list[str]
+    ) -> list[list[int]]:
+        """Gets the indices of each unique set of nodes in the results,
+        corresponding to the sets of results that will be processed together.
+
+        PARAMETERS
+        ----------
+        combined_entries : list[str]
+        -   Combined values of attributes in the results, with
+            each entry corresponding to the values of each node in the results.
+
+        RETURNS
+        -------
+        unique_entry_idcs : list[list[int]]
+        -   Indices of each unique set of nodes in the results.
+        """
+
+        unique_entries = np.unique(combined_entries).tolist()
+        unique_entry_idcs = []
+        for unique_entry in unique_entries:
+            unique_entry_idcs.append([])
+            for entry_i, combined_entry in enumerate(combined_entries):
+                if unique_entry == combined_entry:
+                    unique_entry_idcs[-1].append(entry_i)
+
+        return unique_entry_idcs
+
+    def _populate_columns(
+        self,
+        attributes: list[str],
+        fill: Optional[Any] = None,
+    ) -> None:
+        """Creates placeholder columns to add to the results DataFrame.
+
+        PARAMETERS
+        ----------
+        attributes : list[str]
+        -   Names of the columns to add.
+
+        fill : Any; default None
+        -   Placeholder values in the columns.
+        """
+
+        for attribute in attributes:
+            self._results[attribute] = [deepcopy(fill)] * len(
+                self._results.index
+            )
+
+    def _get_process_keys(self, exclude_keys: list[str]) -> list[str]:
+        """Gets the attributes of the results to process.
+
+        PARAMETERS
+        ----------
+        exclude_keys : list[str]
+        -   Attributes of the results to exclude.
+
+        RETURNS
+        -------
+        process_keys : list[str]
+        -   Attributes of the results to process.
+        """
+
+        process_keys = [
+            key for key in self._results.keys() if key not in exclude_keys
+        ]
+
+        if self._var_measures:
+            process_keys = [
+                key for key in process_keys if key not in self._var_measures
+            ]
+
+        return process_keys
+
+    def _prepare_var_measures(
+        self, measures: list[str], process_keys: list[str]
+    ) -> None:
+        """Prepares for the calculation of variabikity measures, checking that
+        the required attributes are present in the data (adding them if not)
+        and checking that the requested measure is supported.
+
+        PARAMETERS
+        ----------
+        measures : list[str]
+        -   Types of measures to compute.
+        -   Supported types are: 'std' for standard deviation; and 'sem' for
+            standard error of the mean.
+
+        process_keys : list[str]
+        -   Attributes of the results to calculate variability measures for.
+
+        RAISES
+        ------
+        UnavailableProcessingError
+        -   Raised if a requested variability measure is not suppoerted.
+        """
+
+        supported_measures = ["std", "sem"]
+        for measure in measures:
+            if measure not in supported_measures:
+                raise UnavailableProcessingError(
+                    "Error when calculating variability measures of the "
+                    f"averaged data:\nComputing the measure '{measure}' is "
+                    "not supported. Supported measures are: "
+                    f"{supported_measures}"
+                )
+
+        if not self._var_measures:
+            var_columns = []
+            for measure in measures:
+                for key in process_keys:
+                    var_columns.append(f"{key}_{measure}")
+            self._populate_columns(attributes=var_columns)
+
+    def _compute_var_measures(
+        self,
+        measures: list[str],
+        process_entry_idcs: list[list[int]],
+        process_keys: list[str],
+    ) -> None:
+        """Computes the variability measures over the unique node indices.
+
+        PARAMETERS
+        ----------
+        measures : list[str]
+        -   Types of variabilty measures to compute.
+        -   Supported types are: 'std' for standard deviation; and 'sem' for
+            standard error of the mean.
+
+        process_entry_indices : list[list[int]]
+        -   Unique indices of nodes in the results that should be processed.
+
+        process_keys : list[str]
+        -   Attributes of the results to calculate variability measures for.
+        """
+
+        self._prepare_var_measures(measures=measures, process_keys=process_keys)
+
+        for measure in measures:
+            for key in process_keys:
+                results_name = f"{key}_{measure}"
+                for idcs in process_entry_idcs:
+                    if len(idcs) > 1:
+                        entries = [self._results[key][idx] for idx in idcs]
+                        if measure == "std":
+                            value = np.std(entries, axis=0)
+                        elif measure == "sem":
+                            value = stats.sem(entries, axis=0)
+                        self._results[results_name][idcs[0]] = value
+        self._var_measures = measures
+
+        if self._verbose:
+            print(
+                "Computing the following variability measures for the "
+                f"processed data: {measures}"
+            )
+
+    def _compute_average(
+        self,
+        average_entry_idcs: list[list[int]],
+        over_key: str,
+        average_keys: list[str],
+    ) -> None:
+        """Computes the average results over the unique node indices.
+
+        PARAMETERS
+        ----------
+        average_entry_indices : list[list[int]]
+        -   Unique indices of nodes in the results that should be processed.
+
+        over_key : str
+        -   The attribute of the results to average over.
+
+        average_keys : list[str]
+        -   Attributes of the results to average.
+        """
+
+        drop_idcs = []
+        for idcs in average_entry_idcs:
+            if len(idcs) > 1:
+                for key in average_keys:
+                    entries = [self._results[key][idx] for idx in idcs]
+                    self._results[key][idcs[0]] = np.mean(entries, axis=0)
+                drop_idcs.extend(idcs[1:])
+            self._results[over_key][
+                idcs[0]
+            ] = f"avg{[self._results[over_key][idx] for idx in idcs]}"
+
+        self._results = self._results.drop(index=drop_idcs)
+        self._results = self._results.reset_index(drop=True)
+
+        if self._verbose:
+            print(
+                f"Computing the average for {len(average_entry_idcs)} groups "
+                f"of results over the '{over_key}' attribute."
+            )
+
+    def average(
+        self,
+        over_key: str,
+        group_keys: list[str],
+        over_entries: Optional[list] = "ALL",
+        identical_keys: Optional[list[str]] = None,
+        var_measures: Optional[list[str]] = None,
+    ) -> None:
+        """Averages results.
+
+        PARAMETERS
+        ----------
+        over_key : str
+        -   Name of the attribute in the results to average over.
+
+        group_keys : [list[str]]
+        -   Names of the attibutes in the results to use to group results that
+            will be averaged over.
+
+        over_entries : list | "ALL"
+        -   The values of the 'over_key' attribute in the results to average.
+        -   If "ALL", all values of the 'over_key' attribute are included.
+
+        identical_keys : list[str] | None
+        -   The names of the attributes in the results that will be checked if
+            they are identical across the results being averaged. If they are
+            not identical, an error will be raised.
+
+        var_measures : list[str] | None
+        -   Names of measures of variability to be computed alongside the
+            averaging of the results.
+        -   Supported measures are: 'std' for standard deviation; and 'sem' for
+            standard error of the mean.
+        """
+
+        if over_entries == "ALL":
+            over_entries = list(np.unique(self._results[over_key]))
+
+        combined_entries = self._get_combined_entries(group_keys=group_keys)
+        unique_entry_idcs = self._get_unique_indices(
+            combined_entries=combined_entries
+        )
+
+        if identical_keys is not None:
+            self._check_identical_keys(
+                indices=unique_entry_idcs, keys=identical_keys
+            )
+
+        average_entry_idcs = self._get_indices_to_process(
+            unique_entry_idcs=unique_entry_idcs,
+            over_key=over_key,
+            over_entries=over_entries,
+        )
+
+        if self._fbands is not None:
+            self._compute_fband_results(process_entry_idcs=average_entry_idcs)
+
+        average_keys = self._get_process_keys(
+            exclude_keys=[over_key, *group_keys, *identical_keys],
+        )
+
+        if var_measures:
+            self._compute_var_measures(
+                measures=var_measures,
+                process_entry_idcs=average_entry_idcs,
+                process_keys=average_keys,
+            )
+
+        self._compute_average(
+            average_entry_idcs=average_entry_idcs,
+            over_key=over_key,
+            average_keys=average_keys,
+        )
+
+        print("jeff")
+
 
 def load_results_of_types(
     results_folderpath: str,
@@ -862,7 +1254,7 @@ def load_results_of_types(
 
 def load_results_of_type(
     results_folderpath: str,
-    to_analyse: dict[str],
+    to_analyse: list[dict[str]],
     result_type: str,
     extract_from_dicts: Optional[dict[list[str]]] = None,
     identical_entries: Optional[list[str]] = None,
@@ -876,7 +1268,7 @@ def load_results_of_type(
     results_folderpath : str
     -   Folderpath to where the results are located.
 
-    to_analyse : dict[str]
+    to_analyse : list[dict[str]]
     -   Dictionary in which each entry represents a different piece of results.
     -   Contains the keys: 'sub' (subject ID); 'ses' (session name); 'task'
         (task name); 'acq' (acquisition type); and 'run' (run number).
@@ -905,7 +1297,7 @@ def load_results_of_type(
     """
 
     first_result = True
-    for result_info in to_analyse.values():
+    for result_info in to_analyse:
         result_fpath = generate_results_fpath(
             folderpath=results_folderpath,
             subject=result_info["sub"],
