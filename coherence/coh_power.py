@@ -728,8 +728,8 @@ class PowerMorlet(ProcMethod):
             rearrange=self._power_dims_sorted,
         )
         results = {
-            "power_morlet": power,
-            "power_morlet_dimensions": self._power_dims_sorted,
+            "power-morlet": power,
+            "power-morlet_dimensions": self._power_dims_sorted,
             "freqs": self.power.freqs.tolist(),
             "ch_names": self.signal.data.ch_names,
             "ch_types": self.signal.data.get_channel_types(),
@@ -766,8 +766,8 @@ class PowerMorlet(ProcMethod):
             rearrange=self._itc_dims_sorted,
         )
         results = {
-            "itc_morlet": itc,
-            "itc_morlet_dimensions": self._itc_dims_sorted,
+            "connectivity-itc_morlet": itc,
+            "connectivity-itc_morlet_dimensions": self._itc_dims_sorted,
             "freqs": self.power.freqs.tolist(),
             "ch_names": self.signal.data.ch_names,
             "ch_types": self.signal.data.get_channel_types(),
@@ -1505,8 +1505,8 @@ class PowerFOOOF(ProcMethod):
         """
 
         return {
-            "power_periodic": self.power["periodic_component"].tolist(),
-            "power_aperiodic": self.power["aperiodic_component"].tolist(),
+            "power-fooof_periodic": self.power["periodic_component"].tolist(),
+            "power-fooof_aperiodic": self.power["aperiodic_component"].tolist(),
             "r_squared": self.power["r_squared"].tolist(),
             "error": self.power["error"].tolist(),
             "freqs": self.signal.power.freqs.tolist(),

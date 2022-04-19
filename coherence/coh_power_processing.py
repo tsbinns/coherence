@@ -98,7 +98,7 @@ def morlet_analysis(
 
     ## Loads the analysis settings
     analysis_settings = load_file(analysis_settings_fpath)
-    morlet_settings = analysis_settings["power_morlet"]
+    morlet_settings = analysis_settings["morlet_processing"]
     power_norm_settings = morlet_settings["normalise_power"]
     itc_norm_settings = morlet_settings["normalise_itc"]
 
@@ -222,7 +222,7 @@ def fooof_analysis(
 
     ## Loads the analysis settings
     analysis_settings = load_file(fpath=analysis_settings_fpath)
-    analysis_settings = analysis_settings["power_FOOOF"]
+    analysis_settings = analysis_settings["fooof_processing"]
     data_settings = load_file(fpath=data_settings_fpath)
     data_settings = data_settings["power_FOOOF"]
 

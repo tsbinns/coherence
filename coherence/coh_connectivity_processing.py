@@ -82,7 +82,7 @@ def coherence_processing(
 
     ## Loads the analysis settings
     analysis_settings = load_file(fpath=analysis_settings_fpath)
-    analysis_settings = analysis_settings["connectivity_coherence"]
+    analysis_settings = analysis_settings["coherence_processing"]
     data_settings = load_file(fpath=data_settings_fpath)
     data_settings = data_settings["connectivity_coherence"]
 
