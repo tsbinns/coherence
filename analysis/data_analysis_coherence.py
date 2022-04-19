@@ -16,11 +16,16 @@ from coh_handle_files import load_file
 EXTRAS_FOLDERPATH = "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN"
 RESULTS_FOLDERPATH = EXTRAS_FOLDERPATH + "\\BIDS_Berlin_ECOG_LFP"
 SETTINGS_FOLDERPATH = EXTRAS_FOLDERPATH + "\\settings"
-ANALYSIS = "ECOG-LFP_coherence-results_all.json"
+ANALYSIS = "ECOG-LFP_coherence-MedOffOn_results.json"
 TO_ANALYSE = load_file(SETTINGS_FOLDERPATH + "\\" + ANALYSIS)
 
 ### How to analyse the results
-ANALYSIS_STEPS = OrderedDict([("average", "runs"), ("average", "sessions")])
+ANALYSIS_STEPS = [
+    ["average", "run", "ALL"],
+    ["average", "ses", "ALL"],
+    ["average", "target_types", ["dbs"]],
+    ["average", "sub", "ALL"],
+]
 
 
 if __name__ == "__main__":
