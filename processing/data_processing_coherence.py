@@ -18,7 +18,7 @@ FOLDERPATH_DATA = (
 )
 FOLDERPATH_EXTRAS = "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN"
 DATASET = "BIDS_Berlin_ECOG_LFP"
-ANALYSIS = "ECOG-LFP_coherence"
+ANALYSIS = "ECOG-LFP_coherence-connectivity_coherence_processing"
 SUBJECT = "001"
 SESSION = "EcogLfpMedOff01"
 TASK = "Rest"

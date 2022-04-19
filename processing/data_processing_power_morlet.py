@@ -25,9 +25,9 @@ FOLDERPATH_DATA = (
 )
 FOLDERPATH_EXTRAS = "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN"
 DATASET = "BIDS_Berlin_ECOG_LFP"
-ANALYSIS = "ECOG-LFP_coherence"
+ANALYSIS = "ECOG-LFP_coherence-power_morlet_processing"
 SUBJECT = "001"
-SESSION = "EcogLfpMedOff01"
+SESSION = "EcogLfpMedOn02"
 TASK = "Rest"
 ACQUISITION = "StimOff"
 RUN = "1"
