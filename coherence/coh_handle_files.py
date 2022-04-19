@@ -24,7 +24,7 @@ identify_ftype
 import os
 import json
 import pickle
-from typing import Any, Optional
+from typing import Any, Optional, Union
 import mne_bids
 from coh_exceptions import (
     MissingFileExtensionError,
@@ -337,6 +337,34 @@ def nested_changes_dict(contents: dict, changes: dict) -> None:
                 contents[key] = changes[value]
 
 
+def nested_changes(contents: Union[dict, list], changes: dict) -> None:
+    """Makes changes to the specified values occuring within nested
+    dictionaries or lists of a parent dictionary or list.
+
+    PARAMETERS
+    ----------
+    contents : dict | list
+    -   The dictionary or list containing nested dictionaries and lists whose
+        values should be changed.
+
+    changes : dict
+    -   Dictionary specifying the changes to make, with the keys being the
+        values that should be changed, and the values being what the values
+        should be changed to.
+    """
+
+    if isinstance(contents, dict):
+        nested_changes_dict(contents=contents, changes=changes)
+    elif isinstance(contents, list):
+        nested_changes_list(contents=contents, changes=changes)
+    else:
+        raise TypeError(
+            "Error when changing nested elements of an object:\nProcessing "
+            f"objects of type '{type(contents)}' is not supported. Only 'list' "
+            "and 'dict' objects can be processed."
+        )
+
+
 def extra_deserialise_json(contents: dict) -> dict:
     """Performs custom deserialisation on a dictionary loaded from a json file
     with changes not present in the default deserialisation used in the 'load'
@@ -357,7 +385,7 @@ def extra_deserialise_json(contents: dict) -> dict:
 
     deserialise = {"INFINITY": float("inf")}
 
-    nested_changes_dict(contents=contents, changes=deserialise)
+    nested_changes(contents=contents, changes=deserialise)
 
     return contents
 
