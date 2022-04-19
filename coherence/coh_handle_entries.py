@@ -581,3 +581,28 @@ def ragged_array_to_list(
         ragged_list.append(array.tolist())
 
     return ragged_list
+
+
+def drop_from_list(obj: list, drop: list) -> list:
+    """Drops specified entries from a list.
+
+    PARAMETERS
+    ----------
+    obj : list
+    -   List with entries that should be dropped.
+
+    drop : list
+    -   List of entries to drop.
+
+    RETURNS
+    -------
+    new_obj : list
+    -   List with specified entries dropped.
+    """
+
+    new_obj = []
+    for item in obj:
+        if item not in drop:
+            new_obj.append(item)
+
+    return new_obj
