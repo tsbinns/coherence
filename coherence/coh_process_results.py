@@ -93,7 +93,6 @@ class PostProcess:
         extract_from_dicts: Optional[dict[list[str]]] = None,
         identical_entries: Optional[list[str]] = None,
         discard_entries: Optional[list[str]] = None,
-        freq_bands: Optional[dict] = None,
         verbose: bool = True,
     ) -> None:
 
@@ -105,12 +104,19 @@ class PostProcess:
             discard_entries=discard_entries,
         )
         self._results = self._results_to_df(results=results)
-        self._fbands = freq_bands
         self._verbose = verbose
 
         # Initialises aspects of the object that will be filled with information
         # as the data is processed.
-        self._var_measures = None
+        self._fbands = None
+        self._fband_measures = []
+        self._fband_desc_measures = []
+        self._fband_columns = []
+        self._var_measures = []
+        self._var_columns = []
+        self._desc_measures = []
+        self._desc_fband_measures = ["max", "min", "fmax", "fmin"]
+        self._desc_var_measures = ["std", "sem"]
 
     def _check_input_entry_lengths(
         self, results: dict, identical_entries: Union[list[str], None]
@@ -417,7 +423,7 @@ class PostProcess:
         results: dict,
     ) -> pd.DataFrame:
         """Converts the dictionary of results into a pandas DataFrame for
-        processing.
+        processing, adding frequency band-wise results, if requested.
 
         PARAMETERS
         ----------
@@ -430,11 +436,13 @@ class PostProcess:
 
         RETURNS
         -------
-        pandas DataFrame
+        results : pandas DataFrame
         -   The 'results' dictionary as a DataFrame.
         """
 
-        return pd.DataFrame.from_dict(data=results, orient="columns")
+        results = pd.DataFrame.from_dict(data=results, orient="columns")
+
+        return results
 
     def _check_non_duplicates(self, results: Union[dict, pd.DataFrame]) -> None:
         """Checks that the existing results and the results being added contain
@@ -951,13 +959,32 @@ class PostProcess:
                 self._results.index
             )
 
-    def _get_process_keys(self, exclude_keys: list[str]) -> list[str]:
-        """Gets the attributes of the results to process.
+    @property
+    def attributes(self) -> list[str]:
+        """Gets the original attributes of the results, not those which are
+        related to frequency band-wise or variability results.
+
+        RETURNS
+        -------
+        list[str]
+        -   Names of the results attributes not related to frequency band-wise
+            or variability results.
+        """
+
+        keys = self._results.keys().tolist()
+        exclude_keys = [*self._fband_columns, *self._var_columns]
+
+        return [key for key in keys if key not in exclude_keys]
+
+    def _get_process_keys(self, process_keys: list[str]) -> list[str]:
+        """Gets the attributes of the results to process, adding and frequency
+        band- and variabilty-related attributes.
 
         PARAMETERS
         ----------
-        exclude_keys : list[str]
-        -   Attributes of the results to exclude.
+        process_keys : list[str]
+        -   Attributes of the results to process, not including those generated
+            as part of frequency band-wise analyses and variability measures.
 
         RETURNS
         -------
@@ -965,19 +992,340 @@ class PostProcess:
         -   Attributes of the results to process.
         """
 
-        process_keys = [
-            key for key in self._results.keys() if key not in exclude_keys
-        ]
+        process_keys = deepcopy(process_keys)
 
-        if self._var_measures:
-            process_keys = [
-                key for key in process_keys if key not in self._var_measures
-            ]
+        if self._fbands:
+            fband_keys = []
+            for key in process_keys:
+                fband_keys.extend(
+                    [
+                        f"{key}_fbands_{measure}"
+                        for measure in self._fband_measures
+                        if measure not in self._desc_measures
+                    ]
+                )
+            process_keys.extend(fband_keys)
 
         return process_keys
 
+    def _prepare_fband_results(
+        self, bands: dict, attributes: list[str], measures: list[str]
+    ) -> None:
+        """Checks that the inputs for calculating frequency band-wise results
+        are appropriate, finds the indices of the frequency band bounds in
+        the results, and adds placeholder columns that will be filled with
+        frequency band results if none are already present.
+
+        PARAMETERS
+        ----------
+        bands : dict
+        -   Dictionary containing the frequency bands whose results should also
+            be calculated.
+        -   Each key is the name of the frequency band, and each value is a list
+            of numbers representing the lower- and upper-most boundaries of the
+            frequency band, respectively, in the frequency units present in the
+            results.
+
+        attributes : list[str]
+        -   Attributes of the results to apply the frequency band-wise analysis
+            to.
+
+        measures : list[str]
+        -   Measures to compute for the frequency bands.
+        -   Supported inputs are: "average" for the average value; "median" for
+            the median value; "max" for the maximum value; "fmax" for the
+            frequency at which the maximum value occurs; "min" for the minimum
+            value; and "fmin" for the frequency at which the minimum value
+            occurs.
+
+        RAISES
+        ------
+        EntryLengthError
+        -   Raised if a frequency band does not consist of two values (i.e. a
+            lower- and upper-bound for the band).
+
+        ValueError
+        -   Raised if a frequency band contains an upper- or lower-bound of
+            frequencies that is not present in the results. Units of the band
+            limits are assumed to be the same as in the results.
+        """
+
+        for name, freqs in bands.items():
+            if len(freqs) != 2:
+                raise EntryLengthError(
+                    "Error when trying to compute the frequency band-wise "
+                    f"results:\nThe frequency band '{name}' does not have the "
+                    f"required two frequency values, but is instead {freqs}."
+                )
+            for freq in freqs:
+                if freq not in self._results["freqs"]:
+                    raise ValueError(
+                        "Error when trying to compute the frequency "
+                        "band-wise results:\nThe frequencies in the range "
+                        f"{freqs[0]} - {freqs[1]} (units identical to those in "
+                        "the results) are not present in the results with "
+                        f"frequency range {self._results['freqs'][0]} - "
+                        f"{self._results['freqs'][1]}."
+                    )
+
+        supported_measures = [
+            "average",
+            "median",
+            "max",
+            "min",
+            "fmax",
+            "fmin",
+        ]
+        for measure in measures:
+            if measure not in supported_measures:
+                raise ValueError(
+                    "Error when trying to compute the frequency band-wise "
+                    f"results:\nThe measure '{measure}' is not recognised. "
+                    f"Supported measures are: {supported_measures}"
+                )
+
+        if not self._fbands:
+            fband_columns = ["fband_labels", "fband_freqs"]
+            for attribute in attributes:
+                for measure in measures:
+                    fband_columns.append(f"{attribute}_fbands_{measure}")
+            self._populate_columns(attributes=fband_columns)
+            self._fband_columns = fband_columns
+
+    def _get_band_freq_indices(self, bands: dict[list[int]]) -> dict[list[int]]:
+        """Gets the indices of the frequency band limits for each band in the
+        frequencies of the results.
+
+        PARAMETERS
+        ----------
+        bands : dict[list[int]]
+        -   Dictionary containing the frequency bands whose results should also
+            be calculated.
+        -   Each key is the name of the frequency band, and each value is a list
+            of numbers representing the lower- and upper-most boundaries of the
+            frequency band, respectively, in the frequency units present in the
+            results.
+
+        RETURNS
+        -------
+        band_idcs : dict[list[int]]
+        -   Indices of the frequency band limits for each band in the
+            frequencies of the results.
+        """
+
+        band_freq_idcs = []
+        for idx in self._results.index:
+            band_idcs = deepcopy(bands)
+            for name, freqs in band_idcs.items():
+                band_idcs[name] = [
+                    self._results["freqs"][idx].index(freq) for freq in freqs
+                ]
+            band_freq_idcs.append(band_idcs)
+
+        return band_freq_idcs
+
+    def _compute_freq_band_measure_results(
+        self,
+        freqs: list[Union[int, float]],
+        band_values: list[list[Union[int, float]]],
+        band_idcs: list[list[Union[int, float]]],
+        measure: str,
+    ) -> list[Union[int, float]]:
+        """Computes the frequency band results for a single channel's worth of
+        results.
+
+
+        PARAMETERS
+        ----------
+        freqs : list[int | float]
+        -   Frequencies of the values in the results.
+
+        band_values : list[list[int | float]]
+        -   Values of the results in each frequency band for a single channel,
+            stored as a separate list.
+
+        band_idcs : list[list[int | float]]
+        -   Indices of the frequency band lower- and upper-bounds in 'freqs'.
+
+        measure : str
+        -   Measure to compute for the frequency bands.
+        -   Supported inputs are: "average" for the average value; "median" for
+            the median value; "max" for the maximum value; "fmax" for the
+            frequency at which the maximum value occurs; "min" for the minimum
+            value; and "fmin" for the frequency at which the minimum value
+            occurs.
+
+        RETURNS
+        -------
+        values : list[int | float]
+        -   Values of the frequency band results.
+        """
+
+        if measure == "average":
+            values = [float(np.mean(entry)) for entry in band_values]
+        elif measure == "median":
+            values = [np.median(entry) for entry in band_values]
+        elif measure == "max":
+            values = [np.max(entry) for entry in band_values]
+        elif measure == "min":
+            values = [np.min(entry) for entry in band_values]
+        elif measure == "fmax" or measure == "fmin":
+            if measure == "fmax":
+                values = [entry.index(np.max(entry)) for entry in band_values]
+            elif measure == "fmin":
+                values = [entry.index(np.min(entry)) for entry in band_values]
+            values = [
+                list(band_idcs.values())[band_i][0] + freq_idx
+                for band_i, freq_idx in enumerate(values)
+            ]
+            values = [freqs[freq_i] for freq_i in values]
+
+        return values
+
+    def _compute_freq_band_results(
+        self,
+        bands: dict[list[int]],
+        band_freq_idcs: dict[list[int]],
+        attributes: list[str],
+        measures: list[str],
+    ) -> None:
+        """Computes the frequency band-wise results with the desired frequency
+        bands on the desired result nodes.
+
+        PARAMETERS
+        ----------
+        bands : dict[list[int]]
+        -   Dictionary containing the frequency bands whose results should also
+            be calculated.
+        -   Each key is the name of the frequency band, and each value is a list
+            of numbers representing the lower- and upper-most boundaries of the
+            frequency band, respectively, in the frequency units present in the
+            results.
+
+        band_freq_idcs : dict[list[int]]
+        -   Indices of the frequency band limits for each band in the
+            frequencies of the results.
+
+        attributes : list[str]
+        -   Attributes of the results to apply the frequency band-wise analysis
+            to.
+
+        measures : list[str]
+        -   Measures to compute for the frequency bands.
+        -   Supported inputs are: "average" for the average value; "median" for
+            the median value; "max" for the maximum value; "fmax" for the
+            frequency at which the maximum value occurs; "min" for the minimum
+            value; and "fmin" for the frequency at which the minimum value
+            occurs.
+        """
+
+        for idx, band_idcs in enumerate(band_freq_idcs):
+            for attribute in attributes:
+                entries = []
+                for freq_idcs in band_idcs.values():
+                    entries.append(
+                        self._results[attribute][idx][
+                            freq_idcs[0] : freq_idcs[1] + 1
+                        ]
+                    )
+                for measure in measures:
+                    values = self._compute_freq_band_measure_results(
+                        freqs=self._results["freqs"][idx],
+                        band_values=entries,
+                        band_idcs=band_idcs,
+                        measure=measure,
+                    )
+                    self._results[f"{attribute}_fbands_{measure}"][idx] = values
+            self._results["fband_labels"][idx] = list(bands.keys())
+            self._results["fband_freqs"][idx] = list(bands.values())
+
+    def freq_band_results(
+        self, bands: dict[list[int]], attributes: list[str], measures: list[str]
+    ) -> None:
+        """Calculates the values of attributes in the data across specified
+        frequency bands by taking the mean of these values.
+
+        PARAMETERS
+        ----------
+        bands : dict[list[int]]
+        -   Dictionary containing the frequency bands whose results should also
+            be calculated.
+        -   Each key is the name of the frequency band, and each value is a list
+            of numbers representing the lower- and upper-most boundaries of the
+            frequency band, respectively, in the frequency units present in the
+            results.
+
+        attributes : list[str]
+        -   Attributes of the results to apply the frequency band-wise analysis
+            to.
+
+        measures : list[str]
+        -   Measures to compute for the frequency bands.
+        -   Supported inputs are: "average" for the average value; "median" for
+            the median value; "max" for the maximum value; "freq_max" for the
+            frequency at which the maximum value occurs; "min" for the minimum
+            value; and "freq_min" for the frequency at which the minimum value
+            occurs.
+
+        process_idcs : list[int] | None
+        -   Indices of the results to compute frequency band-wise results for.
+        """
+
+        self._prepare_fband_results(
+            bands=bands, attributes=attributes, measures=measures
+        )
+
+        band_freq_idcs = self._get_band_freq_indices(bands=bands)
+
+        self._compute_freq_band_results(
+            bands=bands,
+            band_freq_idcs=band_freq_idcs,
+            attributes=attributes,
+            measures=measures,
+        )
+
+        self._fbands = bands
+        self._fband_measures = np.unique(
+            [*measures, self._fband_measures]
+        ).tolist()
+        self._fband_desc_measures = [
+            measure
+            for measure in measures
+            if measure in self._desc_fband_measures
+        ]
+        self._refresh_desc_measures()
+        if self._verbose:
+            print(
+                "Computing frequency band-wise results for the nodes in the "
+                "results with the following frequency bands (units are the "
+                "same as in the results):"
+            )
+            print([f"{name}: {freqs}" for name, freqs in bands.items()])
+
+    def _refresh_desc_measures(self) -> None:
+        """Refreshes a list of the descriptive measures (e.g. variability
+        measures such as standard error of the mean, frequency band measures
+        such as the maximum values in the frequency band) that need to be
+        re-calculated after any processing steps (e.g. averaging) are applied.
+        """
+
+        present_desc_measures = []
+        all_measures = [*self._fband_measures, *self._var_measures]
+        all_desc_measures = [
+            *self._desc_fband_measures,
+            *self._desc_var_measures,
+        ]
+        for measure in all_measures:
+            if measure in all_desc_measures:
+                present_desc_measures.append(measure)
+
+        self._desc_measures = present_desc_measures
+
     def _prepare_var_measures(
-        self, measures: list[str], process_keys: list[str]
+        self,
+        measures: list[str],
+        process_keys: list[str],
+        process_entry_idcs=list[list[int]],
     ) -> None:
         """Prepares for the calculation of variabikity measures, checking that
         the required attributes are present in the data (adding them if not)
@@ -1015,6 +1363,13 @@ class PostProcess:
                 for key in process_keys:
                     var_columns.append(f"{key}_{measure}")
             self._populate_columns(attributes=var_columns)
+            self._var_columns = var_columns
+        else:
+            for measure in self._var_measures:
+                for key in process_keys:
+                    for idcs in process_entry_idcs:
+                        if len(idcs) > 1:
+                            self._results[f"{key}_{measure}"][idcs[0]] = None
 
     def _compute_var_measures(
         self,
@@ -1038,7 +1393,11 @@ class PostProcess:
         -   Attributes of the results to calculate variability measures for.
         """
 
-        self._prepare_var_measures(measures=measures, process_keys=process_keys)
+        self._prepare_var_measures(
+            measures=measures,
+            process_keys=process_keys,
+            process_entry_idcs=process_entry_idcs,
+        )
 
         for measure in measures:
             for key in process_keys:
@@ -1051,8 +1410,9 @@ class PostProcess:
                         elif measure == "sem":
                             value = stats.sem(entries, axis=0)
                         self._results[results_name][idcs[0]] = value
-        self._var_measures = measures
+        self._var_measures = list(np.unique([*self._var_measures, *measures]))
 
+        self._refresh_desc_measures()
         if self._verbose:
             print(
                 "Computing the following variability measures for the "
@@ -1084,7 +1444,9 @@ class PostProcess:
             if len(idcs) > 1:
                 for key in average_keys:
                     entries = [self._results[key][idx] for idx in idcs]
-                    self._results[key][idcs[0]] = np.mean(entries, axis=0)
+                    self._results[key][idcs[0]] = np.mean(
+                        entries, axis=0
+                    ).tolist()
                 drop_idcs.extend(idcs[1:])
             self._results[over_key][
                 idcs[0]
@@ -1102,6 +1464,7 @@ class PostProcess:
     def average(
         self,
         over_key: str,
+        data_keys: list[str],
         group_keys: list[str],
         over_entries: Optional[list] = "ALL",
         identical_keys: Optional[list[str]] = None,
@@ -1113,6 +1476,10 @@ class PostProcess:
         ----------
         over_key : str
         -   Name of the attribute in the results to average over.
+
+        data_keys : list[str]
+        -   Names of the attributes in the results containing data that should
+            be averaged, and any variability measures computed on.
 
         group_keys : [list[str]]
         -   Names of the attibutes in the results to use to group results that
@@ -1153,11 +1520,8 @@ class PostProcess:
             over_entries=over_entries,
         )
 
-        if self._fbands is not None:
-            self._compute_fband_results(process_entry_idcs=average_entry_idcs)
-
         average_keys = self._get_process_keys(
-            exclude_keys=[over_key, *group_keys, *identical_keys],
+            process_keys=data_keys,
         )
 
         if var_measures:
@@ -1172,6 +1536,13 @@ class PostProcess:
             over_key=over_key,
             average_keys=average_keys,
         )
+
+        if self._fbands:
+            self.freq_band_results(
+                bands=self._fbands,
+                attributes=data_keys,
+                measures=self._fband_desc_measures,
+            )
 
         print("jeff")
 
