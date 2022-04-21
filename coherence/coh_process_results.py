@@ -30,6 +30,7 @@ from coh_exceptions import (
     InputTypeError,
     MissingEntryError,
     PreexistingAttributeError,
+    ProcessingOrderError,
     UnavailableProcessingError,
     UnidenticalEntryError,
 )
@@ -108,13 +109,16 @@ class PostProcess:
 
         # Initialises aspects of the object that will be filled with information
         # as the data is processed.
+        self._process_measures = []
         self._fbands = None
+        self._fband_attributes = None
         self._fband_measures = []
         self._fband_desc_measures = []
         self._fband_columns = []
         self._var_measures = []
         self._var_columns = []
         self._desc_measures = []
+        self._desc_process_measures = ["n_averaged_over"]
         self._desc_fband_measures = ["max", "min", "fmax", "fmin"]
         self._desc_var_measures = ["std", "sem"]
 
@@ -485,6 +489,7 @@ class PostProcess:
     ) -> None:
         """Appends a dictionary of results to the results stored in the
         PostProcess object.
+        -   Cannot be called after frequency band results have been computed.
 
         PARAMETERS
         ----------
@@ -509,7 +514,18 @@ class PostProcess:
         discard_entries : list[str] | None; default None
         -   The entries which should be discarded immediately without
             processing.
+
+        RAISES
+        ------
+        ProcessingOrderError
+        -   Raised if frequency band results have been added.
         """
+
+        if self._fbands:
+            raise ProcessingOrderError(
+                "Error when trying to add results:\nNew results cannot be "
+                "added after frequency band-wise results have been calculated."
+            )
 
         new_results = self._sort_inputs(
             results=new_results,
@@ -532,12 +548,24 @@ class PostProcess:
     ) -> None:
         """Appends a DataFrame of results to the results stored in the
         PostProcess object.
+        -   Cannot be called after frequency band results have been computed.
 
         PARAMETERS
         ----------
         new_results : pandas DataFrame
         -   The new results to append.
+
+        RAISES
+        ------
+        ProcessingOrderError
+        -   Raised if frequency band results have been added.
         """
+
+        if self._fbands:
+            raise ProcessingOrderError(
+                "Error when trying to add results:\nNew results cannot be "
+                "added after frequency band-wise results have been calculated."
+            )
 
         self._check_non_duplicates(results=new_results)
 
@@ -695,6 +723,7 @@ class PostProcess:
     ) -> None:
         """Merges a dictionary of results to the results stored in the
         PostProcess object.
+        -   Cannot be called after frequency band results have been computed.
 
         PARAMETERS
         ----------
@@ -728,7 +757,18 @@ class PostProcess:
             channels, set this to False, otherwise results from different
             channels will be merged and any missing information will be set to
             NaN.
+
+        RAISES
+        ------
+        ProcessingOrderError
+        -   Raised if frequency band results have been added.
         """
+
+        if self._fbands:
+            raise ProcessingOrderError(
+                "Error when trying to add results:\nNew results cannot be "
+                "added after frequency band-wise results have been calculated."
+            )
 
         new_results = self._sort_inputs(
             results=new_results,
@@ -763,6 +803,7 @@ class PostProcess:
     ) -> None:
         """Merges a dictionary of results to the results stored in the
         PostProcess object.
+        -   Cannot be called after frequency band results have been computed.
 
         PARAMETERS
         ----------
@@ -777,7 +818,18 @@ class PostProcess:
             channels, set this to False, otherwise results from different
             channels will be merged and any missing information will be set to
             NaN.
+
+        RAISES
+        ------
+        ProcessingOrderError
+        -   Raised if frequency band results have been added.
         """
+
+        if self._fbands:
+            raise ProcessingOrderError(
+                "Error when trying to add results:\nNew results cannot be "
+                "added after frequency band-wise results have been calculated."
+            )
 
         self._check_keys_before_merge(new_results=new_results)
 
@@ -888,6 +940,8 @@ class PostProcess:
 
     def _get_combined_entries(self, group_keys: list[str]) -> list[str]:
         """Combines the values of the data for each node.
+        -   Attributes that have been averaged are taken as being equivalent,
+            regardless of what values they were averaged over.
 
         PARAMETERS
         ----------
@@ -906,7 +960,10 @@ class PostProcess:
         for row_i in range(len(self._results.index)):
             combined_entries.append("")
             for key in group_keys:
-                combined_entries[row_i] += str(self._results[key][row_i])
+                value = str(self._results[key].iloc[row_i])
+                if value[:4] == "avg[":
+                    value = f"avg_{key}"
+                combined_entries[row_i] += value
 
         return combined_entries
 
@@ -997,13 +1054,14 @@ class PostProcess:
         if self._fbands:
             fband_keys = []
             for key in process_keys:
-                fband_keys.extend(
-                    [
-                        f"{key}_fbands_{measure}"
-                        for measure in self._fband_measures
-                        if measure not in self._desc_measures
-                    ]
-                )
+                if key in self._fband_attributes:
+                    fband_keys.extend(
+                        [
+                            f"{key}_fbands_{measure}"
+                            for measure in self._fband_measures
+                            if measure not in self._desc_fband_measures
+                        ]
+                    )
             process_keys.extend(fband_keys)
 
         return process_keys
@@ -1057,16 +1115,6 @@ class PostProcess:
                     f"results:\nThe frequency band '{name}' does not have the "
                     f"required two frequency values, but is instead {freqs}."
                 )
-            for freq in freqs:
-                if freq not in self._results["freqs"]:
-                    raise ValueError(
-                        "Error when trying to compute the frequency "
-                        "band-wise results:\nThe frequencies in the range "
-                        f"{freqs[0]} - {freqs[1]} (units identical to those in "
-                        "the results) are not present in the results with "
-                        f"frequency range {self._results['freqs'][0]} - "
-                        f"{self._results['freqs'][1]}."
-                    )
 
         supported_measures = [
             "average",
@@ -1117,6 +1165,17 @@ class PostProcess:
         for idx in self._results.index:
             band_idcs = deepcopy(bands)
             for name, freqs in band_idcs.items():
+                for freq in freqs:
+                    if freq not in self._results["freqs"][idx]:
+                        raise ValueError(
+                            "Error when trying to compute the frequency "
+                            "band-wise results:\nThe frequencies in the range "
+                            f"{freqs[0]} - {freqs[1]} (units identical to "
+                            "those in the results) are not present in the "
+                            "results with frequency range "
+                            f"{self._results['freqs'][0]} - "
+                            f"{self._results['freqs'][1]}."
+                        )
                 band_idcs[name] = [
                     self._results["freqs"][idx].index(freq) for freq in freqs
                 ]
@@ -1224,26 +1283,31 @@ class PostProcess:
                 entries = []
                 for freq_idcs in band_idcs.values():
                     entries.append(
-                        self._results[attribute][idx][
+                        self._results[attribute].iloc[idx][
                             freq_idcs[0] : freq_idcs[1] + 1
                         ]
                     )
                 for measure in measures:
                     values = self._compute_freq_band_measure_results(
-                        freqs=self._results["freqs"][idx],
+                        freqs=self._results["freqs"].iloc[idx],
                         band_values=entries,
                         band_idcs=band_idcs,
                         measure=measure,
                     )
-                    self._results[f"{attribute}_fbands_{measure}"][idx] = values
-            self._results["fband_labels"][idx] = list(bands.keys())
-            self._results["fband_freqs"][idx] = list(bands.values())
+                    self._results[f"{attribute}_fbands_{measure}"].iloc[
+                        idx
+                    ] = values
+            self._results["fband_labels"].iloc[idx] = list(bands.keys())
+            self._results["fband_freqs"].iloc[idx] = list(bands.values())
 
     def freq_band_results(
         self, bands: dict[list[int]], attributes: list[str], measures: list[str]
     ) -> None:
         """Calculates the values of attributes in the data across specified
         frequency bands by taking the mean of these values.
+        -   Once called, these frequency band values, attributes, and measures
+            will be used in all further processing (e.g. averaging), and this
+            method cannot be called again.
 
         PARAMETERS
         ----------
@@ -1267,9 +1331,26 @@ class PostProcess:
             value; and "freq_min" for the frequency at which the minimum value
             occurs.
 
-        process_idcs : list[int] | None
-        -   Indices of the results to compute frequency band-wise results for.
+        RAISES
+        ------
+        ProcessingOrderError
+        -   Raised if frequency band results have already been computed.
         """
+
+        if self._fbands:
+            raise ProcessingOrderError(
+                "Error when trying to compute the frequency band results:\n"
+                "Frequency band results have already been computed. If you "
+                "want to compute results with different settings, you must use "
+                "a fresh PostProcess object."
+            )
+        if self._verbose:
+            print(
+                "Computing frequency band-wise results for the nodes in the "
+                "results with the following frequency bands (units are the "
+                "same as in the results):"
+            )
+            print([f"{name}: {freqs}" for name, freqs in bands.items()])
 
         self._prepare_fband_results(
             bands=bands, attributes=attributes, measures=measures
@@ -1285,22 +1366,34 @@ class PostProcess:
         )
 
         self._fbands = bands
-        self._fband_measures = np.unique(
-            [*measures, self._fband_measures]
-        ).tolist()
+        self._fband_attributes = attributes
+        self._fband_measures = measures
         self._fband_desc_measures = [
             measure
             for measure in measures
             if measure in self._desc_fband_measures
         ]
-        self._refresh_desc_measures()
-        if self._verbose:
-            print(
-                "Computing frequency band-wise results for the nodes in the "
-                "results with the following frequency bands (units are the "
-                "same as in the results):"
-            )
-            print([f"{name}: {freqs}" for name, freqs in bands.items()])
+
+    def _refresh_freq_band_results(self) -> None:
+        """Recomputes the value of frequency band result descriptive measures
+        (i.e. maximum, minimum, and their frequencies) following processing
+        (e.g. averaging).
+        """
+
+        self._prepare_fband_results(
+            bands=self._fbands,
+            attributes=self._fband_attributes,
+            measures=self._fband_desc_measures,
+        )
+
+        band_freq_idcs = self._get_band_freq_indices(bands=self._fbands)
+
+        self._compute_freq_band_results(
+            bands=self._fbands,
+            band_freq_idcs=band_freq_idcs,
+            attributes=self._fband_attributes,
+            measures=self._fband_desc_measures,
+        )
 
     def _refresh_desc_measures(self) -> None:
         """Refreshes a list of the descriptive measures (e.g. variability
@@ -1310,8 +1403,13 @@ class PostProcess:
         """
 
         present_desc_measures = []
-        all_measures = [*self._fband_measures, *self._var_measures]
+        all_measures = [
+            *self._process_measures,
+            *self._fband_measures,
+            *self._var_measures,
+        ]
         all_desc_measures = [
+            *self._desc_process_measures,
             *self._desc_fband_measures,
             *self._desc_var_measures,
         ]
@@ -1357,19 +1455,16 @@ class PostProcess:
                     f"{supported_measures}"
                 )
 
-        if not self._var_measures:
-            var_columns = []
-            for measure in measures:
-                for key in process_keys:
-                    var_columns.append(f"{key}_{measure}")
-            self._populate_columns(attributes=var_columns)
-            self._var_columns = var_columns
-        else:
-            for measure in self._var_measures:
-                for key in process_keys:
+        current_measures = np.unique([*self._var_measures, *measures]).tolist()
+        for measure in current_measures:
+            for key in process_keys:
+                attribute_name = f"{key}_{measure}"
+                if attribute_name not in self._results.keys():
+                    self._populate_columns(attributes=[attribute_name])
+                else:
                     for idcs in process_entry_idcs:
                         if len(idcs) > 1:
-                            self._results[f"{key}_{measure}"][idcs[0]] = None
+                            self._results[attribute_name].iloc[idcs[0]] = None
 
     def _compute_var_measures(
         self,
@@ -1404,26 +1499,82 @@ class PostProcess:
                 results_name = f"{key}_{measure}"
                 for idcs in process_entry_idcs:
                     if len(idcs) > 1:
-                        entries = [self._results[key][idx] for idx in idcs]
+                        entries = [self._results[key].iloc[idx] for idx in idcs]
                         if measure == "std":
-                            value = np.std(entries, axis=0)
+                            value = np.std(entries, axis=0).tolist()
                         elif measure == "sem":
-                            value = stats.sem(entries, axis=0)
-                        self._results[results_name][idcs[0]] = value
-        self._var_measures = list(np.unique([*self._var_measures, *measures]))
+                            value = stats.sem(entries, axis=0).tolist()
+                        self._results[results_name].iloc[idcs[0]] = value
+        self._var_measures = np.unique(
+            [*self._var_measures, *measures]
+        ).tolist()
 
         self._refresh_desc_measures()
         if self._verbose:
             print(
-                "Computing the following variability measures for the "
-                f"processed data: {measures}"
+                "Computing the following variability measures on attributes "
+                "for the processed data:\n- Variability measure(s): "
+                f"{measures}\n- On attribute(s): {process_keys}\n"
             )
+
+    def _set_averaged_key_value(
+        self, key: str, idcs: list[int], if_one_value: bool = True
+    ) -> None:
+        """Sets the value for attributes in the nodes of the results being
+        averaged together based on the unique values of the attributes at these
+        nodes.
+        -   E.g. averaging over two nodes of an attribute with the values '1'
+            and '2', respectively, would be transformed into: 'avg[1, 2]'.
+        -   Equally, averaging over three nodes of an attribute with the values
+            '1', '1', and '2' would be transformed into: 'avg[1, 2]', as only
+            the unique values are accounted for.
+
+        PARAMETERS
+        ----------
+        key : str
+        -   Name of the attribute in the data.
+
+        idcs : list[int]
+        -   Indices of nodes in the results being averaged together.
+
+        if_one_value : bool; default True
+        -   Whether or not to change the key value if the attribute of the nodes
+            being averaged together contains only a single unique value.
+        -   If True and only one unique value is present, the value will be
+            transformed, otherwise if False, the value will not be transformed.
+        """
+
+        if if_one_value:
+            min_length = 0
+        else:
+            min_length = 2
+
+        entries = np.unique([self._results[key][idx] for idx in idcs]).tolist()
+        if len(entries) >= min_length:
+            value = "avg["
+            for entry in entries:
+                value += f"{str(entry)}, "
+            value = value[:-2] + "]"
+            self._results[key].iloc[idcs[0]] = value
+
+    def _prepare_average_measures(self) -> None:
+        """Adds an attribute ('n_averaged_over') indicating how many nodes of
+        results have been averaged together."""
+
+        avgd_over_column = "_n_averaged_over"
+        if avgd_over_column not in self._results.keys():
+            self._populate_columns(attributes=[avgd_over_column])
+            self._process_measures = np.unique(
+                [*self._var_measures, avgd_over_column]
+            ).tolist()
+            self._refresh_desc_measures()
 
     def _compute_average(
         self,
         average_entry_idcs: list[list[int]],
         over_key: str,
         average_keys: list[str],
+        group_keys: list[str],
     ) -> None:
         """Computes the average results over the unique node indices.
 
@@ -1437,29 +1588,34 @@ class PostProcess:
 
         average_keys : list[str]
         -   Attributes of the results to average.
+
+        group_keys : list[str]
+        -   Attributes of the results whose entries should be changed to reflect
+            which entries have been averaged over.
         """
+
+        self._prepare_average_measures()
 
         drop_idcs = []
         for idcs in average_entry_idcs:
             if len(idcs) > 1:
                 for key in average_keys:
-                    entries = [self._results[key][idx] for idx in idcs]
-                    self._results[key][idcs[0]] = np.mean(
+                    entries = [self._results[key].iloc[idx] for idx in idcs]
+                    self._results[key].iloc[idcs[0]] = np.mean(
                         entries, axis=0
                     ).tolist()
                 drop_idcs.extend(idcs[1:])
-            self._results[over_key][
-                idcs[0]
-            ] = f"avg{[self._results[over_key][idx] for idx in idcs]}"
+                for key in group_keys:
+                    self._set_averaged_key_value(
+                        key=key, idcs=idcs, if_one_value=False
+                    )
+            self._set_averaged_key_value(
+                key=over_key, idcs=idcs, if_one_value=True
+            )
+            self._results["_n_averaged_over"].iloc[idcs[0]] = len(idcs)
 
         self._results = self._results.drop(index=drop_idcs)
         self._results = self._results.reset_index(drop=True)
-
-        if self._verbose:
-            print(
-                f"Computing the average for {len(average_entry_idcs)} groups "
-                f"of results over the '{over_key}' attribute."
-            )
 
     def average(
         self,
@@ -1504,6 +1660,16 @@ class PostProcess:
         if over_entries == "ALL":
             over_entries = list(np.unique(self._results[over_key]))
 
+        if self._verbose:
+            print(
+                "Computing the average for groups of results:\nAverage-over "
+                f"attribute: {over_key}\nAverage-over attribute value(s): "
+                f"{over_entries}\nData attribute(s): {data_keys}\nGrouping "
+                f"attribute(s): {group_keys}\nCheck identical across results "
+                f"attribute(s): {identical_keys}\nVariability measure(s): "
+                f"{var_measures}\n"
+            )
+
         combined_entries = self._get_combined_entries(group_keys=group_keys)
         unique_entry_idcs = self._get_unique_indices(
             combined_entries=combined_entries
@@ -1535,16 +1701,11 @@ class PostProcess:
             average_entry_idcs=average_entry_idcs,
             over_key=over_key,
             average_keys=average_keys,
+            group_keys=group_keys,
         )
 
         if self._fbands:
-            self.freq_band_results(
-                bands=self._fbands,
-                attributes=data_keys,
-                measures=self._fband_desc_measures,
-            )
-
-        print("jeff")
+            self._refresh_freq_band_results()
 
 
 def load_results_of_types(
