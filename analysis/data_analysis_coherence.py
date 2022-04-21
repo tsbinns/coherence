@@ -24,5 +24,4 @@ if __name__ == "__main__":
         results_folderpath=RESULTS_FOLDERPATH,
         settings_folderpath=SETTINGS_FOLDERPATH,
         analysis=ANALYSIS,
-        result_types=["connectivity-coh", "connectivity-imcoh"],
     )
