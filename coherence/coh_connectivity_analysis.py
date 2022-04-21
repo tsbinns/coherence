@@ -15,7 +15,6 @@ def coherence_analysis(
     results_folderpath: str,
     settings_folderpath: str,
     analysis: str,
-    result_types: list[str] = ["connectivity-coh", "connectivity-imcoh"],
 ) -> None:
     """Analyses coherence results.
 
@@ -38,10 +37,6 @@ def coherence_analysis(
     -   E.g. ["average", "runs", "ALL"] would average the results across all
         runs. ["average", "ch_types", ["dbs"]] would average the results across
         all channels of type 'dbs'.
-
-    result_types : list[str]
-    -   The types of results to analyse. Includes coherence and the imaginary
-        part of coherence by default.
     """
 
     ## Loads the analysis settings
@@ -51,10 +46,10 @@ def coherence_analysis(
         identical_entries,
         discard_entries,
     ) = get_analysis_settings(
-        settings_fpath=(settings_folderpath + "\\" + analysis + ".json"),
-        result_types=result_types,
+        settings_fpath=(settings_folderpath + "\\" + analysis + ".json")
     )
     to_analyse = analysis_settings["to_analyse"]
+    result_types = analysis_settings["result_types"]
     steps = analysis_settings["steps"]
     band_measures = analysis_settings["freq_band_measures"]
     var_measures = analysis_settings["var_measures"]
@@ -69,37 +64,30 @@ def coherence_analysis(
         discard_entries=discard_entries,
     )
 
-    identical_keys = ["freqs", "seed_coords", "target_coords"]
-
     if freq_bands is not None:
         results.freq_band_results(
             bands=freq_bands, attributes=result_types, measures=band_measures
         )
-        identical_keys.extend(["fband_labels", "fband_freqs"])
 
     for step in steps:
-        method = step[0]
-        attribute = step[1]
-        entries = step[2]
+        if freq_bands is not None:
+            step["identical_keys"].extend(["fband_labels", "fband_freqs"])
 
-        group_keys = drop_from_list(
-            obj=results.attributes,
-            drop=[attribute, *result_types, *identical_keys],
-        )
-
-        if method == "average":
+        if step["method"] == "average":
             results.average(
-                over_key=attribute,
-                data_keys=result_types,
-                group_keys=group_keys,
-                over_entries=entries,
-                identical_keys=identical_keys,
+                over_key=step["over_key"],
+                data_keys=step["data_keys"],
+                group_keys=step["group_keys"],
+                over_entries=step["over_entries"],
+                identical_keys=step["identical_keys"],
                 var_measures=var_measures,
             )
 
+    print("jeff")
+
 
 def get_analysis_settings(
-    settings_fpath: str, result_types: list[str]
+    settings_fpath: str,
 ) -> tuple[dict, dict, list[str], list[str]]:
     """Gets the default settings for results analysis, as well as those specific
     for the requested analysis.
@@ -108,9 +96,6 @@ def get_analysis_settings(
     ----------
     settings_fpath : str
     -   Filepath to the analysis-specific processing settings.
-
-    result_types : list[str]
-    -   Names of the results to analyse.
 
     RETURNS
     -------
@@ -141,7 +126,10 @@ def get_analysis_settings(
     discard_entries = [
         "samp_freq",
         "subject_info",
-        *[f"{results_type}_dimensions" for results_type in result_types],
+        *[
+            f"{results_type}_dimensions"
+            for results_type in analysis_settings["result_types"]
+        ],
     ]
 
     return (
