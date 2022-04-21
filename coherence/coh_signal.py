@@ -379,6 +379,15 @@ class Signal:
         self.data.ch_hemispheres = self.extra_info["ch_hemispheres"]
         self.data_dimensions = ["channels", "timepoints"]
 
+    def _fix_coords(self) -> None:
+        """Fixes the units of the channel coordinates in the data by multiplying
+        them by 1,000."""
+
+        ch_coords = self.get_coordinates()
+        for ch_i, coords in enumerate(ch_coords):
+            ch_coords[ch_i] = [coord * 1000 for coord in coords]
+        self.set_coordinates(ch_names=self.data.ch_names, ch_coords=ch_coords)
+
     def load_raw(self, path_raw: mne_bids.BIDSPath) -> None:
         """Loads an mne.io.Raw object, loads it into memory, and sets it as the
         data, also assigning rereferencing types in 'extra_info' for the
@@ -409,6 +418,7 @@ class Signal:
         )
         self.data.load_data()
         self._initialise_additional_info()
+        self._fix_coords()
 
         self._data_loaded = True
         if self._verbose:
@@ -1883,7 +1893,7 @@ class Signal:
         """
 
         extracted_signals = self._extract_signals(
-            rearrange=["channels", "epochs", "timepoints"]
+            rearrange=["channels", "timepoints", "epochs"]
         )
 
         to_save = {
