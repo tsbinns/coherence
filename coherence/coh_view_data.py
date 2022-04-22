@@ -28,7 +28,7 @@ def annotate_data(
     signal : coh_signal.Signal
     -   The pre-processed data to plot.
 
-    folderpath_extras : str
+    folderpath_annotations : str
     -   The folderpath to the location of the datasets' 'extras', e.g. the
         annotations, processing settings, etc...
 
@@ -54,7 +54,7 @@ def annotate_data(
     ### Analysis setup
     ## Gets the relevant filepaths
     annotations_fpath = generate_sessionwise_fpath(
-        folderpath_extras,
+        folderpath_annotations,
         dataset,
         subject,
         session,

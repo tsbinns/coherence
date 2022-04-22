@@ -12,6 +12,8 @@ import os
 import sys
 from pathlib import Path
 
+from processing.data_processing_annotations import FOLDERPATH_PROCESSING
+
 cd_path = Path(__file__).absolute().parent.parent
 sys.path.append(os.path.join(cd_path, "coherence"))
 from coh_power_processing import morlet_analysis
@@ -23,7 +25,9 @@ FOLDERPATH_DATA = (
     "C:\\Users\\User\\OneDrive - Charité - Universitätsmedizin Berlin\\PROJECT "
     "ECOG-LFP Coherence\\Data"
 )
-FOLDERPATH_EXTRAS = "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN"
+FOLDERPATH_PROCESSING = (
+    "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN\\PROCESSING"
+)
 DATASET = "BIDS_Berlin_ECOG_LFP"
 ANALYSIS = "ECOG-LFP_coherence-power_morlet_processing"
 SUBJECT = "001"
@@ -37,7 +41,7 @@ if __name__ == "__main__":
 
     preprocessed = preprocessing(
         FOLDERPATH_DATA,
-        FOLDERPATH_EXTRAS,
+        FOLDERPATH_PROCESSING,
         DATASET,
         ANALYSIS,
         SUBJECT,
@@ -49,7 +53,7 @@ if __name__ == "__main__":
 
     morlet_analysis(
         preprocessed,
-        FOLDERPATH_EXTRAS,
+        FOLDERPATH_PROCESSING,
         DATASET,
         ANALYSIS,
         SUBJECT,

@@ -22,7 +22,7 @@ check_lengths_list_equals_n
 -   Checks whether the lengths of entries within a list is equal to a given
     number.
 
-check_duplicates_list
+check_repeated_vals
 -   Checks whether duplicates exist within an input list.
 
 check_matching_entries
@@ -49,7 +49,13 @@ from itertools import chain
 from typing import Optional, Union
 from numpy.typing import NDArray
 import numpy as np
-from coh_exceptions import DuplicateEntryError, EntryLengthError
+import pandas as pd
+from coh_exceptions import (
+    DuplicateEntryError,
+    EntryLengthError,
+    MissingEntryError,
+    UnidenticalEntryError,
+)
 
 
 class FillerObject:
@@ -300,37 +306,310 @@ def check_lengths_list_equals_n(
     return all_n
 
 
-def check_duplicates_list(
-    values: list,
-) -> tuple[bool, Optional[list]]:
-    """Checks whether duplicates exist within an input list.
+def check_vals_identical(to_check: list) -> tuple[bool, Union[list, None]]:
+    """Checks whether all values within a list are identical.
 
     PARAMETERS
     ----------
-    values : list
-    -   The list of values whose entries should be checked for duplicates.
+    to_check : list
+    -   The list whose values should be checked.
 
     RETURNS
     -------
-    duplicates : bool
-    -   Whether or not duplicates are present.
+    is_identical : bool
+    -   Whether or not all values within the list are identical.
 
-    duplicate_values : list | None
-    -   The list of duplicates values, or None if no duplicates are present.
+    unique_vals : list | None
+    -   The unique values in the list. If all values are identical, this is
+        'None'.
+    """
+
+    is_identical = True
+    compare_against = to_check[0]
+    for val in to_check[1:]:
+        if val != compare_against:
+            is_identical = False
+
+    if is_identical:
+        unique_vals = None
+    else:
+        unique_vals = np.unique(to_check).tolist()
+
+    return is_identical, unique_vals
+
+
+def check_vals_identical_df(
+    dataframe: pd.DataFrame, keys: list[str], idcs: list[list[int]]
+) -> None:
+    """Checks that a DataFrame attribute's values at specific indices are
+    identical.
+
+    PARAMETERS
+    ----------
+    dataframe : pandas DataFrame
+    -   DataFrame containing the values to check.
+
+    keys : list[str]
+    -   Names of the attributes in the DataFrame whose values should be checked.
+
+    idcs : list[list[int]]
+    -   The indices of the entries in the attributes whose values should be
+        checked.
+    -   Each entry is a list of integers corresponding to the indices of
+        the results to compare together.
+
+    RAISES
+    ------
+    UnidenticalEntryError
+    -   Raised if any of the groups of values being compared are not identical.
+    """
+
+    for key in keys:
+        for group_idcs in idcs:
+            if len(group_idcs) > 1:
+                is_identical, unique_vals = check_vals_identical(
+                    to_check=dataframe[key].iloc[group_idcs].tolist()
+                )
+                if not is_identical:
+                    raise UnidenticalEntryError(
+                        "Error when checking that the attributes of "
+                        "results belonging to the same group share the "
+                        f"same values:\nThe values of '{key}' in rows "
+                        f"{group_idcs} do not match.\nValues:{unique_vals}\n"
+                    )
+
+
+def get_eligible_idcs_list(
+    vals: list,
+    eligible_vals: list,
+    idcs: Union[list[int], None] = None,
+) -> list[int]:
+    """Finds indices of items in a list that have a certain value.
+
+    PARAMETERS
+    ----------
+    vals : list
+    -   List whose values should be checked.
+
+    eligible_vals : list
+    -   List containing values that are considered 'eligible', and whose indices
+        will be recorded.
+
+    idcs : list[int] | None; default None
+    -   Indices of the items in 'to_check' to check.
+    -   If 'None', all items are checked.
+
+    RETURNS
+    -------
+    list[int]
+    -   List containing the indices of items in 'to_check' with 'eligible'
+        values.
+    """
+
+    if idcs is None:
+        idcs = range(len(vals))
+
+    return [idx for idx in idcs if vals[idx] in eligible_vals]
+
+
+def get_group_idcs(
+    vals: list, replacement_idcs: Union[list[int], None] = None
+) -> list[list[int]]:
+    """Finds groups of items in a list containing the same values, and returns
+    their indices.
+
+    PARAMETERS
+    ----------
+    vals : list
+    -   List containing the items that should be compared.
+
+    replacement_idcs : list[int] | None
+    -   List containing indices that the indices of items in 'vals' should be
+        replaced with.
+    -   Must have the same length as 'vals'.
+    -   E.g. if items in positions 0, 1, and 2 of 'vals' were grouped together
+        and the values of 'replacement_idcs' in positions 0 to 2 were [2, 6, 9],
+        respectively, the resulting indices for this group would be [2, 6, 9].
+    -   If None, the original indices are used.
+
+    RETURNS
+    -------
+    group_idcs : list[list[int]]
+    -   List of lists where each list contains the indices for a group of items
+        in 'vals' that share the same value.
+
+    RAISES
+    ------
+    EntryLengthError
+    -   Raised if 'vals' and 'replacement_idcs' do not have the same length.
+    """
+
+    if replacement_idcs is None:
+        replacement_idcs = range(len(vals))
+    else:
+        if len(replacement_idcs) != len(vals):
+            raise EntryLengthError(
+                "Error when trying to find the group indices of items:\nThe "
+                "values and replacement indices do not have the same lengths "
+                f"({len(vals)} and {len(replacement_idcs)}, respectively).\n"
+            )
+
+    unique_vals = np.unique(vals).tolist()
+    group_idcs = []
+    for unique_val in unique_vals:
+        group_idcs.append([])
+        for idx, val in enumerate(vals):
+            if unique_val == val:
+                group_idcs[-1].append(replacement_idcs[idx])
+
+    return group_idcs
+
+
+def combine_col_vals_df(
+    dataframe: pd.DataFrame,
+    keys: Union[list[str], None] = None,
+    idcs: Union[list[int], None] = None,
+    special_vals: Union[dict[str], None] = None,
+) -> list[str]:
+    """Combines the values of DataFrame columns into a string on a row-by-row
+    basis (i.e. one string for each row).
+
+    PARAMETERS
+    ----------
+    dataframe : pandas DataFrame
+    -   DataFrame whose values should be combined across columns.
+
+    keys : list[str] | None
+    -   Names of the columns in the DataFrame whose values should be combined.
+    -   If 'None', all columns are used.
+
+    idcs : list[int] | None
+    -   Indices of the rows in the DataFrame whose values should be combined.
+    -   If 'None', all rows are used.
+
+    special_vals : dict[str] | None
+    -   Instructions for how to treat specific values in the DataFrame.
+    -   Keys are the special values that the values should begin with, whilst
+        values are the values that the special values should be replaced with.
+    -   E.g. {"avg[": "avg_"} would mean values in the DataFrame beginning with
+        'avg[' would have this beginning replaced with 'avg_', followed by the
+        column name, so a value beginning with 'avg[' in the 'channels' column
+        would become 'avg_channels'.
+
+    RETURNS
+    -------
+    combined_vals : list[str]
+    -   The values of the DataFrame columns combined on a row-by-row basis, with
+        length equal to that of 'idcs'.
+    """
+
+    if keys is None:
+        keys = dataframe.keys().tolist()
+    if idcs is None:
+        idcs = dataframe.index.tolist()
+    if special_vals is None:
+        special_vals = {}
+
+    combined_vals = []
+    for idx in idcs:
+        combined_vals.append("")
+        for key in keys:
+            value = str(dataframe[key].iloc[idx])
+            for to_replace, replacement in special_vals.items():
+                if value[: len(to_replace)] == to_replace:
+                    value = f"{replacement}{key}"
+            combined_vals[idx] += value
+
+    return combined_vals
+
+
+def check_repeated_vals(
+    to_check: list,
+) -> tuple[bool, Optional[list]]:
+    """Checks whether repeated values exist within an input list.
+
+    PARAMETERS
+    ----------
+    to_check : list
+    -   The list of values whose entries should be checked for repeats.
+
+    RETURNS
+    -------
+    repeats : bool
+    -   Whether or not repeats are present.
+
+    repeated_vals : list | None
+    -   The list of repeated values, or 'None' if no repeats are present.
     """
 
     seen = set()
     seen_add = seen.add
-    duplicate_values = list(
-        set(value for value in values if value in seen or seen_add(value))
+    repeated_vals = list(
+        set(val for val in to_check if val in seen or seen_add(val))
     )
-    if not duplicate_values:
-        duplicates = False
-        duplicate_values = None
+    if not repeated_vals:
+        repeats = False
+        repeated_vals = None
     else:
-        duplicates = True
+        repeats = True
 
-    return duplicates, duplicate_values
+    return repeats, repeated_vals
+
+
+def check_non_repeated_vals_lists(
+    lists: list[list], allow_non_repeated: bool = True
+) -> bool:
+    """Checks that each list in a list of lists contains values which also
+    occur in each and every other list.
+
+    PARAMETERS
+    ----------
+    lists : list[lists]
+    -   Master list containing the lists whose values should be checked for
+        non-repeating values.
+
+    allow_non_repeated : bool; default True
+    -   Whether or not to allow non-repeated values to be present. If not, an
+        error is raised if a non-repeated value is detected.
+
+    RETURNS
+    -------
+    all_repeated : bool
+    -   Whether or not all values of the lists are present in each and every
+        other list.
+
+    RAISES
+    ------
+    MissingEntryError
+    -   Raised if a list contains a value that does not occur in each and every
+        other list and 'allow_non_repeated' is 'False'.
+    """
+
+    compare_list = lists[0]
+    all_repeated = True
+    checking = True
+    while checking:
+        for check_list in lists[1:]:
+            non_repeated_vals = [
+                val for val in compare_list if val not in check_list
+            ]
+            non_repeated_vals.extend(
+                [val for val in check_list if val not in compare_list]
+            )
+            if non_repeated_vals:
+                if not allow_non_repeated:
+                    raise MissingEntryError(
+                        "Error when checking whether all values of a list are "
+                        "repeated in another list:\nThe value(s) "
+                        f"{non_repeated_vals} is(are) not present in all "
+                        "lists.\n"
+                    )
+                else:
+                    all_repeated = False
+                    checking = False
+        checking = False
+
+    return all_repeated
 
 
 def check_matching_entries(objects: list) -> bool:
@@ -408,7 +687,7 @@ def check_master_entries_in_sublists(
     combined_sublists = list(chain(*sublists))
 
     if not allow_duplicates:
-        duplicates, duplicate_entries = check_duplicates_list(combined_sublists)
+        duplicates, duplicate_entries = check_repeated_vals(combined_sublists)
         if duplicates:
             raise DuplicateEntryError(
                 "Error when checking the presence of master list entries "
@@ -461,7 +740,7 @@ def check_sublist_entries_in_master(
     combined_sublists = list(chain(*sublists))
 
     if not allow_duplicates:
-        duplicates, duplicate_entries = check_duplicates_list(combined_sublists)
+        duplicates, duplicate_entries = check_repeated_vals(combined_sublists)
         if duplicates:
             raise DuplicateEntryError(
                 "Error when checking the presence of master list entries "

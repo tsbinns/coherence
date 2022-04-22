@@ -13,14 +13,16 @@ from coh_preprocess_data import preprocessing
 
 ### Info about the data to analyse
 FOLDERPATH_DATA = (
-    "C:\\Users\\User\\OneDrive - Charité - Universitätsmedizin Berlin\\PROJECT "
-    "ECOG-LFP Coherence\\Data"
+    "C:\\Users\\User\\OneDrive - Charité - Universitätsmedizin Berlin\\"
+    "PROJECT ECOG-LFP Coherence\\Data"
 )
-FOLDERPATH_EXTRAS = "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN"
+FOLDERPATH_PROCESSING = (
+    "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN\\Processing"
+)
 DATASET = "BIDS_Berlin_ECOG_LFP"
 ANALYSIS = "ECOG-LFP_coherence-connectivity_coherence_processing"
-SUBJECT = "001"
-SESSION = "EcogLfpMedOff01"
+SUBJECT = "003"
+SESSION = "EcogLfpMedOn01"
 TASK = "Rest"
 ACQUISITION = "StimOff"
 RUN = "1"
@@ -30,7 +32,7 @@ if __name__ == "__main__":
 
     preprocessed = preprocessing(
         FOLDERPATH_DATA,
-        FOLDERPATH_EXTRAS,
+        FOLDERPATH_PROCESSING,
         DATASET,
         ANALYSIS,
         SUBJECT,
@@ -42,7 +44,7 @@ if __name__ == "__main__":
 
     coherence_processing(
         preprocessed,
-        FOLDERPATH_EXTRAS,
+        FOLDERPATH_PROCESSING,
         DATASET,
         ANALYSIS,
         SUBJECT,

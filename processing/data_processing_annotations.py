@@ -13,10 +13,12 @@ from coh_view_data import annotate_data
 
 ### Info about the data to analyse
 FOLDERPATH_DATA = (
-    "C:\\Users\\User\\OneDrive - Charité - Universitätsmedizin Berlin\\PROJECT "
-    "ECOG-LFP Coherence\\Data"
+    "C:\\Users\\User\\OneDrive - Charité - Universitätsmedizin Berlin\\"
+    "PROJECT ECOG-LFP Coherence\\Data"
 )
-FOLDERPATH_EXTRAS = "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN"
+FOLDERPATH_PROCESSING = (
+    "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN\\Processing"
+)
 DATASET = "BIDS_Berlin_ECOG_LFP"
 ANALYSIS = "ECOG-LFP_coherence-annotations_processing"
 SUBJECT = "001"
@@ -30,7 +32,7 @@ if __name__ == "__main__":
 
     preprocessed = preprocessing(
         FOLDERPATH_DATA,
-        FOLDERPATH_EXTRAS,
+        FOLDERPATH_PROCESSING,
         DATASET,
         ANALYSIS,
         SUBJECT,
@@ -42,7 +44,7 @@ if __name__ == "__main__":
 
     annotate_data(
         preprocessed,
-        FOLDERPATH_EXTRAS,
+        FOLDERPATH_PROCESSING,
         DATASET,
         SUBJECT,
         SESSION,

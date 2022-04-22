@@ -18,7 +18,7 @@ from coh_signal import Signal
 
 def preprocessing(
     folderpath_data: str,
-    folderpath_extras: str,
+    folderpath_processing: str,
     dataset: str,
     analysis: str,
     subject: str,
@@ -34,12 +34,12 @@ def preprocessing(
     folderpath_data : str
     -   The folderpath to the location of the datasets.
 
-    folderpath_extras : str
-    -   The folderpath to the location of the datasets' 'extras', e.g. the
-        annotations, processing settings, etc...
+    folderpath_processing : str
+    -   The folderpath to the location of the processing settings and
+        derivatives.
 
     dataset : str
-    -   The name of the dataset folder found in 'folderpath_data'.
+    -   The name of the cohort's raw data and processing data folders.
 
     analysis : str
     -   The name of the analysis folder within "'folderpath_extras'/settings".
@@ -67,11 +67,13 @@ def preprocessing(
 
     ### Analysis setup
     ## Gets the relevant filepaths
+    analysis_folder = f"{folderpath_processing}\\Settings"
+    data_folder = f"{folderpath_processing}\\Data"
     analysis_settings_fpath = generate_analysiswise_fpath(
-        folderpath_extras + "\\settings", analysis, ".json"
+        analysis_folder, analysis, ".json"
     )
     data_settings_fpath = generate_sessionwise_fpath(
-        folderpath_extras,
+        data_folder,
         dataset,
         subject,
         session,
@@ -85,7 +87,7 @@ def preprocessing(
         folderpath_data, dataset, subject, session, task, acquisition, run
     )
     annotations_fpath = generate_sessionwise_fpath(
-        folderpath_extras,
+        data_folder,
         dataset,
         subject,
         session,

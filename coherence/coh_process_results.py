@@ -23,18 +23,23 @@ import pandas as pd
 from numpy.typing import NDArray
 from scipy import stats
 from coh_handle_files import generate_results_fpath, load_file
-
 from coh_exceptions import (
     DuplicateEntryError,
     EntryLengthError,
     InputTypeError,
-    MissingEntryError,
     PreexistingAttributeError,
     ProcessingOrderError,
     UnavailableProcessingError,
     UnidenticalEntryError,
 )
-from coh_handle_entries import check_lengths_list_identical
+from coh_handle_entries import (
+    combine_col_vals_df,
+    check_lengths_list_identical,
+    check_non_repeated_vals_lists,
+    check_vals_identical_df,
+    get_eligible_idcs_list,
+    get_group_idcs,
+)
 from coh_saving import save_dict, save_object
 
 
@@ -304,7 +309,7 @@ class PostProcess:
         """
 
         for entry in identical_entries:
-            results[entry] = [results[entry]] * entry_length
+            results[entry] = [deepcopy(results[entry])] * entry_length
 
         return results
 
@@ -337,16 +342,6 @@ class PostProcess:
 
         for dict_name, dict_entries in extract.items():
             for entry in dict_entries:
-                to_add = deepcopy([results[dict_name][entry]] * entry_length)
-                if isinstance(to_add, dict):
-                    raise TypeError(
-                        "Error when processing the results:\nThe results "
-                        f"contain the dictionary '{dict_name}' which contains "
-                        f"an entry '{entry}' that is being extracted and "
-                        "included with the results for processing, however "
-                        "processing dictionaries in a PostProcess object is "
-                        "not supported."
-                    )
                 if entry in results.keys():
                     raise PreexistingAttributeError(
                         "Error when processing the results:\nThe entry "
@@ -355,7 +350,17 @@ class PostProcess:
                         f"attribute named '{entry}' is already present in the "
                         "results."
                     )
-                results[entry] = to_add
+                repeat_val = results[dict_name][entry]
+                if isinstance(repeat_val, dict):
+                    raise TypeError(
+                        "Error when processing the results:\nThe results "
+                        f"contain the dictionary '{dict_name}' which contains "
+                        f"an entry '{entry}' that is being extracted and "
+                        "included with the results for processing, however "
+                        "processing dictionaries in a PostProcess object is "
+                        "not supported."
+                    )
+                results[entry] = [deepcopy(repeat_val)] * entry_length
 
         return results
 
@@ -441,45 +446,11 @@ class PostProcess:
 
         RETURNS
         -------
-        results : pandas DataFrame
+        pandas DataFrame
         -   The 'results' dictionary as a DataFrame.
         """
 
-        results = pd.DataFrame.from_dict(data=results, orient="columns")
-
-        return results
-
-    def _check_non_duplicates(self, results: Union[dict, pd.DataFrame]) -> None:
-        """Checks that the existing results and the results being added contain
-        all the same keys.
-
-        PARAMETERS
-        ----------
-        results : dict | pandas DataFrame
-        -   The results being added.
-
-        RAISES
-        ------
-        MissingEntryError
-        -   Raised if the existing results and results being added do not
-            contain the same keys.
-        """
-
-        current_keys = list(self._results.keys())
-        new_keys = list(results.keys())
-
-        non_duplicate_keys = [
-            key for key in current_keys if key not in new_keys
-        ].extend([key for key in new_keys if key not in current_keys])
-
-        if non_duplicate_keys:
-            raise MissingEntryError(
-                "Error when appending results to the PostProcess object:\nThe "
-                f"key(s) {non_duplicate_keys} is(are) not present in both the "
-                "existing results and the results being appended. If you still "
-                "wish to add these new results, the 'merge' method should be "
-                "used."
-            )
+        return pd.DataFrame.from_dict(data=results, orient="columns")
 
     def append_from_dict(
         self,
@@ -535,7 +506,10 @@ class PostProcess:
             discard_entries=discard_entries,
         )
 
-        self._check_non_duplicates(results=new_results)
+        check_non_repeated_vals_lists(
+            lists=[list(self._results.keys()), list(new_results.keys())],
+            allow_non_repeated=False,
+        )
 
         new_results = self._results_to_df(results=new_results)
 
@@ -568,7 +542,10 @@ class PostProcess:
                 "added after frequency band-wise results have been calculated."
             )
 
-        self._check_non_duplicates(results=new_results)
+        check_non_repeated_vals_lists(
+            lists=[self._results.keys().tolist(), new_results.keys().tolist()],
+            allow_non_repeated=False,
+        )
 
         self._results = pd.concat(
             objs=[self._results, new_results], ignore_index=True
@@ -700,14 +677,12 @@ class PostProcess:
             being merged.
         """
 
-        duplicates = []
-        for key in new_results.keys():
-            if key in self._results.keys():
-                duplicates.append(True)
-            else:
-                duplicates.append(False)
+        all_repeated = check_non_repeated_vals_lists(
+            lists=[self._results.keys().tolist(), new_results.keys().tolist()],
+            allow_non_repeated=True,
+        )
 
-        if all(duplicates):
+        if all_repeated:
             raise DuplicateEntryError(
                 "Error when trying to merge results:\nThere are no new columns "
                 "in the results being added. If you still want to add the "
@@ -849,142 +824,6 @@ class PostProcess:
             results=merged_results
         )
 
-    def _check_identical_keys(
-        self, indices: list[list[int]], keys: list[str]
-    ) -> None:
-        """Checks that the values for keys marked as identical are.
-
-        PARAMETERS
-        ----------
-        indices : list[list[int]]
-        -   The indices whose values should be checked.
-        -   Each entry is a list of integers corresponding to the indices of
-            the results to compare.
-
-        keys : list[str]
-        -   The names of the attributes of the data whose values should be
-            compared
-
-        RAISES
-        ------
-        UnidenticalEntryError
-        -   Raised if the values being compared for any of the keys and indices
-            are not identical.
-        """
-
-        for key in keys:
-            for idcs in indices:
-                if len(idcs) > 1:
-                    for entry_i, idx in enumerate(idcs):
-                        if entry_i == 0:
-                            compare_against = self._results[key][idx]
-                        else:
-                            if self._results[key][idx] != compare_against:
-                                raise UnidenticalEntryError(
-                                    "Error when checking that the attributes "
-                                    "of results belonging to the same group "
-                                    "share the same values:\nThe values of "
-                                    f"'{key}' in rows {idcs[0]} and {idx} do "
-                                    "not match."
-                                )
-
-    def _get_indices_to_process(
-        self,
-        unique_entry_idcs: list[list[int]],
-        over_key: str,
-        over_entries: list,
-    ) -> list[list[int]]:
-        """Gets the unique indices of nodes in the results that should be
-        processed.
-
-        PARAMETERS
-        ----------
-        unique_entry_idcs : list[list[int]]
-        -   Indices of each unique set of nodes in the results.
-
-        over_key : str
-        -   Name of the attribute in the results to process over.
-
-        over_entries : list
-        -   The values of the 'over_key' attribute in the results to process.
-        -   Indices without 'over_entries' values in the 'over_key' attribute
-            of the results are not included in the indices to process.
-
-        RETURNS
-        -------
-        entry_idcs_to_process : list[list[int]]
-        -   Unique indices of nodes in the results that should be processed.
-        """
-
-        entry_idcs_to_process = []
-        for idcs in unique_entry_idcs:
-            process_idcs = [
-                idx
-                for idx in idcs
-                if self._results[over_key][idx] in over_entries
-            ]
-            if process_idcs != []:
-                entry_idcs_to_process.append(process_idcs)
-
-        return entry_idcs_to_process
-
-    def _get_combined_entries(self, group_keys: list[str]) -> list[str]:
-        """Combines the values of the data for each node.
-        -   Attributes that have been averaged are taken as being equivalent,
-            regardless of what values they were averaged over.
-
-        PARAMETERS
-        ----------
-        group_keys : list[str]
-        -   Names of the attributes in the results whose values will be
-            combined.
-
-        RETURNS
-        -------
-        combined_entries : list[str]
-        -   Combined values of all requested attributes in the results, with
-            each entry corresponding to the values of each node in the results.
-        """
-
-        combined_entries = []
-        for row_i in range(len(self._results.index)):
-            combined_entries.append("")
-            for key in group_keys:
-                value = str(self._results[key].iloc[row_i])
-                if value[:4] == "avg[":
-                    value = f"avg_{key}"
-                combined_entries[row_i] += value
-
-        return combined_entries
-
-    def _get_unique_indices(
-        self, combined_entries: list[str]
-    ) -> list[list[int]]:
-        """Gets the indices of each unique set of nodes in the results,
-        corresponding to the sets of results that will be processed together.
-
-        PARAMETERS
-        ----------
-        combined_entries : list[str]
-        -   Combined values of attributes in the results, with
-            each entry corresponding to the values of each node in the results.
-
-        RETURNS
-        -------
-        unique_entry_idcs : list[list[int]]
-        -   Indices of each unique set of nodes in the results.
-        """
-
-        unique_entries = np.unique(combined_entries).tolist()
-        unique_entry_idcs = []
-        for unique_entry in unique_entries:
-            unique_entry_idcs.append([])
-            for entry_i, combined_entry in enumerate(combined_entries):
-                if unique_entry == combined_entry:
-                    unique_entry_idcs[-1].append(entry_i)
-
-        return unique_entry_idcs
-
     def _populate_columns(
         self,
         attributes: list[str],
@@ -1005,23 +844,6 @@ class PostProcess:
             self._results[attribute] = [deepcopy(fill)] * len(
                 self._results.index
             )
-
-    @property
-    def attributes(self) -> list[str]:
-        """Gets the original attributes of the results, not those which are
-        related to frequency band-wise or variability results.
-
-        RETURNS
-        -------
-        list[str]
-        -   Names of the results attributes not related to frequency band-wise
-            or variability results.
-        """
-
-        keys = self._results.keys().tolist()
-        exclude_keys = [*self._fband_columns, *self._var_columns]
-
-        return [key for key in keys if key not in exclude_keys]
 
     def _get_process_keys(self, process_keys: list[str]) -> list[str]:
         """Gets the attributes of the results to process, adding and frequency
@@ -1453,8 +1275,7 @@ class PostProcess:
                     self._populate_columns(attributes=[attribute_name])
                 else:
                     for idcs in process_entry_idcs:
-                        if len(idcs) > 1:
-                            self._results[attribute_name].iloc[idcs[0]] = None
+                        self._results[attribute_name].iloc[idcs[0]] = None
 
     def _compute_var_measures(
         self,
@@ -1660,22 +1481,26 @@ class PostProcess:
                 f"{var_measures}\n"
             )
 
-        combined_entries = self._get_combined_entries(group_keys=group_keys)
-        unique_entry_idcs = self._get_unique_indices(
-            combined_entries=combined_entries
+        eligible_idcs = get_eligible_idcs_list(
+            vals=self._results[over_key],
+            eligible_vals=over_entries,
+        )
+        combined_vals = combine_col_vals_df(
+            dataframe=self._results,
+            keys=group_keys,
+            idcs=eligible_idcs,
+            special_vals={"avg[": "avg_"},
+        )
+        group_idcs = get_group_idcs(
+            vals=combined_vals, replacement_idcs=eligible_idcs
         )
 
         if identical_keys is not None:
-            self._check_identical_keys(
-                indices=unique_entry_idcs, keys=identical_keys
+            check_vals_identical_df(
+                dataframe=self._results,
+                keys=identical_keys,
+                idcs=group_idcs,
             )
-
-        average_entry_idcs = self._get_indices_to_process(
-            unique_entry_idcs=unique_entry_idcs,
-            over_key=over_key,
-            over_entries=over_entries,
-        )
-
         average_keys = self._get_process_keys(
             process_keys=data_keys,
         )
@@ -1683,12 +1508,12 @@ class PostProcess:
         if var_measures:
             self._compute_var_measures(
                 measures=var_measures,
-                process_entry_idcs=average_entry_idcs,
+                process_entry_idcs=group_idcs,
                 process_keys=average_keys,
             )
 
         self._compute_average(
-            average_entry_idcs=average_entry_idcs,
+            average_entry_idcs=group_idcs,
             over_key=over_key,
             average_keys=average_keys,
             group_keys=group_keys,
@@ -1811,6 +1636,7 @@ class PostProcess:
             )
         else:
             results = {}
+            ignore_attrs = []
 
         for attr in self._results.keys():
             if attr not in ignore_attrs:
@@ -1904,7 +1730,7 @@ class PostProcess:
 
 
 def load_results_of_types(
-    results_folderpath: str,
+    folderpath_processing: str,
     to_analyse: dict[str],
     result_types: list[str],
     extract_from_dicts: Optional[dict[list[str]]] = None,
@@ -1917,8 +1743,8 @@ def load_results_of_types(
 
     PARAMETERS
     ----------
-    results_folderpath : str
-    -   Folderpath to where the results are located.
+    folderpath_processing : str
+    -   Folderpath to where the processed results are located.
 
     to_analyse : dict[str]
     -   Dictionary in which each entry represents a different piece of results.
@@ -1960,7 +1786,7 @@ def load_results_of_types(
     first_type = True
     for result_type in result_types:
         results = load_results_of_type(
-            results_folderpath=results_folderpath,
+            folderpath_processing=folderpath_processing,
             to_analyse=to_analyse,
             result_type=result_type,
             extract_from_dicts=extract_from_dicts,
@@ -1980,7 +1806,7 @@ def load_results_of_types(
 
 
 def load_results_of_type(
-    results_folderpath: str,
+    folderpath_processing: str,
     to_analyse: list[dict[str]],
     result_type: str,
     extract_from_dicts: Optional[dict[list[str]]] = None,
@@ -1992,8 +1818,8 @@ def load_results_of_type(
 
     PARAMETERS
     ----------
-    results_folderpath : str
-    -   Folderpath to where the results are located.
+    folderpath_processing : str
+    -   Folderpath to where the processed results are located.
 
     to_analyse : list[dict[str]]
     -   Dictionary in which each entry represents a different piece of results.
@@ -2026,7 +1852,8 @@ def load_results_of_type(
     first_result = True
     for result_info in to_analyse:
         result_fpath = generate_results_fpath(
-            folderpath=results_folderpath,
+            folderpath=folderpath_processing,
+            dataset=result_info["cohort"],
             subject=result_info["sub"],
             session=result_info["ses"],
             task=result_info["task"],

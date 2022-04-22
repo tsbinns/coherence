@@ -3,25 +3,27 @@
 
 import os
 import sys
-from collections import OrderedDict
 from pathlib import Path
 
 cd_path = Path(__file__).absolute().parent.parent
 sys.path.append(os.path.join(cd_path, "coherence"))
-from coh_connectivity_analysis import coherence_analysis
+from coh_connectivity_analysis import connectivity_analysis
 
 
 ### Info about the results to analyse
-EXTRAS_FOLDERPATH = "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN"
-RESULTS_FOLDERPATH = EXTRAS_FOLDERPATH + "\\BIDS_Berlin_ECOG_LFP"
-SETTINGS_FOLDERPATH = EXTRAS_FOLDERPATH + "\\settings"
-ANALYSIS = "ECOG-LFP_coherence-MedOffOn_results"
+FOLDERPATH_ANALYSIS = (
+    "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN\\Analysis"
+)
+FOLDERPATH_PROCESSING = (
+    "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN\\Processing"
+)
+ANALYSIS = "ECOG-LFP_coherence-MedOffOn_connectivity_results"
 
 
 if __name__ == "__main__":
 
-    analysed = coherence_analysis(
-        results_folderpath=RESULTS_FOLDERPATH,
-        settings_folderpath=SETTINGS_FOLDERPATH,
+    analysed = connectivity_analysis(
+        folderpath_processing=FOLDERPATH_PROCESSING,
+        folderpath_analysis=FOLDERPATH_ANALYSIS,
         analysis=ANALYSIS,
     )
