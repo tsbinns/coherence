@@ -6,15 +6,15 @@ coherence_analysis
 -   Analyses coherence results.
 """
 
-from coh_handle_entries import drop_from_list
-from coh_handle_files import load_file
+from coh_handle_files import generate_fpath_from_analysed, load_file
 from coh_process_results import load_results_of_types
 
 
-def coherence_analysis(
-    results_folderpath: str,
-    settings_folderpath: str,
+def connectivity_analysis(
+    folderpath_processing: str,
+    folderpath_analysis: str,
     analysis: str,
+    save: bool = True,
 ) -> None:
     """Analyses coherence results.
 
@@ -46,7 +46,7 @@ def coherence_analysis(
         identical_entries,
         discard_entries,
     ) = get_analysis_settings(
-        settings_fpath=(settings_folderpath + "\\" + analysis + ".json")
+        settings_fpath=(f"{folderpath_analysis}\\Settings\\{analysis}.json")
     )
     to_analyse = analysis_settings["to_analyse"]
     result_types = analysis_settings["result_types"]
@@ -56,7 +56,7 @@ def coherence_analysis(
     freq_bands = analysis_settings["freq_bands"]
 
     results = load_results_of_types(
-        results_folderpath=results_folderpath,
+        folderpath_processing=f"{folderpath_processing}\\Data",
         to_analyse=to_analyse,
         result_types=result_types,
         extract_from_dicts=extract_from_dicts,
@@ -72,7 +72,6 @@ def coherence_analysis(
     for step in steps:
         if freq_bands is not None:
             step["identical_keys"].extend(["fband_labels", "fband_freqs"])
-
         if step["method"] == "average":
             results.average(
                 over_key=step["over_key"],
@@ -83,7 +82,14 @@ def coherence_analysis(
                 var_measures=var_measures,
             )
 
-    print("jeff")
+    if save:
+        results_fpath = generate_fpath_from_analysed(
+            analysed=to_analyse,
+            parent_folderpath=f"{folderpath_analysis}\\Results",
+            analysis=analysis,
+            ftype="json",
+        )
+        results.save_results(fpath=results_fpath)
 
 
 def get_analysis_settings(
@@ -95,12 +101,12 @@ def get_analysis_settings(
     PARAMETERS
     ----------
     settings_fpath : str
-    -   Filepath to the analysis-specific processing settings.
+    -   Filepath to the analysis-specific settings.
 
     RETURNS
     -------
     analysis_settings : dict
-    -   The analysis-specific processing settings.
+    -   The analysis-specific settings.
 
     extract_from_dicts : dict[list[str]]
     -   The entries of dictionaries within the results to include in the
@@ -122,15 +128,20 @@ def get_analysis_settings(
     extract_from_dicts = {
         "metadata": ["sub", "med", "stim", "ses", "task", "run"]
     }
-    identical_entries = ["freqs"]
+
+    result_types_dims = [
+        f"{results_type}_dimensions"
+        for results_type in analysis_settings["result_types"]
+    ]
+    """
+    identical_entries = ["freqs", *result_types_dims]
     discard_entries = [
         "samp_freq",
         "subject_info",
-        *[
-            f"{results_type}_dimensions"
-            for results_type in analysis_settings["result_types"]
-        ],
     ]
+    """
+    identical_entries = ["freqs"]
+    discard_entries = ["samp_freq", "subject_info", *result_types_dims]
 
     return (
         analysis_settings,
