@@ -24,6 +24,7 @@ from coh_exceptions import (
 from coh_handle_entries import FillerObject, ordered_list_from_dict
 from coh_processing_methods import ProcMethod
 import coh_signal
+from coh_saving import save_object, save_dict
 
 
 class ConnectivityCoherence(ProcMethod):
@@ -1210,7 +1211,7 @@ class ConnectivityCoherence(ProcMethod):
         if ask_before_overwrite is None:
             ask_before_overwrite = self._verbose
 
-        self._save_object(
+        save_object(
             to_save=self,
             fpath=fpath,
             ask_before_overwrite=ask_before_overwrite,
@@ -1251,38 +1252,15 @@ class ConnectivityCoherence(ProcMethod):
         if ask_before_overwrite is None:
             ask_before_overwrite = self._verbose
 
-        to_save = {
-            f"connectivity-{self._method}": self.coherence._data.tolist(),
-            f"connectivity-{self._method}_dimensions": self.coherence_dims,
-            "freqs": self.coherence.freqs,
-            "seed_names": self.extra_info["node_ch_names"][0],
-            "seed_types": self.extra_info["node_ch_types"][0],
-            "seed_coords": self.extra_info["node_ch_coords"][0],
-            "seed_regions": self.extra_info["node_ch_regions"][0],
-            "seed_hemispheres": self.extra_info["node_ch_hemispheres"][0],
-            "seed_reref_types": self.extra_info["node_reref_types"][0],
-            "target_names": self.extra_info["node_ch_names"][1],
-            "target_types": self.extra_info["node_ch_types"][1],
-            "target_coords": self.extra_info["node_ch_coords"][1],
-            "target_regions": self.extra_info["node_ch_regions"][1],
-            "target_hemispheres": self.extra_info["node_ch_hemispheres"][1],
-            "target_reref_types": self.extra_info["node_reref_types"][1],
-            "node_epoch_orders": self.extra_info["node_epoch_orders"],
-            "samp_freq": self.signal.data.info["sfreq"],
-            "metadata": self.extra_info["metadata"],
-            "processing_steps": self.processing_steps,
-            "subject_info": self.signal.data.info["subject_info"],
-        }
-
-        self._save_results(
-            to_save=to_save,
+        save_dict(
+            to_save=self.results_as_dict(),
             fpath=fpath,
             ftype=ftype,
             ask_before_overwrite=ask_before_overwrite,
             verbose=self._verbose,
         )
 
-    def results_as_dict(self) -> None:
+    def results_as_dict(self) -> dict:
         """Returns the coherence results and additional information as a
         dictionary.
 
@@ -1300,12 +1278,15 @@ class ConnectivityCoherence(ProcMethod):
             "seed_types": self.extra_info["node_ch_types"][0],
             "seed_coords": self.extra_info["node_ch_coords"][0],
             "seed_regions": self.extra_info["node_ch_regions"][0],
+            "seed_hemispheres": self.extra_info["node_ch_hemispheres"][0],
             "seed_reref_types": self.extra_info["node_reref_types"][0],
             "target_names": self.extra_info["node_ch_names"][1],
             "target_types": self.extra_info["node_ch_types"][1],
             "target_coords": self.extra_info["node_ch_coords"][1],
             "target_regions": self.extra_info["node_ch_regions"][1],
+            "target_hemispheres": self.extra_info["node_ch_hemispheres"][1],
             "target_reref_types": self.extra_info["node_reref_types"][1],
+            "node_epoch_orders": self.extra_info["node_epoch_orders"],
             "samp_freq": self.signal.data.info["sfreq"],
             "metadata": self.extra_info["metadata"],
             "processing_steps": self.processing_steps,

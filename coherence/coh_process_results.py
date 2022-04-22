@@ -35,6 +35,7 @@ from coh_exceptions import (
     UnidenticalEntryError,
 )
 from coh_handle_entries import check_lengths_list_identical
+from coh_saving import save_dict, save_object
 
 
 class PostProcess:
@@ -847,17 +848,6 @@ class PostProcess:
         self._results = self._restore_results_after_merge(
             results=merged_results
         )
-
-    def as_df(self) -> pd.DataFrame:
-        """Returns the results as a pandas DataFrame.
-
-        RETURNS
-        -------
-        results : pandas DataFrame
-        -   The results as a pandas DataFrame.
-        """
-
-        return self._results
 
     def _check_identical_keys(
         self, indices: list[list[int]], keys: list[str]
@@ -1707,6 +1697,211 @@ class PostProcess:
         if self._fbands:
             self._refresh_freq_band_results()
 
+    def results_as_df(self) -> pd.DataFrame:
+        """Returns the results as a pandas DataFrame.
+
+        RETURNS
+        -------
+        results : pandas DataFrame
+        -   The results as a pandas DataFrame.
+        """
+
+        return self._results
+
+    def _check_attrs_identical(self, attrs: list[str]) -> None:
+        """Checks that the values of attributes in the results are identical
+        across nodes.
+
+        PARAMETERS
+        ----------
+        attrs : list[str]
+        -   Names of the attributes to check in the results.
+
+        RAISES
+        ------
+        UnidenticalEntryError
+        -   Raised if the values of an attribute are not identical across the
+            nodes in the results.
+        """
+
+        for attr in attrs:
+            attr_vals = self._results[attr].tolist()
+            if len(np.unique(attr_vals)) != 1:
+                raise UnidenticalEntryError(
+                    "Error when checking whether values belonging to an "
+                    "attribute of the results are identical:\nValues of the "
+                    f"attribute '{attr}' are not identical."
+                )
+
+    def _sequester_to_dicts(
+        self, sequester: dict[list[str]]
+    ) -> tuple[dict[dict], list[str]]:
+        """Sequesters attributes of the results into dictionaries within a
+        parent dictionary
+
+        PARAMETERS
+        ----------
+        sequester : dict[list[str]]
+        -   Attributes of the results to sequester into dictionaries within the
+            returned results dictionary.
+        -   Each key is the name of the dictionary that the attributes (the
+            values for this key given as strings within a list corresponding to
+            the names of the attributes) will be included in.
+        -   E.g. an 'extract_to_dicts' of {"metadata": ["subject", "session"]}
+            would create a dictionary within the returned dictionary of results
+            of {"metadata": {"subject": VALUE, "session": VALUE}}.
+        -   Values of extracted attributes must be identical for each node in
+            the results, so that the dictionary the value is sequestered into
+            contains only a single value for each attribute.
+
+        RETURNS
+        -------
+        results : dict[dict]
+        -   Dictionary with the requested attributes sequestered into the
+            requested dictionaries.
+
+        attrs_to_sequester : list[str]
+        -   Names of attributes in the results that have been sequestered into
+            dictionaries.
+        """
+
+        attrs_to_sequester = []
+        for values in sequester.values():
+            attrs_to_sequester.extend(values)
+        self._check_attrs_identical(attrs=attrs_to_sequester)
+
+        results = {}
+        for dict_name, attrs in sequester.items():
+            results[dict_name] = {}
+            for attr in attrs:
+                results[dict_name][attr] = self._results[attr].iloc[0].copy()
+
+        return results, attrs_to_sequester
+
+    def results_as_dict(
+        self, sequester_to_dicts: Union[dict[list[str]], None] = None
+    ) -> dict:
+        """Converts the results from a pandas DataFrame to a dictionary and
+        returns the results.
+
+        PARAMETERS
+        ----------
+        sequester_to_dicts : dict[list[str]] | None; default None
+        -   Attributes of the results to sequester into dictionaries within the
+            returned results dictionary.
+        -   Each key is the name of the dictionary that the attributes (the
+            values for this key given as strings within a list corresponding to
+            the names of the attributes) will be included in.
+        -   E.g. an 'extract_to_dicts' of {"metadata": ["subject", "session"]}
+            would create a dictionary within the returned dictionary of results
+            of {"metadata": {"subject": VALUE, "session": VALUE}}.
+        -   Values of extracted attributes must be identical for each node in
+            the results, so that the dictionary the value is sequestered into
+            contains only a single value for each attribute.
+
+        RETURNS
+        -------
+        results : dict
+        -   The results as a dictionary.
+        """
+
+        if sequester_to_dicts is not None:
+            results, ignore_attrs = self._sequester_to_dicts(
+                sequester=sequester_to_dicts
+            )
+        else:
+            results = {}
+
+        for attr in self._results.keys():
+            if attr not in ignore_attrs:
+                results[attr] = self._results[attr].copy().tolist()
+
+        return results
+
+    def save_object(
+        self,
+        fpath: str,
+        ask_before_overwrite: Optional[bool] = None,
+    ) -> None:
+        """Saves the PostProcess object as a .pkl file.
+
+        PARAMETERS
+        ----------
+        fpath : str
+        -   Location where the data should be saved. The filetype extension
+            (.pkl) can be included, otherwise it will be automatically added.
+
+        ask_before_overwrite : bool
+        -   Whether or not the user is asked to confirm to overwrite a
+            pre-existing file if one exists.
+        """
+
+        if ask_before_overwrite is None:
+            ask_before_overwrite = self._verbose
+
+        save_object(
+            to_save=self,
+            fpath=fpath,
+            ask_before_overwrite=ask_before_overwrite,
+            verbose=self._verbose,
+        )
+
+    def save_results(
+        self,
+        fpath: str,
+        ftype: Union[str, None] = None,
+        sequester_to_dicts: Union[dict[list[str]], None] = None,
+        ask_before_overwrite: Union[bool, None] = None,
+    ) -> None:
+        """Saves the results and additional information as a file.
+
+        PARAMETERS
+        ----------
+        fpath : str
+        -   Location where the data should be saved.
+
+        ftype : str | None; default None
+        -   The filetype of the data that will be saved, without the leading
+            period. E.g. for saving the file in the json format, this would be
+            "json", not ".json".
+        -   The information being saved must be an appropriate type for saving
+            in this format.
+        -   If None, the filetype is determined based on 'fpath', and so the
+            extension must be included in the path.
+
+        sequester_to_dicts : dict[list[str]] | None; default None
+        -   Attributes of the results to sequester into dictionaries within the
+            returned results dictionary.
+        -   Each key is the name of the dictionary that the attributes (the
+            values for this key given as strings within a list corresponding to
+            the names of the attributes) will be included in.
+        -   E.g. an 'extract_to_dicts' of {"metadata": ["subject", "session"]}
+            would create a dictionary within the returned dictionary of results
+            of {"metadata": {"subject": VALUE, "session": VALUE}}.
+        -   Values of extracted attributes must be identical for each node in
+            the results, so that the dictionary the value is sequestered into
+            contains only a single value for each attribute.
+
+        ask_before_overwrite : bool | None; default the object's verbosity
+        -   If True, the user is asked to confirm whether or not to overwrite a
+            pre-existing file if one exists.
+        -   If False, the user is not asked to confirm this and it is done
+            automatically.
+        -   By default, this is set to None, in which case the value of the
+            verbosity when the Signal object was instantiated is used.
+        """
+
+        if ask_before_overwrite is None:
+            ask_before_overwrite = self._verbose
+
+        save_dict(
+            to_save=self.results_as_dict(sequester_to_dicts=sequester_to_dicts),
+            fpath=fpath,
+            ftype=ftype,
+            ask_before_overwrite=ask_before_overwrite,
+            verbose=self._verbose,
+        )
+
 
 def load_results_of_types(
     results_folderpath: str,
@@ -1777,7 +1972,7 @@ def load_results_of_types(
             first_type = False
         else:
             all_results.merge_from_df(
-                new_results=deepcopy(results.as_df()),
+                new_results=deepcopy(results.results_as_df()),
                 allow_missing=allow_missing,
             )
 

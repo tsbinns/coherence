@@ -28,6 +28,7 @@ from coh_handle_entries import (
 )
 from coh_normalisation import norm_percentage_total
 from coh_processing_methods import ProcMethod
+from coh_saving import save_dict, save_object
 
 
 class PowerMorlet(ProcMethod):
@@ -706,7 +707,7 @@ class PowerMorlet(ProcMethod):
         if ask_before_overwrite is None:
             ask_before_overwrite = self._verbose
 
-        self._save_object(
+        save_object(
             to_save=self,
             fpath=fpath,
             ask_before_overwrite=ask_before_overwrite,
@@ -859,7 +860,7 @@ class PowerMorlet(ProcMethod):
                 "and in the results do not match."
             )
 
-        self._save_results(
+        save_dict(
             to_save=self._get_power_results_dict(),
             fpath=fpath_power,
             ftype=ftype_power,
@@ -1489,7 +1490,7 @@ class PowerFOOOF(ProcMethod):
         if ask_before_overwrite is None:
             ask_before_overwrite = self._verbose
 
-        self._save_object(
+        save_object(
             to_save=self,
             fpath=fpath,
             ask_before_overwrite=ask_before_overwrite,
@@ -1584,7 +1585,7 @@ class PowerFOOOF(ProcMethod):
                 "not match."
             )
 
-        self._save_results(
+        save_dict(
             to_save=self._get_results_dict(),
             fpath=fpath,
             ftype=ftype,

@@ -1,4 +1,4 @@
-"""Class and function for saving objects.
+"""Class and methods for saving objects.
 
 CLASSES
 -------
@@ -16,8 +16,17 @@ check_before_overwrite
 
 
 from copy import deepcopy
+import csv
+import json
 from os.path import exists
-from typing import Any
+import pickle
+from typing import Any, Union
+from coh_exceptions import (
+    MissingFileExtensionError,
+    UnavailableProcessingError,
+    UnidenticalEntryError,
+)
+from coh_handle_files import check_ftype_present, identify_ftype
 
 
 class SaveObject:
@@ -100,3 +109,225 @@ def check_before_overwrite(fpath: str) -> bool:
         write = True
 
     return write
+
+
+def save_as_json(to_save: dict, fpath: str) -> None:
+    """Saves a dictionary as a json file.
+
+    PARAMETERS
+    ----------
+    to_save : dict
+    -   Dictionary in which the keys represent the names of the entries in
+        the json file, and the values represent the corresponding values.
+
+    fpath : str
+    -   Location where the data should be saved.
+    """
+
+    with open(fpath, "w", encoding="utf8") as file:
+        json.dump(to_save, file)
+
+
+def save_as_csv(to_save: dict, fpath: str) -> None:
+    """Saves a dictionary as a csv file.
+
+    PARAMETERS
+    ----------
+    to_save : dict
+    -   Dictionary in which the keys represent the names of the entries in
+        the csv file, and the values represent the corresponding values.
+
+    fpath : str
+    -   Location where the data should be saved.
+    """
+
+    with open(fpath, "wb") as file:
+        save_file = csv.writer(file)
+        save_file.writerow(to_save.keys())
+        save_file.writerow(to_save.values())
+
+
+def save_as_pkl(to_save: Any, fpath: str) -> None:
+    """Pickles and saves information in any format.
+
+    PARAMETERS
+    ----------
+    to_save : Any
+    -   Information that will be saved.
+
+    fpath : str
+    -   Location where the information should be saved.
+    """
+
+    with open(fpath, "wb") as file:
+        pickle.dump(to_save, file)
+
+
+def save_object(
+    to_save: object,
+    fpath: str,
+    ask_before_overwrite: bool = True,
+    verbose: bool = True,
+) -> None:
+    """Saves an object as a .pkl file.
+
+    PARAMETERS
+    ----------
+    to_save : oibject
+    -   Object to save.
+
+    fpath : str
+    -   Location where the object should be saved. The filetype extension
+        (.pkl) can be included, otherwise it will be automatically added.
+
+    ask_before_overwrite : bool
+    -   If True, the user is asked to confirm whether or not to overwrite a
+        pre-existing file if one exists.
+    -   If False, the user is not asked to confirm this and it is done
+        automatically.
+
+    verbose : bool
+    -   Whether or not to print a note of the saving process.
+    """
+
+    if not check_ftype_present(fpath):
+        fpath += ".pkl"
+
+    if ask_before_overwrite:
+        write = check_before_overwrite(fpath)
+    else:
+        write = True
+
+    if write:
+        save_as_pkl(to_save=to_save, fpath=fpath)
+
+        if verbose:
+            print(f"Saving the analysis object to:\n{fpath}")
+
+
+def check_file_inputs(fpath: str, ftype: Union[str, None]) -> None:
+    """Checks filepath and filetype inputs.
+    -   If a filepath is given, checks whether a filetype extension is present.
+    -   If so, checks whether this matches the extension given in 'ftype' (if
+        'ftype' is not 'None').
+    -   If no extension is present in 'fpath', the extension given in 'ftype' is
+        used, in which case this cannot be 'None'.
+
+    PARAMETERS
+    ----------
+    fpath : str
+    -   A filepath, with or without a filetype extension.
+
+    ftype : str | None
+    -   A filetype extension. Can only be 'None' if a filetype is present in
+        'fpath'.
+
+    RETURNS
+    -------
+    fpath : str
+    -   The filepath, with the file extension specified in 'ftype' if no
+        filetype was present in the provided 'fpath'.
+
+    ftype : str
+    -   The filetype extension, derived from 'fpath'.
+
+    RAISES
+    ------
+    UnidenticalEntryError
+    -   Raised if the filetype in the filepath and the specified filetype do
+        not match.
+
+    MissingFileExtensionError
+    -   Raised if no filetype is present in the filetype and one is not
+        specified.
+    """
+
+    if check_ftype_present(fpath) and ftype is not None:
+        fpath_ftype = identify_ftype(fpath)
+        if fpath_ftype != ftype:
+            raise UnidenticalEntryError(
+                "Error when trying to save the results of the analysis:\n "
+                f"The filetypes in the filepath ({fpath_ftype}) and in the "
+                f"requested filetype ({ftype}) do not match.\n"
+            )
+    elif check_ftype_present(fpath) and ftype is None:
+        ftype = identify_ftype(fpath)
+    elif not check_ftype_present(fpath) and ftype is not None:
+        fpath += ftype
+    else:
+        raise MissingFileExtensionError(
+            "Error when trying to save ta dictionary:\nNo filetype has been "
+            f"specified and it cannot be detected in the filepath:\n{fpath}\n"
+        )
+
+    return fpath, ftype
+
+
+def save_dict(
+    to_save: dict,
+    fpath: str,
+    ftype: Union[str, None] = None,
+    ask_before_overwrite: bool = True,
+    verbose: bool = True,
+) -> None:
+    """Saves a dictionary as a file.
+
+    PARAMETERS
+    ----------
+    to_save : dict
+    -   The dictionary to save.
+
+    fpath : str
+    -   Location where the dictionary should be saved.
+    -   Can contain a filetype (e.g. '.json'), in which case 'ftype' does not
+        need to be given and can be determined based on the filetype in 'fpath',
+        otherwise a filetype must be specified in 'ftype'.
+
+    ftype : str | None; default None
+    -   The filetype of the dictionary that will be saved, without the leading
+        period. E.g. for saving the file in the json format, this would be
+        "json", not ".json".
+    -   The information being saved must be an appropriate type for saving
+        in this format.
+    -   If 'None', the filetype is automatically determined based on the the
+        filetype in 'fpath', in which case an identifiable filetype must be
+        present in 'fpath'.
+
+    ask_before_overwrite : bool; default True
+    -   If True, the user is asked to confirm whether or not to overwrite a
+        pre-existing file if one exists.
+    -   If False, the user is not asked to confirm this and it is done
+        automatically.
+
+    verbose : bool; default True
+    -   Whether or not to print a note of the saving process.
+
+    RAISES
+    ------
+    UnavailableProcessingError
+    -   Raised if the given format for saving the file is in an unsupported
+        format.
+    """
+
+    fpath, ftype = check_file_inputs(fpath=fpath, ftype=ftype)
+
+    if ask_before_overwrite:
+        write = check_before_overwrite(fpath)
+    else:
+        write = True
+
+    if write:
+        if ftype == "json":
+            save_as_json(to_save, fpath)
+        elif ftype == "csv":
+            save_as_csv(to_save, fpath)
+        elif ftype == "pkl":
+            save_as_pkl(to_save, fpath)
+        else:
+            raise UnavailableProcessingError(
+                f"Error when trying to save a dictionary:\nThe {ftype} format "
+                "for saving is not supported.\n"
+            )
+
+        if verbose:
+            print(f"Saving the dictionary to:\n'{fpath}'.\n")
