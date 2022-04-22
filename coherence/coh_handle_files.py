@@ -25,12 +25,14 @@ import os
 import json
 import pickle
 from typing import Any, Optional, Union
+import numpy as np
 import mne_bids
 from coh_exceptions import (
     MissingFileExtensionError,
     UnavailableProcessingError,
     UnidenticalEntryError,
 )
+from coh_handle_entries import check_non_repeated_vals_lists
 
 
 def generate_raw_fpath(
@@ -177,6 +179,7 @@ def generate_analysiswise_fpath(
 
 def generate_results_fpath(
     folderpath: str,
+    dataset: str,
     subject: str,
     session: str,
     task: str,
@@ -224,13 +227,88 @@ def generate_results_fpath(
     -   The filepath of the object.
     """
 
-    subfolders = f"sub-{subject}\\ses-{session}"
+    subfolders = f"{dataset}\\sub-{subject}\\ses-{session}"
     filename = (
         f"sub-{subject}_ses-{session}_task-{task}_acq-{acquisition}_run-{run}_"
         f"{result_type}{filetype}"
     )
 
     return os.path.join(folderpath, subfolders, filename)
+
+
+def generate_fpath_from_analysed(
+    analysed: list[dict[str]],
+    parent_folderpath: str,
+    analysis: str,
+    ftype: str,
+) -> str:
+    """Generates a filepath based on information that has been analysed.
+
+    PARAMETERS
+    ----------
+    analysed : list[dict[str]]
+    -   List in which each element is a dictionary containing information about
+        a piece of information that has been analysed.
+    -   Each dictionary contains the following keys regarding what the
+        information was derived from: 'cohort' for the cohort of the subject;
+        'sub' for the subject's name; 'ses' for the session name; 'task' for the
+        task name; 'acq' for the acquisition name; 'run' for the run name.
+    -   If multiple types of a single attribute (e.g. 'cohort', 'sub', etc...)
+        are present, then these values will be replaced with "multi" to indicate
+        the information has been derived from multiple sources.
+
+    parent_folderpath : str
+    -   Parent folderpath which the filepath will be appended to.
+
+    analysis : str
+    -   Name of the analysis that will be included in the filename.
+
+    ftype : str
+    -   Filetype extenstion of the file, without the period, e.g. a '.json' file
+        would have an ftype of 'json'.
+
+    RETURNS
+    -------
+    str
+    -   Filepath based on the information that has been analysed.
+    """
+
+    required_info = ["cohort", "sub", "ses", "task", "acq", "run"]
+    info_keys = [list(data_info.keys()) for data_info in analysed]
+    check_non_repeated_vals_lists(
+        lists=[required_info, *info_keys], allow_non_repeated=False
+    )
+
+    first = True
+    for data_info in analysed:
+        if first:
+            analysed_info = {key: [value] for key, value in data_info.items()}
+            first = False
+        else:
+            for key, value in data_info.items():
+                analysed_info[key].append(value)
+
+    for key, values in analysed_info.items():
+        unique_values = np.unique(values).tolist()
+        if len(unique_values) > 1:
+            value = "multi"
+        else:
+            value = unique_values[0]
+        analysed_info[key] = value
+
+    cohort = analysed_info["cohort"]
+    sub = analysed_info["sub"]
+    ses = analysed_info["ses"]
+    task = analysed_info["task"]
+    acq = analysed_info["acq"]
+    run = analysed_info["run"]
+    folderpath = f"{parent_folderpath}\\{cohort}\\sub-{sub}\\ses-{ses}"
+    filename = (
+        f"sub-{sub}_ses-{ses}_task-{task}_acq-{acq}_run-{run}_{analysis}."
+        f"{ftype}"
+    )
+
+    return os.path.join(folderpath, filename)
 
 
 def check_ftype_present(fpath: str) -> bool:
