@@ -73,8 +73,9 @@ def morlet_analysis(
     analysis_settings_fpath = generate_analysiswise_fpath(
         folderpath_extras + "\\settings", analysis, ".json"
     )
+    data_folderpath = f"{folderpath_extras}\\Data"
     power_fpath = generate_sessionwise_fpath(
-        folderpath_extras,
+        data_folderpath,
         dataset,
         subject,
         session,
@@ -85,7 +86,7 @@ def morlet_analysis(
         ".json",
     )
     itc_fpath = generate_sessionwise_fpath(
-        folderpath_extras,
+        data_folderpath,
         dataset,
         subject,
         session,
@@ -197,8 +198,9 @@ def fooof_analysis(
     analysis_settings_fpath = generate_analysiswise_fpath(
         folderpath_extras + "\\settings", analysis, ".json"
     )
+    data_folderpath = f"{folderpath_extras}\\Data"
     data_settings_fpath = generate_sessionwise_fpath(
-        folderpath_extras,
+        data_folderpath,
         dataset,
         subject,
         session,
@@ -209,7 +211,7 @@ def fooof_analysis(
         ".json",
     )
     fooof_fpath = generate_sessionwise_fpath(
-        folderpath_extras,
+        data_folderpath,
         dataset,
         subject,
         session,

@@ -68,8 +68,9 @@ def coherence_processing(
     analysis_settings_fpath = generate_analysiswise_fpath(
         folderpath_extras + "\\settings", analysis, ".json"
     )
+    data_folderpath = f"{folderpath_extras}\\Data"
     data_settings_fpath = generate_sessionwise_fpath(
-        folderpath_extras,
+        data_folderpath,
         dataset,
         subject,
         session,
@@ -115,7 +116,7 @@ def coherence_processing(
         )
         if save:
             coherence_fpath = generate_sessionwise_fpath(
-                folderpath_extras,
+                data_folderpath,
                 dataset,
                 subject,
                 session,
