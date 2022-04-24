@@ -129,19 +129,11 @@ def get_analysis_settings(
         "metadata": ["sub", "med", "stim", "ses", "task", "run"]
     }
 
-    result_types_dims = [
-        f"{results_type}_dimensions"
-        for results_type in analysis_settings["result_types"]
-    ]
-    """
-    identical_entries = ["freqs", *result_types_dims]
+    identical_entries = ["freqs"]
     discard_entries = [
         "samp_freq",
         "subject_info",
     ]
-    """
-    identical_entries = ["freqs"]
-    discard_entries = ["samp_freq", "subject_info", *result_types_dims]
 
     return (
         analysis_settings,

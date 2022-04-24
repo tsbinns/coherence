@@ -672,9 +672,9 @@ class ConnectivityCoherence(ProcMethod):
         supported_modes = ["multitaper", "fourier", "cwt_morlet"]
 
         if self._mode in ["multitaper", "fourier"]:
-            self.coherence_dims = ["nodes", "frequencies"]
+            self.coherence_dims = ["channels", "frequencies"]
         elif self._mode in ["cwt_morlet"]:
-            self.coherence_dims = ["nodes", "frequencies", "timepoints"]
+            self.coherence_dims = ["channels", "frequencies", "timepoints"]
         else:
             raise UnavailableProcessingError(
                 "Error when sorting the results of the connectivity analysis:\n"

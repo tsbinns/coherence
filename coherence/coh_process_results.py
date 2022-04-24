@@ -55,6 +55,19 @@ class PostProcess:
     -   Entries which are dictionaries will have their values treated as being
         identical for all values in the 'results' dictionary, given they are
         extracted from these dictionaries into the results.
+    -   Keys ending with "_dimensions" are treated as containing information
+        about the dimensions of other attributes in the results, e.g.
+        'X_dimensions' would specify the dimensions for attribute 'X'. The
+        dimensions should be a list of strings containing the values "channels"
+        and "frequencies" in the positions corresponding to the axis of these
+        dimensions in 'X'. A single list should be given, i.e. 'X_dimensions'
+        should hold for all entries of 'X'.If no dimensions, are given, the 0th
+        axis is assumed to correspond to channels and the 1st axis to
+        frequencies.
+    -   E.g. if 'X' has shape [25, 10, 50, 300] with an 'X_dimensions' of
+        ['epochs', 'channels', 'frequencies', 'timepoints'], the shape of 'X'
+        would be rearranged to [10, 50, 25, 300], corresponding to the
+        dimensions ["channels", "frequencies", "epochs", "timepoints"].
 
     extract_from_dicts : dict[list[str]] | None; default None
     -   The entries of dictionaries within 'results' to include in the
@@ -65,6 +78,8 @@ class PostProcess:
     identical_entries : list[str] | None; default None
     -   The entries in 'results' which are identical across channels and for
         which only one copy is present.
+    -   If any dimension attributes are present, these should be included as an
+        identical entry, as they will be added automatically.
 
     discard_entries : list[str] | None; default None
     -   The entries which should be discarded immediately without processing.
@@ -104,6 +119,7 @@ class PostProcess:
     ) -> None:
 
         # Initialises inputs of the object.
+        self._verbose = verbose
         results = self._sort_inputs(
             results=results,
             extract_from_dicts=extract_from_dicts,
@@ -111,7 +127,6 @@ class PostProcess:
             discard_entries=discard_entries,
         )
         self._results = self._results_to_df(results=results)
-        self._verbose = verbose
 
         # Initialises aspects of the object that will be filled with information
         # as the data is processed.
@@ -234,6 +249,9 @@ class PostProcess:
                 results=results, discard_entries=discard_entries
             )
 
+        results, dims_keys = self._sort_dimensions(results=results)
+        identical_entries = [*identical_entries, *dims_keys]
+
         entry_length = self._check_input_entry_lengths(
             results=results, identical_entries=identical_entries
         )
@@ -273,15 +291,77 @@ class PostProcess:
         """
 
         for entry in discard_entries:
-            if entry in results.keys():
-                del results[entry]
-            else:
-                print(
-                    f"The '{entry}' attribute is not present in the results "
-                    "dictionary, so cannot be deleted."
-                )
+            del results[entry]
 
         return results
+
+    def _sort_dimensions(self, results: dict) -> tuple[dict, list]:
+        """Rearranges the dimensions of attributes in the results dictionary so
+        that the 0th axis corresponds to results from different channels, and
+        the 1st dimension to different frequencies. If no dimensions, are given,
+        the 0th axis is assumed to correspond to channels and the 1st axis to
+        frequencies.
+        -   Dimensions for an attribute, say 'X', would be containined in an
+            attribute of the results dictionary under the name 'X_dimensions'.
+        -   The dimensions should be provided as a list of strings containing
+            the values 'channels' and 'frequencies' in the positions whose index
+            corresponds to these axes in the values of 'X'. A single list should
+            be given, i.e. 'X_dimensions' should hold for all entries of 'X'.
+        -   E.g. if 'X' has shape [25, 10, 50, 300] with an 'X_dimensions' of
+            ['epochs', 'channels', 'frequencies', 'timepoints'], the shape of
+            'X' would be rearranged to [10, 50, 25, 300], corresponding to the
+            dimensions ["channels", "frequencies", "epochs", "timepoints"].
+        -   The axis for channels should be indicated as "channels", and the
+            axis for frequencies should be marked as "frequencies".
+
+        PARAMETERS
+        ----------
+        results : dict
+        -   The results with dimensions of attributes to rearrange.
+
+        RETURNS
+        -------
+        results : dict
+        -   The results with dimensions of attributes in the appropriate order.
+
+        dims_keys : list[str] | empty list
+        -   Names of the dimension attributes in the results dictionary, or an
+            empty list if no attributes are given.
+        """
+
+        dims_to_find = ["channels", "frequencies"]
+        dims_keys = []
+        for key in results.keys():
+            dims_key = f"{key}_dimensions"
+            new_dims_set = False
+            if dims_key in results.keys():
+                curr_axes_order = np.arange(len(results[dims_key])).tolist()
+                new_axes_order = [
+                    results[dims_key].index(dim) for dim in dims_to_find
+                ]
+                [
+                    new_axes_order.append(axis)
+                    for axis in curr_axes_order
+                    if axis not in new_axes_order
+                ]
+                if new_axes_order != curr_axes_order:
+                    results[key] = np.moveaxis(
+                        results[key],
+                        source=curr_axes_order,
+                        destination=new_axes_order,
+                    ).tolist()
+                    new_dims_set = True
+                old_dims = deepcopy(results[dims_key])
+                new_dims = [results[dims_key][i] for i in new_axes_order]
+                results[dims_key] = new_dims[1:]
+                dims_keys.append(dims_key)
+                if self._verbose and new_dims_set:
+                    print(
+                        f"Rearranging the dimensions of '{key}' from "
+                        f"{old_dims} to {new_dims}.\n"
+                    )
+
+        return results, dims_keys
 
     def _sort_identical_entries(
         self, results: dict, identical_entries: list[str], entry_length: int
