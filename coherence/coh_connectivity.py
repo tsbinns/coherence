@@ -84,6 +84,7 @@ class ConnectivityCoherence(ProcMethod):
         self._average_timepoints = None
         self._block_size = None
         self._n_jobs = None
+        self._shuffled_channels = None
 
         # Initialises aspects of the object that indicate which methods have
         # been called (starting as 'False'), which can later be updated.
@@ -883,6 +884,40 @@ class ConnectivityCoherence(ProcMethod):
 
         return node_ch_hemispheres
 
+    def _generate_node_lateralisation(
+        self, node_ch_hemispheres: list[list[str]]
+    ) -> list[str]:
+        """Gets the lateralisation of the channels in the connectivity node.
+        -   Can either be "contralateral" if the seed and target are from
+            different hemispheres, or "ipsilateral" if the seed and target are
+            from the same hemisphere.
+
+        PARAMETERS
+        ----------
+        node_ch_hemispheres : list[list[str]]
+        -   Hemispheres of the seed and target channels of each connectivity
+            node.
+        -   Indication of the hemispheres should be binary in nature, e.g. "L"
+            and "R", or "Left" and "Right", not "L" and "Left" and "R" and
+            "Right".
+
+        RETURNS
+        -------
+        node_lateralisation : list[str]
+        -   Lateralisation ("contralateral" or "ipsilateral") of each
+            connectivity node.
+        """
+
+        node_lateralisation = []
+
+        for node_i in range(len(node_ch_hemispheres[0])):
+            if node_ch_hemispheres[0][node_i] != node_ch_hemispheres[1][node_i]:
+                node_lateralisation.append("contralateral")
+            else:
+                node_lateralisation.append("ipsilateral")
+
+        return node_lateralisation
+
     def _generate_node_epoch_orders(
         self, node_ch_names: list[list[str]]
     ) -> list[list[str]]:
@@ -927,10 +962,7 @@ class ConnectivityCoherence(ProcMethod):
 
     def _generate_extra_info(self) -> None:
         """Generates additional information related to the connectivity
-        analysis, including: the node channel indices as channel names; the
-        rereferencing types of the channels in the nodes; the coordinates of the
-        channels in the nodes; the types of the channels in the nodes; and the
-        regions of the channels in the nodes."""
+        analysis."""
 
         self.extra_info["node_ch_names"] = self._generate_node_ch_names()
         self.extra_info["node_ch_types"] = self._generate_node_ch_types(
@@ -949,6 +981,11 @@ class ConnectivityCoherence(ProcMethod):
             "node_ch_hemispheres"
         ] = self._generate_node_ch_hemispheres(
             node_ch_names=self.extra_info["node_ch_names"]
+        )
+        self.extra_info[
+            "node_lateralisation"
+        ] = self._generate_node_lateralisation(
+            node_ch_hemispheres=self.extra_info["node_ch_hemispheres"]
         )
         self.extra_info["node_epoch_orders"] = self._generate_node_epoch_orders(
             node_ch_names=self.extra_info["node_ch_names"]
@@ -1285,6 +1322,7 @@ class ConnectivityCoherence(ProcMethod):
             "target_regions": self.extra_info["node_ch_regions"][1],
             "target_hemispheres": self.extra_info["node_ch_hemispheres"][1],
             "target_reref_types": self.extra_info["node_reref_types"][1],
+            "node_lateralisation": self.extra_info["node_lateralisation"],
             "node_epoch_orders": self.extra_info["node_epoch_orders"],
             "samp_freq": self.signal.data.info["sfreq"],
             "metadata": self.extra_info["metadata"],
