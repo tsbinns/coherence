@@ -17,7 +17,6 @@ from mne_connectivity import (
 from numpy.typing import NDArray
 import numpy as np
 from coh_exceptions import (
-    InputTypeError,
     ProcessingOrderError,
     UnavailableProcessingError,
 )
@@ -105,7 +104,7 @@ class ConnectivityCoherence(ProcMethod):
 
         supported_data_dims = [["epochs", "channels", "timepoints"]]
         if self.signal.data_dimensions not in supported_data_dims:
-            raise InputTypeError(
+            raise TypeError(
                 "Error when performing coherence analysis on the data:\nThe "
                 f"preprocessed data is in the form {self.signal.power_dims}, "
                 f"but only data in the form {supported_data_dims} is supported."

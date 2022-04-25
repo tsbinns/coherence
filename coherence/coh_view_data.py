@@ -14,7 +14,7 @@ import coh_signal
 
 def annotate_data(
     signal: coh_signal.Signal,
-    folderpath_extras: str,
+    folderpath_annotations: str,
     dataset: str,
     subject: str,
     session: str,
@@ -29,8 +29,7 @@ def annotate_data(
     -   The pre-processed data to plot.
 
     folderpath_annotations : str
-    -   The folderpath to the location of the datasets' 'extras', e.g. the
-        annotations, processing settings, etc...
+    -   The folderpath to the location of the annotations.
 
     dataset : str
     -   The name of the dataset folder found in 'folderpath_data'.

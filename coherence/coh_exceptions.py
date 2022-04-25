@@ -34,10 +34,6 @@ ChannelAttributeError : Exception
 -   Class for raising exceptions/errors associated with trying to handle
     channels with different attributes.
 
-InputTypeError : Exception
--   Class for raising exceptions/errors associated with input objects being of
-    the wrong type.
-
 UnidenticalEntryError : Exception
 -   Class for raising exceptions/errors associated with two objects being
     unidentical.
@@ -96,11 +92,6 @@ class ChannelOrderError(Exception):
 class ChannelAttributeError(Exception):
     """Class for raising exceptions/errors associated with trying to handle
     channels with different attributes."""
-
-
-class InputTypeError(Exception):
-    """Class for raising exceptions/errors associated with input objects being
-    of the wrong type."""
 
 
 class UnidenticalEntryError(Exception):

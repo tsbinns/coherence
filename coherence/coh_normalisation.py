@@ -24,7 +24,6 @@ norm_percentage_total
 
 from typing import Union
 import numpy as np
-
 from coh_exceptions import EntryLengthError, UnavailableProcessingError
 from coh_handle_entries import check_lengths_list_identical
 

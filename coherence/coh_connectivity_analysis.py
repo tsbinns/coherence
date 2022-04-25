@@ -6,8 +6,9 @@ coherence_analysis
 -   Analyses coherence results.
 """
 
-from coh_handle_files import generate_fpath_from_analysed, load_file
+from coh_handle_files import generate_fpath_from_analysed
 from coh_process_results import load_results_of_types
+from coh_settings import get_analysis_settings
 
 
 def connectivity_analysis(
@@ -90,54 +91,3 @@ def connectivity_analysis(
             ftype="json",
         )
         results.save_results(fpath=results_fpath)
-
-
-def get_analysis_settings(
-    settings_fpath: str,
-) -> tuple[dict, dict, list[str], list[str]]:
-    """Gets the default settings for results analysis, as well as those specific
-    for the requested analysis.
-
-    PARAMETERS
-    ----------
-    settings_fpath : str
-    -   Filepath to the analysis-specific settings.
-
-    RETURNS
-    -------
-    analysis_settings : dict
-    -   The analysis-specific settings.
-
-    extract_from_dicts : dict[list[str]]
-    -   The entries of dictionaries within the results to include in the
-        processing.
-    -   Entries which are extracted are treated as being identical for all
-        values in the results dictionary.
-
-    identical_entries : list[str]
-    -   The entries in the results which are identical across channels and for
-        which only one copy is present.
-
-    discard_entries : list[str]
-    -   The entries in the results which should be discarded immediately without
-        processing.
-    """
-
-    analysis_settings = load_file(settings_fpath)
-
-    extract_from_dicts = {
-        "metadata": ["sub", "med", "stim", "ses", "task", "run"]
-    }
-
-    identical_entries = ["freqs"]
-    discard_entries = [
-        "samp_freq",
-        "subject_info",
-    ]
-
-    return (
-        analysis_settings,
-        extract_from_dicts,
-        identical_entries,
-        discard_entries,
-    )

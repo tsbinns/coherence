@@ -10,7 +10,7 @@ SignalViewer
 import coh_signal
 import mne
 from matplotlib import pyplot as plt
-from coh_exceptions import InputTypeError, UnsupportedFileExtensionError
+from coh_exceptions import UnsupportedFileExtensionError
 from coh_handle_files import check_ftype_present, identify_ftype
 from coh_saving import check_before_overwrite
 
@@ -18,6 +18,9 @@ from coh_saving import check_before_overwrite
 class SignalViewer:
     """Allows the user to view non-epoched signals and any pre-existing
     annotations, as well as add new annotations.
+    -   Supports the addition of a special annotation "END", which is converted
+        to a "BAD" annotation spanning from the start of the "END" annotation
+        until the end of the recording.
 
     PARAMETERS
     ----------
@@ -57,7 +60,7 @@ class SignalViewer:
         """
 
         if self.signal._epoched:
-            raise InputTypeError(
+            raise TypeError(
                 "Error when trying to instantiate the Annotations object:\n"
                 "The data in the Signal object being used has been epoched. "
                 "Only non-epoched data is supported."

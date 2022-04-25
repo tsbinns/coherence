@@ -26,7 +26,6 @@ from coh_handle_files import generate_results_fpath, load_file
 from coh_exceptions import (
     DuplicateEntryError,
     EntryLengthError,
-    InputTypeError,
     PreexistingAttributeError,
     ProcessingOrderError,
     UnavailableProcessingError,
@@ -188,7 +187,7 @@ class PostProcess:
                     if dtype in check_len_dtypes:
                         to_check.append(value)
                 else:
-                    raise InputTypeError(
+                    raise TypeError(
                         "Error when trying to process the results:\nThe "
                         f"results dictionary contains an entry ('{key}') that "
                         f"is not of a supported data type ({supported_dtypes})."

@@ -20,7 +20,6 @@ from copy import deepcopy
 from typing import Optional
 import mne
 import numpy as np
-from coh_dtypes import realnum
 from coh_exceptions import ChannelAttributeError, EntryLengthError
 from coh_handle_entries import (
     check_lengths_list_equals_n,
@@ -59,7 +58,7 @@ class Reref(ABC):
         ch_names_new: Optional[list[Optional[str]]] = None,
         ch_types_new: Optional[list[Optional[str]]] = None,
         reref_types: Optional[list[Optional[str]]] = None,
-        ch_coords_new: Optional[list[Optional[list[realnum]]]] = None,
+        ch_coords_new: Optional[list[Optional[list[Union[int, float]]]]] = None,
         ch_regions_new: Optional[list[Optional[str]]] = None,
         ch_hemispheres_new: Optional[list[Optional[str]]] = None,
     ) -> None:
@@ -286,7 +285,7 @@ class Reref(ABC):
 
     def _data_from_raw(
         self, raw: mne.io.Raw
-    ) -> tuple[np.ndarray, mne.Info, list[str], list[list[realnum]]]:
+    ) -> tuple[np.ndarray, mne.Info, list[str], list[list[Union[int, float]]]]:
         """Extracts components of an mne.io.Raw object and returns them.
 
         PARAMETERS

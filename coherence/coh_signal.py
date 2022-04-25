@@ -16,8 +16,6 @@ import pickle
 import mne
 import mne_bids
 import numpy as np
-
-from coh_dtypes import realnum
 from coh_exceptions import (
     ChannelAttributeError,
     EntryLengthError,
@@ -207,7 +205,7 @@ class Signal:
             print("Reordering the channels in the following order:")
             [print(name) for name in ch_names]
 
-    def get_coordinates(self) -> list[list[realnum]]:
+    def get_coordinates(self) -> list[list[Union[int, float]]]:
         """Extracts coordinates of the channels from the mne.io.Raw or
         mne.Epochs object.
 
@@ -221,7 +219,7 @@ class Signal:
         return self.data._get_channel_positions().copy().tolist()
 
     def _discard_missing_coordinates(
-        self, ch_names: list[str], ch_coords: list[list[realnum]]
+        self, ch_names: list[str], ch_coords: list[list[Union[int, float]]]
     ) -> tuple[list, list]:
         """Removes empty sublists from a parent list of channel coordinates
         (also removes them from the corresponding entries of channel names)
@@ -258,7 +256,7 @@ class Signal:
         )
 
     def set_coordinates(
-        self, ch_names: list[str], ch_coords: list[list[realnum]]
+        self, ch_names: list[str], ch_coords: list[list[Union[int, float]]]
     ) -> None:
         """Assigns coordinates to the channels in the mne.io.Raw or mne.Epochs
         object.
@@ -1163,7 +1161,7 @@ class Signal:
         ch_names_new: Union[list[Union[str, None]], None],
         ch_types_new: Union[list[Union[str, None]], None],
         reref_types: Union[list[Union[str, None]], None],
-        ch_coords_new: Union[list[Union[list[realnum], None]], None],
+        ch_coords_new: Union[list[Union[list[Union[int, float]], None]], None],
         ch_regions_new: Union[list[Union[str, None]], None],
         ch_hemispheres_new: Union[list[Union[str, None]], None],
     ) -> tuple[mne.io.Raw, list[str], dict[str], dict[str]]:
@@ -1364,7 +1362,7 @@ class Signal:
         ch_names_new: Union[list[Union[str, None]], None],
         ch_types_new: Union[list[Union[str, None]], None],
         reref_types: Union[list[Union[str, None]], None],
-        ch_coords_new: Union[list[Union[list[realnum], None]], None],
+        ch_coords_new: Union[list[Union[list[Union[int, float]], None]], None],
         ch_regions_new: Union[list[Union[str, None]], None],
         ch_hemispheres_new: Union[list[Union[str, None]], None],
     ) -> list[str]:
@@ -1474,7 +1472,7 @@ class Signal:
         ch_names_new: Union[list[Union[str, None]], None],
         ch_types_new: Union[list[Union[str, None]], None],
         reref_types: Union[list[Union[str, None]], None],
-        ch_coords_new: Union[list[Union[list[realnum], None]], None],
+        ch_coords_new: Union[list[Union[list[Union[int, float]], None]], None],
         ch_regions_new: Union[list[Union[str, None]], None],
         ch_hemispheres_new: Union[list[Union[str, None]], None],
     ) -> None:
@@ -1554,7 +1552,7 @@ class Signal:
         ch_names_new: Union[list[Union[str, None]], None],
         ch_types_new: Union[list[Union[str, None]], None],
         reref_types: Union[list[Union[str, None]], None],
-        ch_coords_new: Union[list[Union[list[realnum], None]], None],
+        ch_coords_new: Union[list[Union[list[Union[int, float]], None]], None],
         ch_regions_new: Union[list[Union[str, None]], None],
         ch_hemispheres_new: Union[list[Union[str, None]], None],
     ) -> None:
@@ -1635,7 +1633,7 @@ class Signal:
         ch_names_new: Union[list[Union[str, None]], None],
         ch_types_new: Union[list[Union[str, None]], None],
         reref_types: list[str],
-        ch_coords_new: Optional[list[Optional[list[realnum]]]],
+        ch_coords_new: Optional[list[Optional[list[Union[int, float]]]]],
         ch_regions_new: Union[list[Union[str, None]], None],
         ch_hemispheres_new: Union[list[Union[str, None]], None],
     ) -> None:

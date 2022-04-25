@@ -13,11 +13,9 @@ from fooof import FOOOF
 from mne import time_frequency
 import numpy as np
 import coh_signal
-from coh_dtypes import realnum
 from coh_exceptions import (
     ChannelOrderError,
     EntryLengthError,
-    InputTypeError,
     ProcessingOrderError,
     UnavailableProcessingError,
 )
@@ -97,7 +95,7 @@ class PowerMorlet(ProcMethod):
         """
 
         if "epochs" not in self.signal.data_dimensions:
-            raise InputTypeError(
+            raise TypeError(
                 "The provided Signal object does not contain epoched data. "
                 "Epoched data is required for power and connectivity analyses."
             )
@@ -246,7 +244,7 @@ class PowerMorlet(ProcMethod):
 
     def _get_result(
         self,
-        freqs: list[realnum],
+        freqs: list[Union[int, float]],
         n_cycles: Union[int, list[int]],
         use_fft: bool = False,
         return_itc: bool = True,
@@ -397,7 +395,7 @@ class PowerMorlet(ProcMethod):
 
     def process(
         self,
-        freqs: list[realnum],
+        freqs: list[Union[int, float]],
         n_cycles: Union[int, list[int]],
         use_fft: bool = False,
         return_itc: bool = True,
@@ -992,7 +990,7 @@ class PowerFOOOF(ProcMethod):
 
         supported_data_dims = [["channels", "frequencies"]]
         if self.signal.power_dims not in supported_data_dims:
-            raise InputTypeError(
+            raise TypeError(
                 "Error when applying FOOOF to the power data:\nThe data in the "
                 f"power object is in the form {self.signal.power_dims}, but "
                 f"only data in the form {supported_data_dims} is supported."

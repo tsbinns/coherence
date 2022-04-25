@@ -12,7 +12,7 @@ from coh_handle_files import (
     generate_sessionwise_fpath,
     load_file,
 )
-from coh_settings import ExtractMetadata
+from coh_settings import extract_metadata
 from coh_signal import Signal
 
 
@@ -166,7 +166,7 @@ def preprocessing(
         signal.resample(analysis_settings["resample"])
 
     ## Adds metadata about the preprocessed data
-    metadata = ExtractMetadata(data_settings).metadata
+    metadata = extract_metadata(settings=data_settings)
     signal.add_metadata(metadata)
 
     return signal
