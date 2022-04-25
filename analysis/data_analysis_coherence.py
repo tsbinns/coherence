@@ -1,5 +1,4 @@
-"""Analyses ECoG-LFP coherence values to produce cohort-wise results."""
-
+"""Analyses ECoG-LFP coherence values."""
 
 import os
 import sys
@@ -17,7 +16,7 @@ FOLDERPATH_ANALYSIS = (
 FOLDERPATH_PROCESSING = (
     "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN\\Processing"
 )
-ANALYSIS = "ECOG-LFP_coherence-MedOffOn_connectivity_results"
+ANALYSIS = "ECOG-LFP_coherence-MedOffOn_connectivity"
 
 
 if __name__ == "__main__":
@@ -26,4 +25,5 @@ if __name__ == "__main__":
         folderpath_processing=FOLDERPATH_PROCESSING,
         folderpath_analysis=FOLDERPATH_ANALYSIS,
         analysis=ANALYSIS,
+        save=True,
     )

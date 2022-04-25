@@ -17,7 +17,7 @@ RerefPseudo: subclass of Reref
 
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from typing import Optional
+from typing import Optional, Union
 import mne
 import numpy as np
 from coh_exceptions import ChannelAttributeError, EntryLengthError

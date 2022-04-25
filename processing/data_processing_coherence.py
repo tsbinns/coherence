@@ -20,9 +20,9 @@ FOLDERPATH_PROCESSING = (
     "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN\\Processing"
 )
 DATASET = "BIDS_Berlin_ECOG_LFP"
-ANALYSIS = "ECOG-LFP_coherence-connectivity_coherence_processing"
+ANALYSIS = "ECOG-LFP_coherence-connectivity_coherence"
 SUBJECT = "003"
-SESSION = "EcogLfpMedOff01"
+SESSION = "EcogLfpMedOn01"
 TASK = "Rest"
 ACQUISITION = "StimOff"
 RUN = "1"

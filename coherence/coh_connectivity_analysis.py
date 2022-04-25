@@ -15,29 +15,26 @@ def connectivity_analysis(
     folderpath_processing: str,
     folderpath_analysis: str,
     analysis: str,
-    save: bool = True,
+    save: bool,
 ) -> None:
     """Analyses coherence results.
 
     PARAMETERS
     ----------
-    results_folderpath : str
-    -   Folderpath to where the results are located.
+    folderpath_processing : str
+    -   Folderpath to the location where the results of the data processing are
+        located.
 
-    to_analyse : dict[str]
-    -   Dictionary in which each entry represents a different piece of results.
-    -   Contains the keys: 'sub' (subject ID); 'ses' (session name); 'task'
-        (task name); 'acq' (acquisition type); and 'run' (run number).
+    folderpath_analysis : str
+    -   Folderpath to the location where the analysis settings are located and
+        where the output of the analysis should be saved, if applicable.
 
-    analysis_steps : list[list]
-    -   Instructions for how to analyse the results.
-    -   Each entry should be a list with three entries, where: the first is the
-        type of processing to apply; the second is the attribute of the results
-        to apply this to; and the third specifies which values selected in the
-        second entry should be processed.
-    -   E.g. ["average", "runs", "ALL"] would average the results across all
-        runs. ["average", "ch_types", ["dbs"]] would average the results across
-        all channels of type 'dbs'.
+    analysis : str
+    -   Name of the analysis being performed, used for loading the analysis
+        settings and, optionally, saving the output of the analysis.
+
+    save : bool
+    -   Whether or not to save the output of the analysis.
     """
 
     ## Loads the analysis settings
