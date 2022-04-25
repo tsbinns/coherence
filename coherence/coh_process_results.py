@@ -20,24 +20,23 @@ from copy import deepcopy
 from typing import Any, Optional, Union
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
 from scipy import stats
 from coh_handle_files import generate_results_fpath, load_file
 from coh_exceptions import (
     DuplicateEntryError,
     EntryLengthError,
-    PreexistingAttributeError,
     ProcessingOrderError,
     UnavailableProcessingError,
     UnidenticalEntryError,
 )
 from coh_handle_entries import (
     combine_col_vals_df,
-    check_lengths_list_identical,
     check_non_repeated_vals_lists,
     check_vals_identical_df,
+    dict_to_df,
     get_eligible_idcs_list,
     get_group_idcs,
+    sort_inputs_results,
 )
 from coh_saving import save_dict, save_object
 
@@ -67,6 +66,12 @@ class PostProcess:
         ['epochs', 'channels', 'frequencies', 'timepoints'], the shape of 'X'
         would be rearranged to [10, 50, 25, 300], corresponding to the
         dimensions ["channels", "frequencies", "epochs", "timepoints"].
+    -   If the dimensions is a list of lists of strings, there should be a
+        sublist for each channel/node in the results. The sublists should be
+        identical (i.e. all results should have the same dimensions), and the
+        dimensions should correspond to the results of each individual
+        channel/node (i.e. no "channel" axis should be present in the
+        dimensions of an individual node/channel as this is agiven).
 
     extract_from_dicts : dict[list[str]] | None; default None
     -   The entries of dictionaries within 'results' to include in the
@@ -118,14 +123,15 @@ class PostProcess:
     ) -> None:
 
         # Initialises inputs of the object.
-        self._verbose = verbose
-        results = self._sort_inputs(
+        results = sort_inputs_results(
             results=results,
             extract_from_dicts=extract_from_dicts,
             identical_entries=identical_entries,
             discard_entries=discard_entries,
+            verbose=verbose,
         )
-        self._results = self._results_to_df(results=results)
+        self._results = dict_to_df(obj=results)
+        self._verbose = verbose
 
         # Initialises aspects of the object that will be filled with information
         # as the data is processed.
@@ -137,399 +143,10 @@ class PostProcess:
         self._fband_columns = []
         self._var_measures = []
         self._var_columns = []
-        self._desc_measures = []
-        self._desc_process_measures = ["n_averaged_over"]
+        self._desc_measures = ["n_from"]
+        self._desc_process_measures = ["n_from"]
         self._desc_fband_measures = ["max", "min", "fmax", "fmin"]
         self._desc_var_measures = ["std", "sem"]
-
-    def _check_input_entry_lengths(
-        self, results: dict, identical_entries: Union[list[str], None]
-    ) -> int:
-        """Checks that the lengths of list and numpy array entries in 'results'
-        have the same length of axis 0.
-
-        PARAMETERS
-        ----------
-        results : dict
-        -   The results whose entries will be checked.
-
-        identical_entries : list[str] | None
-        -   The entries in 'results' which are identical across channels and for
-            which only one copy is present.
-        -   These entries are not included when checking the lengths, as these
-            will be handled later.
-
-        RETURNS
-        -------
-        length : int
-        -   The lenghts of the 0th axis of lists and numpy arrays in 'results'.
-
-        RAISES
-        ------
-        InputTypeError
-        -   Raised if the 'results' contain an entry that is neither a list,
-            numpy array, or dictionary.
-
-        EntryLengthError
-        -   Raised if the list or numpy array entries in 'results' do not all
-            have the same length along axis 0.
-        """
-
-        supported_dtypes = [list, NDArray, dict]
-        check_len_dtypes = [list, NDArray]
-
-        to_check = []
-
-        for key, value in results.items():
-            if key not in identical_entries:
-                dtype = type(value)
-                if dtype in supported_dtypes:
-                    if dtype in check_len_dtypes:
-                        to_check.append(value)
-                else:
-                    raise TypeError(
-                        "Error when trying to process the results:\nThe "
-                        f"results dictionary contains an entry ('{key}') that "
-                        f"is not of a supported data type ({supported_dtypes})."
-                    )
-
-        identical, length = check_lengths_list_identical(
-            to_check=to_check, axis=0
-        )
-        if not identical:
-            raise EntryLengthError(
-                "Error when trying to process the results:\nThe length of "
-                "entries in the results along axis 0 is not identical, but "
-                "should be."
-            )
-
-        return length
-
-    def _sort_inputs(
-        self,
-        results: dict,
-        extract_from_dicts: Union[dict[list[str]], None],
-        identical_entries: Union[list[str], None],
-        discard_entries: Union[list[str], None],
-    ) -> None:
-        """Checks that the values in 'results' are in the appropriate format for
-        processing.
-
-        PARAMETERS
-        ----------
-        results : dict
-        -   The results which will be checked.
-        -   Entries which are lists or numpy arrays should have the same length
-            of axis 0.
-
-        extract_from_dicts : dict[list[str]] | None
-        -   The entries of dictionaries within 'results' to include in the
-            processing.
-        -   Entries which are extracted are treated as being identical for all
-            values in the 'results' dictionary.
-
-        identical_entries : list[str] | None
-        -   The entries in 'results' which are identical across channels and for
-            which only one copy is present.
-
-        discard_entries : list[str] | None
-        -   The entries which should be discarded immediately without
-            processing.
-
-        RETURNS
-        -------
-        dict
-        -   The results with requested dictionary entries extracted to the
-            results, if applicable, and the dictionaries subsequently removed.
-        """
-
-        if discard_entries is not None:
-            results = self._sort_discard_entries(
-                results=results, discard_entries=discard_entries
-            )
-
-        results, dims_keys = self._sort_dimensions(results=results)
-        identical_entries = [*identical_entries, *dims_keys]
-
-        entry_length = self._check_input_entry_lengths(
-            results=results, identical_entries=identical_entries
-        )
-
-        if identical_entries is not None:
-            results = self._sort_identical_entries(
-                results=results,
-                identical_entries=identical_entries,
-                entry_length=entry_length,
-            )
-
-        results = self._sort_dicts(
-            results=results,
-            extract_from_dicts=extract_from_dicts,
-            entry_length=entry_length,
-        )
-
-        return results
-
-    def _sort_discard_entries(
-        self, results: dict, discard_entries: list[str]
-    ) -> dict:
-        """Drops the specified entries from 'results'.
-
-        PARAMETERS
-        ----------
-        results : dict
-        -   The results dictionary with entries to discard.
-
-        discard_entries : list[str]
-        -   The entries in 'results' to discard.
-
-        RETURNS
-        -------
-        results : dict
-        -   The sorted results with specified entries discarded.
-        """
-
-        for entry in discard_entries:
-            del results[entry]
-
-        return results
-
-    def _sort_dimensions(self, results: dict) -> tuple[dict, list]:
-        """Rearranges the dimensions of attributes in the results dictionary so
-        that the 0th axis corresponds to results from different channels, and
-        the 1st dimension to different frequencies. If no dimensions, are given,
-        the 0th axis is assumed to correspond to channels and the 1st axis to
-        frequencies.
-        -   Dimensions for an attribute, say 'X', would be containined in an
-            attribute of the results dictionary under the name 'X_dimensions'.
-        -   The dimensions should be provided as a list of strings containing
-            the values 'channels' and 'frequencies' in the positions whose index
-            corresponds to these axes in the values of 'X'. A single list should
-            be given, i.e. 'X_dimensions' should hold for all entries of 'X'.
-        -   E.g. if 'X' has shape [25, 10, 50, 300] with an 'X_dimensions' of
-            ['epochs', 'channels', 'frequencies', 'timepoints'], the shape of
-            'X' would be rearranged to [10, 50, 25, 300], corresponding to the
-            dimensions ["channels", "frequencies", "epochs", "timepoints"].
-        -   The axis for channels should be indicated as "channels", and the
-            axis for frequencies should be marked as "frequencies".
-
-        PARAMETERS
-        ----------
-        results : dict
-        -   The results with dimensions of attributes to rearrange.
-
-        RETURNS
-        -------
-        results : dict
-        -   The results with dimensions of attributes in the appropriate order.
-
-        dims_keys : list[str] | empty list
-        -   Names of the dimension attributes in the results dictionary, or an
-            empty list if no attributes are given.
-        """
-
-        dims_to_find = ["channels", "frequencies"]
-        dims_keys = []
-        for key in results.keys():
-            dims_key = f"{key}_dimensions"
-            new_dims_set = False
-            if dims_key in results.keys():
-                curr_axes_order = np.arange(len(results[dims_key])).tolist()
-                new_axes_order = [
-                    results[dims_key].index(dim) for dim in dims_to_find
-                ]
-                [
-                    new_axes_order.append(axis)
-                    for axis in curr_axes_order
-                    if axis not in new_axes_order
-                ]
-                if new_axes_order != curr_axes_order:
-                    results[key] = np.moveaxis(
-                        results[key],
-                        source=curr_axes_order,
-                        destination=new_axes_order,
-                    ).tolist()
-                    new_dims_set = True
-                old_dims = deepcopy(results[dims_key])
-                new_dims = [results[dims_key][i] for i in new_axes_order]
-                results[dims_key] = new_dims[1:]
-                dims_keys.append(dims_key)
-                if self._verbose and new_dims_set:
-                    print(
-                        f"Rearranging the dimensions of '{key}' from "
-                        f"{old_dims} to {new_dims}.\n"
-                    )
-
-        return results, dims_keys
-
-    def _sort_identical_entries(
-        self, results: dict, identical_entries: list[str], entry_length: int
-    ) -> dict:
-        """Creates a list equal to the length of other entries in 'results' for
-        all entries specified in 'identical_entries', where each element of the
-        list is a copy of the specified entries.
-
-        PARAMETERS
-        ----------
-        results : dict
-        -   The results dictionary with identical entries to sort.
-
-        identical_entries : list[str]
-        -   The entries in 'results' to convert to a list with length of axis 0
-            equal to that of the 0th axis of other entries.
-
-        entry_length : int
-        -   The length of the 0th axis of entries in 'results'.
-
-        RETURNS
-        -------
-        results : dict
-        -   The results dictionary with identical entries sorted.
-        """
-
-        for entry in identical_entries:
-            results[entry] = [deepcopy(results[entry])] * entry_length
-
-        return results
-
-    def _add_dict_entries_to_results(
-        self, results: dict, extract: dict[list[str]], entry_length: int
-    ) -> dict:
-        """Extracts entries from dictionaries in 'results' and adds them to the
-        results as a list whose length matches that of the other 'results'
-        entries which are lists or numpy arrays.
-
-        PARAMETERS
-        ----------
-        results : dict
-        -   The results containing the dictionaries whose values should be
-            extracted.
-
-        extract : dict[list[str]]
-        -   Dictionary whose keys are the names of dictionaries in 'results',
-            and whose values are a list of strings corresponding to the entries
-            in the dictionaries in 'results' to extract.
-
-        entry_length : int
-        -   The length of the 0th axis of entries in 'results'.
-
-        RETURNS
-        -------
-        results : dict
-        -   The results with the desired dictionary entries extracted.
-        """
-
-        for dict_name, dict_entries in extract.items():
-            for entry in dict_entries:
-                if entry in results.keys():
-                    raise PreexistingAttributeError(
-                        "Error when processing the results:\nThe entry "
-                        f"'{entry}' from the dictionary '{dict_name}' is being "
-                        "extracted and added to the results, however an "
-                        f"attribute named '{entry}' is already present in the "
-                        "results."
-                    )
-                repeat_val = results[dict_name][entry]
-                if isinstance(repeat_val, dict):
-                    raise TypeError(
-                        "Error when processing the results:\nThe results "
-                        f"contain the dictionary '{dict_name}' which contains "
-                        f"an entry '{entry}' that is being extracted and "
-                        "included with the results for processing, however "
-                        "processing dictionaries in a PostProcess object is "
-                        "not supported."
-                    )
-                results[entry] = [deepcopy(repeat_val)] * entry_length
-
-        return results
-
-    def _drop_dicts_from_results(self, results: dict) -> dict:
-        """Removes dictionaries from 'results' after the requested entries, if
-        applicable, have been extracted.
-
-        PARAMETERS
-        ----------
-        results : dict
-        -   The results with dictionaries entries to drop.
-
-        RETURNS
-        -------
-        results : dict
-        -   The results with dictionary entries dropped.
-        """
-
-        to_drop = []
-        for key, value in results.items():
-            if isinstance(value, dict):
-                to_drop.append(key)
-
-        for key in to_drop:
-            del results[key]
-
-        return results
-
-    def _sort_dicts(
-        self,
-        results: dict,
-        extract_from_dicts: Union[dict[list[str]], None],
-        entry_length: int,
-    ) -> dict:
-        """Handles the presence of dictionaries within 'results', extracting the
-        requested entries, if applicable, before discarding the dictionaries.
-
-        PARAMETERS
-        ----------
-        results : dict
-        -   The results to sort.
-
-        extract_from_dicts : dict[list[str]] | None
-        -   The entries of dictionaries within 'results' to include in the
-            processing.
-        -   Entries which are extracted are treated as being identical for all
-            values in the 'results' dictionary.
-
-        entry_length : int
-        -   The length of the 0th axis of entries in 'results'.
-
-        RETURNS
-        -------
-        dict
-        -   The sorted results, with the desired dictionary entries extracted,
-            if applicable, and the dictionaries discarded.
-        """
-
-        if extract_from_dicts is not None:
-            results = self._add_dict_entries_to_results(
-                results=results,
-                extract=extract_from_dicts,
-                entry_length=entry_length,
-            )
-
-        return self._drop_dicts_from_results(results=results)
-
-    def _results_to_df(
-        self,
-        results: dict,
-    ) -> pd.DataFrame:
-        """Converts the dictionary of results into a pandas DataFrame for
-        processing, adding frequency band-wise results, if requested.
-
-        PARAMETERS
-        ----------
-        results : dict
-        -   A dictionary containing results to process.
-        -   The entries in the dictionary should be either lists, numpy arrays,
-            or dictionaries.
-        -   Entries which are dictionaries will have their values treated as
-            being identical for all values in the 'results' dictionary.
-
-        RETURNS
-        -------
-        pandas DataFrame
-        -   The 'results' dictionary as a DataFrame.
-        """
-
-        return pd.DataFrame.from_dict(data=results, orient="columns")
 
     def append_from_dict(
         self,
@@ -578,11 +195,12 @@ class PostProcess:
                 "added after frequency band-wise results have been calculated."
             )
 
-        new_results = self._sort_inputs(
+        new_results = sort_inputs_results(
             results=new_results,
             extract_from_dicts=extract_from_dicts,
             identical_entries=identical_entries,
             discard_entries=discard_entries,
+            verbose=self._verbose,
         )
 
         check_non_repeated_vals_lists(
@@ -590,7 +208,7 @@ class PostProcess:
             allow_non_repeated=False,
         )
 
-        new_results = self._results_to_df(results=new_results)
+        new_results = dict_to_df(obj=new_results)
 
         self._results = pd.concat(
             objs=[self._results, new_results], ignore_index=True
@@ -659,7 +277,7 @@ class PostProcess:
             for row_i in dataframe.index:
                 for key in dataframe.keys():
                     if isinstance(dataframe[key][row_i], list):
-                        dataframe[key][row_i] = tuple(dataframe[key][row_i])
+                        dataframe.at[row_i, key] = tuple(dataframe[key][row_i])
             dataframes[df_i] = dataframe
 
         return dataframes[0], dataframes[1]
@@ -684,7 +302,7 @@ class PostProcess:
         for row_i in results.index:
             for key in results.keys():
                 if isinstance(results[key][row_i], tuple):
-                    results[key][row_i] = list(results[key][row_i])
+                    results.at[row_i, key] = list(results[key][row_i])
 
         return results
 
@@ -825,14 +443,15 @@ class PostProcess:
                 "added after frequency band-wise results have been calculated."
             )
 
-        new_results = self._sort_inputs(
+        new_results = sort_inputs_results(
             results=new_results,
             extract_from_dicts=extract_from_dicts,
             identical_entries=identical_entries,
             discard_entries=discard_entries,
+            verbose=self._verbose,
         )
 
-        new_results = self._results_to_df(results=new_results)
+        new_results = dict_to_df(obj=new_results)
 
         self._check_keys_before_merge(new_results=new_results)
 
@@ -1174,22 +793,22 @@ class PostProcess:
                 entries = []
                 for freq_idcs in band_idcs.values():
                     entries.append(
-                        self._results[attribute].iloc[idx][
+                        self._results[attribute][idx][
                             freq_idcs[0] : freq_idcs[1] + 1
                         ]
                     )
                 for measure in measures:
                     values = self._compute_freq_band_measure_results(
-                        freqs=self._results["freqs"].iloc[idx],
+                        freqs=self._results["freqs"][idx],
                         band_values=entries,
                         band_idcs=band_idcs,
                         measure=measure,
                     )
-                    self._results[f"{attribute}_fbands_{measure}"].iloc[
-                        idx
+                    self._results.at[
+                        idx, f"{attribute}_fbands_{measure}"
                     ] = values
-            self._results["fband_labels"].iloc[idx] = list(bands.keys())
-            self._results["fband_freqs"].iloc[idx] = list(bands.values())
+            self._results.at[idx, "fband_labels"] = list(bands.keys())
+            self._results.at[idx, "fband_freqs"] = list(bands.values())
 
     def freq_band_results(
         self, bands: dict[list[int]], attributes: list[str], measures: list[str]
@@ -1354,7 +973,7 @@ class PostProcess:
                     self._populate_columns(attributes=[attribute_name])
                 else:
                     for idcs in process_entry_idcs:
-                        self._results[attribute_name].iloc[idcs[0]] = None
+                        self._results.at[idcs[0], attribute_name] = None
 
     def _compute_var_measures(
         self,
@@ -1389,12 +1008,12 @@ class PostProcess:
                 results_name = f"{key}_{measure}"
                 for idcs in process_entry_idcs:
                     if len(idcs) > 1:
-                        entries = [self._results[key].iloc[idx] for idx in idcs]
+                        entries = [self._results[key][idx] for idx in idcs]
                         if measure == "std":
                             value = np.std(entries, axis=0).tolist()
                         elif measure == "sem":
                             value = stats.sem(entries, axis=0).tolist()
-                        self._results[results_name].iloc[idcs[0]] = value
+                        self._results.at[idcs[0], results_name] = value
         self._var_measures = np.unique(
             [*self._var_measures, *measures]
         ).tolist()
@@ -1445,19 +1064,7 @@ class PostProcess:
             for entry in entries:
                 value += f"{str(entry)}, "
             value = value[:-2] + "]"
-            self._results[key].iloc[idcs[0]] = value
-
-    def _prepare_average_measures(self) -> None:
-        """Adds an attribute ('n_averaged_over') indicating how many nodes of
-        results have been averaged together."""
-
-        avgd_over_column = "_n_averaged_over"
-        if avgd_over_column not in self._results.keys():
-            self._populate_columns(attributes=[avgd_over_column])
-            self._process_measures = np.unique(
-                [*self._var_measures, avgd_over_column]
-            ).tolist()
-            self._refresh_desc_measures()
+            self._results.at[idcs[0], key] = value
 
     def _compute_average(
         self,
@@ -1484,14 +1091,12 @@ class PostProcess:
             which entries have been averaged over.
         """
 
-        self._prepare_average_measures()
-
         drop_idcs = []
         for idcs in average_entry_idcs:
             if len(idcs) > 1:
                 for key in average_keys:
-                    entries = [self._results[key].iloc[idx] for idx in idcs]
-                    self._results[key].iloc[idcs[0]] = np.mean(
+                    entries = [self._results[key][idx] for idx in idcs]
+                    self._results.at[idcs[0], key] = np.mean(
                         entries, axis=0
                     ).tolist()
                 drop_idcs.extend(idcs[1:])
@@ -1502,7 +1107,7 @@ class PostProcess:
             self._set_averaged_key_value(
                 key=over_key, idcs=idcs, if_one_value=True
             )
-            self._results["_n_averaged_over"].iloc[idcs[0]] = len(idcs)
+            self._results.at[idcs[0], "n_from"] = len(idcs)
 
         self._results = self._results.drop(index=drop_idcs)
         self._results = self._results.reset_index(drop=True)
@@ -1678,7 +1283,7 @@ class PostProcess:
         for dict_name, attrs in sequester.items():
             results[dict_name] = {}
             for attr in attrs:
-                results[dict_name][attr] = self._results[attr].iloc[0].copy()
+                results[dict_name][attr] = self._results[attr][0]
 
         return results, attrs_to_sequester
 

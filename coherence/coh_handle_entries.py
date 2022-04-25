@@ -43,8 +43,22 @@ ordered_dict_from_list
 ragged_array_to_list
 -   Converts a ragged numpy array of nested arrays to a ragged list of nested
     lists.
+
+drop_from_list
+-   Drops specified entries from a list.
+
+drop_from_dict
+-   Removes specified entries from a dictionary.
+
+sort_inputs_results
+-   Checks that the values in 'results' are in the appropriate format for
+    processing with PostProcess or Plotting class objects.
+
+dict_to_df
+-   Converts a dictionary into a pandas DataFrame.
 """
 
+from copy import deepcopy
 from itertools import chain
 from typing import Optional, Union
 from numpy.typing import NDArray
@@ -54,6 +68,7 @@ from coh_exceptions import (
     DuplicateEntryError,
     EntryLengthError,
     MissingEntryError,
+    PreexistingAttributeError,
     UnidenticalEntryError,
 )
 
@@ -862,7 +877,7 @@ def ragged_array_to_list(
     return ragged_list
 
 
-def drop_from_list(obj: list, drop: list) -> list:
+def drop_from_list(obj: list, drop: list[str]) -> list:
     """Drops specified entries from a list.
 
     PARAMETERS
@@ -885,3 +900,556 @@ def drop_from_list(obj: list, drop: list) -> list:
             new_obj.append(item)
 
     return new_obj
+
+
+def drop_from_dict(obj: dict, drop: list[str]) -> dict:
+    """Removes specified entries from a dictionary.
+
+    PARAMETERS
+    ----------
+    obj : dict
+    -   Dictionary with entries to remove.
+
+    drop : list[str]
+    -   Names of the entries to remove.
+
+    RETURNS
+    -------
+    new_obj : dict
+    -   Dictionary with entries removed.
+    """
+
+    new_obj = deepcopy(obj)
+    for item in drop:
+        del new_obj[item]
+
+    return new_obj
+
+
+def _check_dimensions_results(
+    dimensions: list[Union[str, list[str]]], results_key: str, verbose: bool
+) -> list[str]:
+    """Checks whether dimensions of results are in the correct format.
+
+    PARAMETERS
+    ----------
+    dimensions : list[str] | list[list[str]]
+    -   Dimensions of results, either a list of strings corresponding to the
+        dimensions of all nodes/channels in the results, or a list of lists of
+        strings, where each dimension corresponds to an individual node/channel.
+    -   In the latter case, each sublist should be identical (i.e. each
+        channel/node should have the same dimensions), and in corresponding to
+        the dimensions of individual nodes/channels, not contain the axis
+        "channel", as this is already the case. The dimensions will then be
+        reduced to a single list of strings and the "channel" axis set to the
+        0th axis, followed by the other axes.
+    -   E.g. if two channels were present, dimensions could be ["channels",
+        "frequencies"] or [["frequencies"], ["frequencies"]]. In the former
+        case, the dimensions would be taken as-is. In the latter case, the
+        sublists would be checked for equivalence (this would be the case), they
+        would be reduced to a single list (["frequencies"]), and "channels" set
+        to the 0th axis (["channels", "frequencies"]), with the resulting
+        dimensions being returned.
+
+    results_key : str
+    -   Name of the entry in the results the dimensions are for.
+
+    verbose : bool
+    -   Whether or not to print descriptions of changes being made to the
+        dimensions.
+
+    RETURNS
+    -------
+    dimensions : list[str]
+    -   Dimensions of the results, in the correct format.
+
+    RAISES
+    ------
+    ValueError
+    -   Raised if the dimensions are a list of sublists, with the values of
+        these sublists not matching.
+    -   Raised if the dimensions are a list of sublists with the values of these
+        sublists matching, but with "channels" already being included in the
+        dimensions of individual nodes/channels which is, by their very nature,
+        incorrect.
+    """
+
+    if all(isinstance(entry, list) for entry in dimensions):
+        if verbose:
+            print(
+                f"The dimensions for the results entry '{results_key}' is a "
+                "list of sublists. Checking that each sublist contains "
+                "identical values (i.e. that the dimensions for each "
+                "node/channel in the results are identical)."
+            )
+        is_identical, dims = check_vals_identical(to_check=dimensions)
+        if not is_identical:
+            raise ValueError(
+                "Error when trying to sort the dimensions of the results:\n "
+                "Each channel/node in the results must have the same set of "
+                "dimensions, however this is not the case for the dimensions "
+                f"of '{results_key}' ({dims}).\n"
+            )
+        else:
+            unique_dimensions = deepcopy(dimensions[0])
+            if "channels" in unique_dimensions:
+                raise ValueError(
+                    "Error when trying to sort the dimensions of the results:\n"
+                    "Multiple, identical dimensions for the results entry "
+                    f"'{results_key}' are present. In this case, it is assumed "
+                    "that each entry in the dimensions corresponds to each "
+                    "channel/node in the results. As a result, the dimensions "
+                    "would be reduced to a single set of dimensions with "
+                    "'channels' added as the 0th axis of the dimensions, "
+                    "however 'channels' is already present in the dimensions.\n"
+                    "Either provide dimensions which are only a single list of "
+                    "strings that applies to all channels, or give an "
+                    "identical set of dimensions for each individual "
+                    "node/channel (in which case no 'channel' axis should be "
+                    "present in the dimensions)."
+                )
+            dimensions = ["channels", *unique_dimensions]
+            if verbose:
+                print(
+                    "Dimensions for the nodes/channels in the results are "
+                    f"identical ({unique_dimensions}). Adding 'channels' as "
+                    "the 0th dimension to give the overall dimensions of "
+                    f"'{results_key}' as {dimensions}.\n"
+                )
+
+    return dimensions
+
+
+def _sort_dimensions_results(results: dict, verbose: bool) -> tuple[dict, list]:
+    """Rearranges the dimensions of attributes in a results dictionary so that
+    the 0th axis corresponds to results from different channels, and the 1st
+    dimension to different frequencies. If no dimensions, are given, the 0th
+    axis is assumed to correspond to channels and the 1st axis to frequencies.
+    -   Dimensions for an attribute, say 'X', would be containined in an
+        attribute of the results dictionary under the name 'X_dimensions'.
+    -   The dimensions should be provided as a list of strings containing the
+        values 'channels' and 'frequencies' in the positions whose index
+        corresponds to these axes in the values of 'X'. A single list should be
+        given, i.e. 'X_dimensions' should hold for all entries of 'X'.
+    -   E.g. if 'X' has shape [25, 10, 50, 300] with an 'X_dimensions' of
+        ['epochs', 'channels', 'frequencies', 'timepoints'], the shape of 'X'
+        would be rearranged to [10, 50, 25, 300], corresponding to the
+        dimensions ["channels", "frequencies", "epochs", "timepoints"].
+    -   The axis for channels should be indicated as "channels", and the axis
+        for frequencies should be marked as "frequencies".
+    -   If the dimensions is a list of lists of strings, there should be a
+        sublist for each channel/node in the results. The sublists should be
+        identical (i.e. all results should have the same dimensions), and the
+        dimensions should correspond to the results of each individual
+        channel/node (i.e. no "channel" axis should be present in the
+        dimensions of an individual node/channel as this is agiven).
+
+    PARAMETERS
+    ----------
+    results : dict
+    -   The results with dimensions of attributes to rearrange.
+
+    verbose : bool
+    -   Whether or not to report changes to the dimensions.
+
+    RETURNS
+    -------
+    results : dict
+    -   The results with dimensions of attributes in the appropriate order.
+
+    dims_keys : list[str] | empty list
+    -   Names of the dimension attributes in the results dictionary, or an empty
+        list if no attributes are given.
+    """
+
+    dims_to_find = ["channels", "frequencies"]
+    dims_keys = []
+    for key in results.keys():
+        dims_key = f"{key}_dimensions"
+        new_dims_set = False
+        if dims_key in results.keys():
+            dimensions = _check_dimensions_results(
+                dimensions=results[dims_key], results_key=key, verbose=verbose
+            )
+            curr_axes_order = np.arange(len(dimensions)).tolist()
+            new_axes_order = [dimensions.index(dim) for dim in dims_to_find]
+            [
+                new_axes_order.append(axis)
+                for axis in curr_axes_order
+                if axis not in new_axes_order
+            ]
+            if new_axes_order != curr_axes_order:
+                results[key] = np.transpose(
+                    results[key],
+                    new_axes_order,
+                ).tolist()
+                new_dims_set = True
+            old_dims = deepcopy(dimensions)
+            new_dims = [dimensions[i] for i in new_axes_order]
+            results[dims_key] = new_dims[1:]
+            dims_keys.append(dims_key)
+            if verbose and new_dims_set:
+                print(
+                    f"Rearranging the dimensions of '{key}' from "
+                    f"{old_dims} to {new_dims}.\n"
+                )
+
+    return results, dims_keys
+
+
+def _check_entry_lengths_results(
+    results: dict, ignore: Union[list[str], None]
+) -> int:
+    """Checks that the lengths of list and numpy array entries in 'results' have
+    the same length of axis 0.
+
+    PARAMETERS
+    ----------
+    results : dict
+    -   The results whose entries will be checked.
+
+    ignore : list[str] | None
+    -   The entries in 'results' which should be ignored, such as those which
+        are identical across channels and for which only one copy is present.
+        These entries are not included when checking the lengths, as these will
+        be handled later.
+
+    RETURNS
+    -------
+    length : int
+    -   The lenghts of the 0th axis of lists and numpy arrays in 'results'.
+
+    RAISES
+    ------
+    TypeError
+    -   Raised if the 'results' contain an entry that is neither a list, numpy
+        array, or dictionary.
+
+    EntryLengthError
+    -   Raised if the list or numpy array entries in 'results' do not all have
+        the same length along axis 0.
+    """
+
+    if ignore is None:
+        ignore = []
+
+    supported_dtypes = [list, NDArray, dict]
+    check_len_dtypes = [list, NDArray]
+
+    to_check = []
+
+    for key, value in results.items():
+        if key not in ignore:
+            dtype = type(value)
+            if dtype in supported_dtypes:
+                if dtype in check_len_dtypes:
+                    to_check.append(value)
+            else:
+                raise TypeError(
+                    "Error when trying to process the results:\nThe results "
+                    f"dictionary contains an entry ('{key}') that is not of a "
+                    f"supported data type ({supported_dtypes}).\n"
+                )
+
+    identical, length = check_lengths_list_identical(to_check=to_check, axis=0)
+    if not identical:
+        raise EntryLengthError(
+            "Error when trying to process the results:\nThe length of "
+            "entries in the results along axis 0 is not identical, but "
+            "should be.\n"
+        )
+
+    return length
+
+
+def _add_desc_measures_results(results: dict, entry_length: int) -> dict:
+    """Adds descriptive processing measures to a results dictionary that can be
+    updated as the results are processed.
+    -   The entry 'n_from' is added, with the default value set to 1 (i.e. the
+        result is derived from a sample size of n = 1). As results are e.g.
+        averaged, 'n_from' will be updated to reflect the new sample size the
+        results are derived from.
+
+    PARAMETERS
+    ----------
+    results : dict
+    -   Dictionary of results.
+
+    entry_length : int
+    -   Length of the 'n_from' list to add, which should match the number of
+        channels/nodes of results in the dictionary.
+
+    RETURNS
+    -------
+    results : dict
+    -   Dictionary of results with entries for descriptive processing measures
+        added.
+    """
+
+    results["n_from"] = [1] * entry_length
+
+    return results
+
+
+def _sort_identical_entries_results(
+    results: dict,
+    identical_entries: list[str],
+    entry_length: int,
+    verbose: bool,
+) -> dict:
+    """Creates a list equal to the length of other entries in 'results' for all
+    entries specified in 'identical_entries', where each element of the list is
+    a copy of the specified entries.
+
+    PARAMETERS
+    ----------
+    results : dict
+    -   The results dictionary with identical entries to sort.
+
+    identical_entries : list[str]
+    -   The entries in 'results' to convert to a list with length of axis 0
+        equal to that of the 0th axis of other entries.
+
+    entry_length : int
+    -   The length of the 0th axis of entries in 'results'.
+
+    verbose : bool
+    -   Whether or not to print a description of the sorting process.
+
+    RETURNS
+    -------
+    results : dict
+    -   The results dictionary with identical entries sorted.
+    """
+
+    for entry in identical_entries:
+        results[entry] = [deepcopy(results[entry])] * entry_length
+
+    if verbose:
+        print(
+            f"Creating lists of the entries {identical_entries} in the results "
+            f"with length {entry_length}.\n"
+        )
+
+    return results
+
+
+def _add_dict_entries_to_results(
+    results: dict, extract: dict[list[str]], entry_length: int, verbose: bool
+) -> dict:
+    """Extracts entries from dictionaries in 'results' and adds them to the
+    results as a list whose length matches that of the other 'results' entries
+    which are lists or numpy arrays.
+
+    PARAMETERS
+    ----------
+    results : dict
+    -   The results containing the dictionaries whose values should be
+        extracted.
+
+    extract : dict[list[str]]
+    -   Dictionary whose keys are the names of dictionaries in 'results', and
+        whose values are a list of strings corresponding to the entries in the
+        dictionaries in 'results' to extract.
+
+    entry_length : int
+    -   The length of the 0th axis of entries in 'results'.
+
+    verbose : bool
+    -   Whether or not to print a description of the sorting process.
+
+    RETURNS
+    -------
+    results : dict
+    -   The results with the desired dictionary entries extracted.
+    """
+
+    for dict_name, dict_entries in extract.items():
+        for entry in dict_entries:
+            if entry in results.keys():
+                raise PreexistingAttributeError(
+                    f"Error when processing the results:\nThe entry '{entry}' "
+                    f"from the dictionary '{dict_name}' is being extracted and "
+                    "added to the results, however an attribute named "
+                    f"'{entry}' is already present in the results.\n"
+                )
+            repeat_val = results[dict_name][entry]
+            if isinstance(repeat_val, dict):
+                raise TypeError(
+                    "Error when processing the results:\nThe results contain "
+                    f"the dictionary '{dict_name}' which contains an entry "
+                    f"'{entry}' that is being extracted and included with the "
+                    "results for processing, however processing dictionaries "
+                    "is not supported.\n"
+                )
+            results[entry] = [deepcopy(repeat_val)] * entry_length
+
+        if verbose:
+            print(
+                f"Extracting the entries {dict_entries} from the dictionary "
+                f"'{dict_name}' into the results with length {entry_length}.\n"
+            )
+
+    return results
+
+
+def _drop_dicts_from_results(results: dict) -> dict:
+    """Removes dictionaries from 'results' after the requested entries, if
+    applicable, have been extracted.
+
+    PARAMETERS
+    ----------
+    results : dict
+    -   The results with dictionaries entries to drop.
+
+    RETURNS
+    -------
+    results : dict
+    -   The results with dictionary entries dropped.
+    """
+
+    to_drop = []
+    for key, value in results.items():
+        if isinstance(value, dict):
+            to_drop.append(key)
+
+    for key in to_drop:
+        del results[key]
+
+    return results
+
+
+def _sort_dicts_results(
+    results: dict,
+    extract_from_dicts: Union[dict[list[str]], None],
+    entry_length: int,
+    verbose: bool,
+) -> dict:
+    """Handles the presence of dictionaries within 'results', extracting the
+    requested entries, if applicable, before discarding the dictionaries.
+
+    PARAMETERS
+    ----------
+    results : dict
+    -   The results to sort.
+
+    extract_from_dicts : dict[list[str]] | None
+    -   The entries of dictionaries within 'results' to include in the
+        processing.
+    -   Entries which are extracted are treated as being identical for all
+        values in the 'results' dictionary.
+
+    entry_length : int
+    -   The length of the 0th axis of entries in 'results'.
+
+    verbose : bool
+    -   Whether or not to print a description of the sorting process.
+
+    RETURNS
+    -------
+    dict
+    -   The sorted results, with the desired dictionary entries extracted, if
+        applicable, and the dictionaries discarded.
+    """
+
+    if extract_from_dicts is not None:
+        results = _add_dict_entries_to_results(
+            results=results,
+            extract=extract_from_dicts,
+            entry_length=entry_length,
+            verbose=verbose,
+        )
+
+    return _drop_dicts_from_results(results=results)
+
+
+def sort_inputs_results(
+    results: dict,
+    extract_from_dicts: Union[dict[list[str]], None],
+    identical_entries: Union[list[str], None],
+    discard_entries: Union[list[str], None],
+    verbose: bool = True,
+) -> None:
+    """Checks that the values in 'results' are in the appropriate format for
+    processing with PostProcess or Plotting class objects.
+
+    PARAMETERS
+    ----------
+    results : dict
+    -   The results which will be checked.
+    -   Entries which are lists or numpy arrays should have the same length
+        of axis 0.
+
+    extract_from_dicts : dict[list[str]] | None
+    -   The entries of dictionaries within 'results' to include in the
+        processing.
+    -   Entries which are extracted are treated as being identical for all
+        values in the 'results' dictionary.
+
+    identical_entries : list[str] | None
+    -   The entries in 'results' which are identical across channels and for
+        which only one copy is present.
+
+    discard_entries : list[str] | None
+    -   The entries which should be discarded immediately without
+        processing.
+
+    RETURNS
+    -------
+    dict
+    -   The results with requested dictionary entries extracted to the
+        results, if applicable, and the dictionaries subsequently removed.
+    """
+
+    if discard_entries is not None:
+        results = drop_from_dict(obj=results, drop=discard_entries)
+
+    results, dims_keys = _sort_dimensions_results(
+        results=results, verbose=verbose
+    )
+
+    if identical_entries is None:
+        identical_entries = []
+    identical_entries = [*identical_entries, *dims_keys]
+
+    entry_length = _check_entry_lengths_results(
+        results=results, ignore=identical_entries
+    )
+
+    results = _add_desc_measures_results(
+        results=results, entry_length=entry_length
+    )
+
+    if identical_entries is not None:
+        results = _sort_identical_entries_results(
+            results=results,
+            identical_entries=identical_entries,
+            entry_length=entry_length,
+            verbose=verbose,
+        )
+
+    results = _sort_dicts_results(
+        results=results,
+        extract_from_dicts=extract_from_dicts,
+        entry_length=entry_length,
+        verbose=verbose,
+    )
+
+    return results
+
+
+def dict_to_df(obj: dict) -> pd.DataFrame:
+    """Converts a dictionary into a pandas DataFrame.
+
+    PARAMETERS
+    ----------
+    obj : dict
+    -   Dictionary to convert.
+
+    RETURNS
+    -------
+    pandas DataFrame
+    -   The converted dictionary.
+    """
+
+    return pd.DataFrame.from_dict(data=obj, orient="columns")
