@@ -80,6 +80,7 @@ def connectivity_plotting(
                 subplot_grouping=plot_settings["subplot_grouping"],
                 analysis_entries=plot_settings["analysis_entries"],
                 identical_entries=plot_settings["identical_entries"],
+                eligible_values=plot_settings["eligible_values"],
                 average_as_equal=plot_settings["average_as_equal"],
                 figure_layout=plot_settings["figure_layout"],
             )
