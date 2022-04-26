@@ -59,7 +59,7 @@ class PostProcess:
         dimensions should be a list of strings containing the values "channels"
         and "frequencies" in the positions corresponding to the axis of these
         dimensions in 'X'. A single list should be given, i.e. 'X_dimensions'
-        should hold for all entries of 'X'.If no dimensions, are given, the 0th
+        should hold for all entries of 'X'. If no dimensions, are given, the 0th
         axis is assumed to correspond to channels and the 1st axis to
         frequencies.
     -   E.g. if 'X' has shape [25, 10, 50, 300] with an 'X_dimensions' of
@@ -67,11 +67,8 @@ class PostProcess:
         would be rearranged to [10, 50, 25, 300], corresponding to the
         dimensions ["channels", "frequencies", "epochs", "timepoints"].
     -   If the dimensions is a list of lists of strings, there should be a
-        sublist for each channel/node in the results. The sublists should be
-        identical (i.e. all results should have the same dimensions), and the
-        dimensions should correspond to the results of each individual
-        channel/node (i.e. no "channel" axis should be present in the
-        dimensions of an individual node/channel as this is agiven).
+        sublist for each channel/node in the results, and hence no "channel"
+        axis should be present in the dimensions of an individual node/channel.
 
     extract_from_dicts : dict[list[str]] | None; default None
     -   The entries of dictionaries within 'results' to include in the
