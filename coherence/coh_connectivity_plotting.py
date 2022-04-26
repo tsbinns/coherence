@@ -67,7 +67,22 @@ def connectivity_plotting(
     for plot_settings in plotting_settings["plotting"]:
         if plot_settings["type"] == "line_plot":
             plot = LinePlot(results=results)
-            plot.plot()
+            plot.plot(
+                x_axis=plot_settings["x_axis"],
+                y_axis=plot_settings["y_axis"],
+                x_axis_limits=plot_settings["x_axis_limits"],
+                x_axis_label=plot_settings["x_axis_label"],
+                y_axis_limits=plot_settings["y_axis_limits"],
+                y_axis_label=plot_settings["y_axis_label"],
+                var_measures=plot_settings["var_measures"],
+                y_axis_limits_grouping=plot_settings["y_axis_limits_grouping"],
+                figure_grouping=plot_settings["figure_grouping"],
+                subplot_grouping=plot_settings["subplot_grouping"],
+                analysis_entries=plot_settings["analysis_entries"],
+                identical_entries=plot_settings["identical_entries"],
+                average_as_equal=plot_settings["average_as_equal"],
+                figure_layout=plot_settings["figure_layout"],
+            )
         else:
             raise ValueError(
                 "Error when trying to plot the analysis results:\nThe plot "
