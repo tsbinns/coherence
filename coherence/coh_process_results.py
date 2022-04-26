@@ -1172,7 +1172,7 @@ class PostProcess:
             idcs=eligible_idcs,
             special_vals={"avg[": "avg_"},
         )
-        group_idcs = get_group_idcs(
+        group_idcs, _ = get_group_idcs(
             vals=combined_vals, replacement_idcs=eligible_idcs
         )
 

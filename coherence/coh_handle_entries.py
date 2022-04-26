@@ -322,7 +322,7 @@ def check_lengths_list_equals_n(
     return all_n
 
 
-def check_vals_identical(to_check: list) -> tuple[bool, Union[list, None]]:
+def check_vals_identical_list(to_check: list) -> tuple[bool, Union[list, None]]:
     """Checks whether all values within a list are identical.
 
     PARAMETERS
@@ -383,7 +383,7 @@ def check_vals_identical_df(
     for key in keys:
         for group_idcs in idcs:
             if len(group_idcs) > 1:
-                is_identical, unique_vals = check_vals_identical(
+                is_identical, unique_vals = check_vals_identical_list(
                     to_check=dataframe[key].iloc[group_idcs].tolist()
                 )
                 if not is_identical:
@@ -393,6 +393,52 @@ def check_vals_identical_df(
                         f"same values:\nThe values of '{key}' in rows "
                         f"{group_idcs} do not match.\nValues:{unique_vals}\n"
                     )
+
+
+def get_eligible_idcs_lists(
+    to_check: dict[list],
+    eligible_vals: dict[list],
+    idcs: Union[list[int], None] = None,
+) -> list[int]:
+    """Finds indices of items in multiple lists that have a certain value.
+    -   Indices are found in turn for each list, such that the number of
+        eligible indices can decrease for every list being checked.
+
+    PARAMETERS
+    ----------
+    to_check : dict[list]
+    -   Lists whose values should be checked, stored in a dictionary.
+    -   The keys of the dictionary should be the same as those in
+        'eligible_vals' for the corresponding eligible values.
+
+    eligible_vals : dict[list]
+    -   Lists containing values that are considered 'eligible', and whose
+        indices will be recorded, stored in a dictionary.
+    -   The keys of the dictionary should be the same as those in 'to_check' for
+        the corresponding values to be checked.
+
+    idcs : list[int] | None; default None
+    -   Indices of the items in the first list of 'to_check' to check.
+    -   If 'None', all items in the first list are checked.
+
+    RETURNS
+    -------
+    idcs : list[int]
+    -   List containing the indices of 'eligible' entries across all lists.
+    """
+
+    idcs = deepcopy(idcs)
+
+    if idcs is None:
+        _, length = check_lengths_dict_identical(to_check=to_check)
+        idcs = range(len(length))
+
+    for key, value in to_check.items():
+        idcs = get_eligible_idcs_list(
+            vals=value, eligible_vals=eligible_vals[key], idcs=idcs
+        )
+
+    return idcs
 
 
 def get_eligible_idcs_list(
@@ -430,7 +476,7 @@ def get_eligible_idcs_list(
 
 def get_group_idcs(
     vals: list, replacement_idcs: Union[list[int], None] = None
-) -> list[list[int]]:
+) -> tuple[list[list[int]], list]:
     """Finds groups of items in a list containing the same values, and returns
     their indices.
 
@@ -453,6 +499,9 @@ def get_group_idcs(
     group_idcs : list[list[int]]
     -   List of lists where each list contains the indices for a group of items
         in 'vals' that share the same value.
+
+    unique_vals : list
+    -   List of the unique values, corresponding to the groups in 'group_idcs'.
 
     RAISES
     ------
@@ -478,7 +527,7 @@ def get_group_idcs(
             if unique_val == val:
                 group_idcs[-1].append(replacement_idcs[idx])
 
-    return group_idcs
+    return group_idcs, unique_vals
 
 
 def combine_col_vals_df(
@@ -997,7 +1046,7 @@ def _check_dimensions_results(
                     "which case no 'channel' axis should be present in the "
                     "dimensions)."
                 )
-        identical_dimensions, _ = check_vals_identical(to_check=dimensions)
+        identical_dimensions, _ = check_vals_identical_list(to_check=dimensions)
         if identical_dimensions:
             dimensions = ["channels", *dimensions[0]]
         else:
