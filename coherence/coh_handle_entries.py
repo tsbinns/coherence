@@ -232,6 +232,7 @@ def _find_lengths_list(
     entry_lengths = []
     for value in to_check:
         if value not in ignore_values:
+            value = np.asarray(value, dtype=object)
             entry_lengths.append(np.shape(value)[axis])
 
     return entry_lengths
@@ -927,8 +928,8 @@ def drop_from_dict(obj: dict, drop: list[str]) -> dict:
 
 
 def _check_dimensions_results(
-    dimensions: list[Union[str, list[str]]], results_key: str, verbose: bool
-) -> list[str]:
+    dimensions: list[Union[str, list[str]]], results_key: str
+) -> list[Union[str, list[str]]]:
     """Checks whether dimensions of results are in the correct format.
 
     PARAMETERS
@@ -937,87 +938,89 @@ def _check_dimensions_results(
     -   Dimensions of results, either a list of strings corresponding to the
         dimensions of all nodes/channels in the results, or a list of lists of
         strings, where each dimension corresponds to an individual node/channel.
-    -   In the latter case, each sublist should be identical (i.e. each
-        channel/node should have the same dimensions), and in corresponding to
-        the dimensions of individual nodes/channels, not contain the axis
-        "channel", as this is already the case. The dimensions will then be
-        reduced to a single list of strings and the "channel" axis set to the
-        0th axis, followed by the other axes.
+    -   In the latter case, the dimensions of individual nodes/channels should
+        not contain the axis "channel", as this is already the case. The
+        "channels" axis will be set to the 0th axis, followed by the
+        "frequencies" axis, followed by any other axes.
     -   E.g. if two channels were present, dimensions could be ["channels",
-        "frequencies"] or [["frequencies"], ["frequencies"]]. In the former
-        case, the dimensions would be taken as-is. In the latter case, the
-        sublists would be checked for equivalence (this would be the case), they
-        would be reduced to a single list (["frequencies"]), and "channels" set
-        to the 0th axis (["channels", "frequencies"]), with the resulting
-        dimensions being returned.
+        "frequencies", "epochs", "timepoints"] or [["frequencies", "epochs",
+        "timepoints"], ["timepoints", "frequencies", "epochs"]]. In the former
+        case, the dimensions would be taken as-is. In the latter case,
+        "channels" would be set to the 0th axis, and "frequencies" to the 1st
+        axis, followed by any additional axes based on the order in which they
+        occur in the first sublist, resulting in dimensions for all
+        nodes/channels of ["channels", "frequencies", "epochs", "timepoints"].
 
     results_key : str
     -   Name of the entry in the results the dimensions are for.
 
-    verbose : bool
-    -   Whether or not to print descriptions of changes being made to the
-        dimensions.
-
     RETURNS
     -------
-    dimensions : list[str]
-    -   Dimensions of the results, in the correct format.
+    dimensions : list[str] | list[list[str]]
+    -   Dimensions of the results.
+    -   If 'dimensions' was a list of strings, 'dimensions' is unchanged.
+    -   If 'dimensions' was a list of sublists of strings in which each sublist
+        of strings was the same, 'dimensions' is reduced to a single list of
+        strings in which "channels" is set to the 0th axis.
+    -   If 'dimensions' was a list of sublists of strings and each sublist of
+        strings was not the same, 'dimensions' remains as a list of sublists.
+
+    dims_to_find : list[str]
+    -   Names of the dimensions and the order in which they should occur. If
+        dimensions are given for each individual channel/node, the 0th axis is
+        set to "frequencies", with the following axes set to the order in which
+        they occur in the first node/channel.
 
     RAISES
     ------
     ValueError
-    -   Raised if the dimensions are a list of sublists, with the values of
-        these sublists not matching.
-    -   Raised if the dimensions are a list of sublists with the values of these
-        sublists matching, but with "channels" already being included in the
-        dimensions of individual nodes/channels which is, by their very nature,
-        incorrect.
+    -   Raised if the dimensions are a list of sublists corresponding to the
+        dimensions of individual channels/nodes, but with "channels" already
+        being included in the dimensions of these individual channels/nodes
+        which is, by their very nature, incorrect.
     """
 
+    identical_dimensions = True
     if all(isinstance(entry, list) for entry in dimensions):
-        if verbose:
-            print(
-                f"The dimensions for the results entry '{results_key}' is a "
-                "list of sublists. Checking that each sublist contains "
-                "identical values (i.e. that the dimensions for each "
-                "node/channel in the results are identical)."
-            )
-        is_identical, dims = check_vals_identical(to_check=dimensions)
-        if not is_identical:
-            raise ValueError(
-                "Error when trying to sort the dimensions of the results:\n "
-                "Each channel/node in the results must have the same set of "
-                "dimensions, however this is not the case for the dimensions "
-                f"of '{results_key}' ({dims}).\n"
-            )
-        else:
-            unique_dimensions = deepcopy(dimensions[0])
-            if "channels" in unique_dimensions:
+        for dims in dimensions:
+            if "channels" in dims:
                 raise ValueError(
                     "Error when trying to sort the dimensions of the results:\n"
-                    "Multiple, identical dimensions for the results entry "
+                    "Multiple dimensions for the results entry "
                     f"'{results_key}' are present. In this case, it is assumed "
                     "that each entry in the dimensions corresponds to each "
-                    "channel/node in the results. As a result, the dimensions "
-                    "would be reduced to a single set of dimensions with "
-                    "'channels' added as the 0th axis of the dimensions, "
-                    "however 'channels' is already present in the dimensions.\n"
-                    "Either provide dimensions which are only a single list of "
-                    "strings that applies to all channels, or give an "
-                    "identical set of dimensions for each individual "
-                    "node/channel (in which case no 'channel' axis should be "
-                    "present in the dimensions)."
+                    "channel/node in the results. As a result, a 'channels' "
+                    "axis should not be present in the dimensions, but it is "
+                    f"{dims}.\nEither provide dimensions which are only a "
+                    "single list of strings that applies to all channels, or "
+                    "give dimensions for each individual node/channel (in "
+                    "which case no 'channel' axis should be present in the "
+                    "dimensions)."
                 )
-            dimensions = ["channels", *unique_dimensions]
-            if verbose:
-                print(
-                    "Dimensions for the nodes/channels in the results are "
-                    f"identical ({unique_dimensions}). Adding 'channels' as "
-                    "the 0th dimension to give the overall dimensions of "
-                    f"'{results_key}' as {dimensions}.\n"
-                )
+        identical_dimensions, _ = check_vals_identical(to_check=dimensions)
+        if identical_dimensions:
+            dimensions = ["channels", *dimensions[0]]
+        else:
+            check_non_repeated_vals_lists(
+                lists=dimensions, allow_non_repeated=False
+            )
 
-    return dimensions
+    if identical_dimensions:
+        dims_to_find = ["channels", "frequencies"]
+        [
+            dims_to_find.append(dim)
+            for dim in dimensions
+            if dim not in dims_to_find
+        ]
+    else:
+        dims_to_find = ["frequencies"]
+        [
+            dims_to_find.append(dim)
+            for dim in dimensions[0]
+            if dim not in dims_to_find
+        ]
+
+    return dimensions, dims_to_find
 
 
 def _sort_dimensions_results(results: dict, verbose: bool) -> tuple[dict, list]:
@@ -1038,11 +1041,10 @@ def _sort_dimensions_results(results: dict, verbose: bool) -> tuple[dict, list]:
     -   The axis for channels should be indicated as "channels", and the axis
         for frequencies should be marked as "frequencies".
     -   If the dimensions is a list of lists of strings, there should be a
-        sublist for each channel/node in the results. The sublists should be
-        identical (i.e. all results should have the same dimensions), and the
-        dimensions should correspond to the results of each individual
-        channel/node (i.e. no "channel" axis should be present in the
-        dimensions of an individual node/channel as this is agiven).
+        sublist for each channel/node in the results. Dimensions in the sublists
+        should correspond to the results of each individual channel/node (i.e.
+        no "channel" axis should be present in the dimensions of an individual
+        node/channel as this is agiven).
 
     PARAMETERS
     ----------
@@ -1062,37 +1064,48 @@ def _sort_dimensions_results(results: dict, verbose: bool) -> tuple[dict, list]:
         list if no attributes are given.
     """
 
-    dims_to_find = ["channels", "frequencies"]
     dims_keys = []
     for key in results.keys():
         dims_key = f"{key}_dimensions"
         new_dims_set = False
         if dims_key in results.keys():
-            dimensions = _check_dimensions_results(
-                dimensions=results[dims_key], results_key=key, verbose=verbose
+            dimensions, dims_to_find = _check_dimensions_results(
+                dimensions=results[dims_key], results_key=key
             )
-            curr_axes_order = np.arange(len(dimensions)).tolist()
-            new_axes_order = [dimensions.index(dim) for dim in dims_to_find]
-            [
-                new_axes_order.append(axis)
-                for axis in curr_axes_order
-                if axis not in new_axes_order
-            ]
-            if new_axes_order != curr_axes_order:
-                results[key] = np.transpose(
-                    results[key],
-                    new_axes_order,
-                ).tolist()
-                new_dims_set = True
-            old_dims = deepcopy(dimensions)
-            new_dims = [dimensions[i] for i in new_axes_order]
+            if all(isinstance(entry, list) for entry in dimensions):
+                for node_i, dims in enumerate(dimensions):
+                    curr_axes_order = np.arange(len(dims)).tolist()
+                    new_axes_order = [dims.index(dim) for dim in dims_to_find]
+                    if new_axes_order != curr_axes_order:
+                        results.at[node_i, key] = np.transpose(
+                            results[key][node_i],
+                            new_axes_order,
+                        ).tolist()
+                new_dims = ["channels", *dims_to_find]
+                if verbose:
+                    print(
+                        f"Changing the dimensions of '{key}' which were "
+                        "variable across the nodes/channels to a single "
+                        f"dimension {new_dims}.\n"
+                    )
+            else:
+                curr_axes_order = np.arange(len(dimensions)).tolist()
+                new_axes_order = [dimensions.index(dim) for dim in dims_to_find]
+                if new_axes_order != curr_axes_order:
+                    results[key] = np.transpose(
+                        results[key],
+                        new_axes_order,
+                    ).tolist()
+                    new_dims_set = True
+                old_dims = deepcopy(dimensions)
+                new_dims = [dimensions[i] for i in new_axes_order]
+                if verbose and new_dims_set:
+                    print(
+                        f"Rearranging the dimensions of '{key}' from "
+                        f"{old_dims} to {new_dims}.\n"
+                    )
             results[dims_key] = new_dims[1:]
             dims_keys.append(dims_key)
-            if verbose and new_dims_set:
-                print(
-                    f"Rearranging the dimensions of '{key}' from "
-                    f"{old_dims} to {new_dims}.\n"
-                )
 
     return results, dims_keys
 
