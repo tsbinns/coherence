@@ -474,6 +474,72 @@ def get_eligible_idcs_list(
     return [idx for idx in idcs if vals[idx] in eligible_vals]
 
 
+def get_group_names_idcs(
+    dataframe: pd.DataFrame,
+    keys: Union[list[str], None] = None,
+    eligible_idcs: Union[list[int], None] = None,
+    replacement_idcs: Union[list[int], None] = None,
+    special_vals: Union[dict[str], None] = None,
+) -> dict[int]:
+    """Combines the values of DataFrame columns into a string on a row-by-row
+    basis (i.e. one string for each row) and finds groups of items containing
+    these values, returning the names of the groups and their indices.
+
+    PARAMETERS
+    ----------
+    dataframe : pandas DataFrame
+    -   DataFrame whose values should be combined across columns.
+
+    keys : list[str] | None
+    -   Names of the columns in the DataFrame whose values should be combined.
+    -   If 'None', all columns are used.
+
+    eligible_idcs : list[int] | None
+    -   Indices of the rows in the DataFrame whose values should be combined.
+    -   If 'None', all rows are used.
+
+    replacement_idcs : list[int] | None
+    -   List containing indices that the indices of items in 'vals' should be
+        replaced with.
+    -   Must have the same length as 'vals'.
+    -   E.g. if items in positions 0, 1, and 2 of 'vals' were grouped together
+        and the values of 'replacement_idcs' in positions 0 to 2 were [2, 6, 9],
+        respectively, the resulting indices for this group would be [2, 6, 9].
+    -   If None, the original indices are used.
+
+    special_vals : dict[str] | None
+    -   Instructions for how to treat specific values in the DataFrame.
+    -   Keys are the special values that the values should begin with, whilst
+        values are the values that the special values should be replaced with.
+    -   E.g. {"avg[": "avg_"} would mean values in the DataFrame beginning with
+        'avg[' would have this beginning replaced with 'avg_', followed by the
+        column name, so a value beginning with 'avg[' in the 'channels' column
+        would become 'avg_channels'.
+
+    RETURNS
+    -------
+    group_names_idcs : dict[int]
+    -   Dictionary where each key is the name of the group, and each value the
+        indices of rows in 'dataframe' corresponding to this group.
+    """
+
+    combined_values = combine_col_vals_df(
+        dataframe=dataframe,
+        keys=keys,
+        idcs=eligible_idcs,
+        special_vals=special_vals,
+    )
+    group_idcs, group_names = get_group_idcs(
+        vals=combined_values, replacement_idcs=replacement_idcs
+    )
+
+    group_names_idcs = {}
+    for idx, name in enumerate(group_names):
+        group_names_idcs[name] = group_idcs[idx]
+
+    return group_names_idcs
+
+
 def get_group_idcs(
     vals: list, replacement_idcs: Union[list[int], None] = None
 ) -> tuple[list[list[int]], list]:
@@ -535,6 +601,7 @@ def combine_col_vals_df(
     keys: Union[list[str], None] = None,
     idcs: Union[list[int], None] = None,
     special_vals: Union[dict[str], None] = None,
+    joiner: str = " & ",
 ) -> list[str]:
     """Combines the values of DataFrame columns into a string on a row-by-row
     basis (i.e. one string for each row).
@@ -561,6 +628,9 @@ def combine_col_vals_df(
         column name, so a value beginning with 'avg[' in the 'channels' column
         would become 'avg_channels'.
 
+    joiner : str; default " & "
+    -   String to join each entry for a given row with.
+
     RETURNS
     -------
     combined_vals : list[str]
@@ -576,14 +646,15 @@ def combine_col_vals_df(
         special_vals = {}
 
     combined_vals = []
-    for idx in idcs:
+    for entry_i, row_i in enumerate(idcs):
         combined_vals.append("")
         for key in keys:
-            value = str(dataframe[key].iloc[idx])
+            value = f"{key}-{str(dataframe[key].iloc[row_i])}"
             for to_replace, replacement in special_vals.items():
                 if value[: len(to_replace)] == to_replace:
                     value = f"{replacement}{key}"
-            combined_vals[idx] += value
+            combined_vals[entry_i] += f"{value}{joiner}"
+        combined_vals[entry_i] = combined_vals[entry_i][: -len(joiner)]
 
     return combined_vals
 
