@@ -80,8 +80,8 @@ class FillerObject:
 
 def _find_lengths_dict(
     to_check: dict,
-    ignore_values: Optional[list],
-    ignore_keys: Optional[list],
+    ignore_values: Optional[list] = None,
+    ignore_keys: Optional[list] = None,
 ) -> list[int]:
     """Finds the lengths of entries within a dictionary.
 
@@ -105,6 +105,11 @@ def _find_lengths_dict(
     entry_lengths : list[int]
     -   The lengths of entries in the list.
     """
+
+    if ignore_values is None:
+        ignore_values = []
+    if ignore_keys is None:
+        ignore_keys = []
 
     entry_lengths = []
     for key, value in to_check.items():
@@ -322,6 +327,29 @@ def check_lengths_list_equals_n(
     return all_n
 
 
+def unique(values: list) -> list:
+    """Finds the unique values in a list.
+    -   Equivalent to calling numpy's 'unique' with 'return_index' set to 'True'
+        and then reordering the result of numpy's 'unique' to restore the order
+        in which the unique values occured in the original list.
+
+    PARAMETERS
+    ----------
+    values : list
+    -   The values whose unique entries should be found.
+
+    RETURNS
+    -------
+    unique_values : list
+    -   The unique entries in 'values'.
+    """
+
+    idcs = np.unique(values, return_index=True)[1]
+    unique_values = [values[idx] for idx in sorted(idcs)]
+
+    return unique_values
+
+
 def check_vals_identical_list(to_check: list) -> tuple[bool, Union[list, None]]:
     """Checks whether all values within a list are identical.
 
@@ -349,7 +377,7 @@ def check_vals_identical_list(to_check: list) -> tuple[bool, Union[list, None]]:
     if is_identical:
         unique_vals = None
     else:
-        unique_vals = np.unique(to_check).tolist()
+        unique_vals = unique(to_check)
 
     return is_identical, unique_vals
 
@@ -431,7 +459,7 @@ def get_eligible_idcs_lists(
 
     if idcs is None:
         _, length = check_lengths_dict_identical(to_check=to_check)
-        idcs = range(len(length))
+        idcs = np.arange(length).tolist()
 
     for key, value in to_check.items():
         idcs = get_eligible_idcs_list(
@@ -585,7 +613,7 @@ def get_group_idcs(
                 f"({len(vals)} and {len(replacement_idcs)}, respectively).\n"
             )
 
-    unique_vals = np.unique(vals).tolist()
+    unique_vals = unique(vals)
     group_idcs = []
     for unique_val in unique_vals:
         group_idcs.append([])
@@ -594,6 +622,37 @@ def get_group_idcs(
                 group_idcs[-1].append(replacement_idcs[idx])
 
     return group_idcs, unique_vals
+
+
+def reorder_rows_dataframe(
+    dataframe: pd.DataFrame, key: str, values_order: list
+) -> pd.DataFrame:
+    """Reorders the rows of a pandas DataFrame based on the order in which
+    values occur in a given column.
+
+    PARAMETERS
+    ----------
+    dataframe : pandas DataFrame
+    -   DataFrame to reorder.
+
+    key : str
+    -   Name of the column of the DataFrame to use for the reordering.
+
+    values_order : list
+    -   Values in the column of the DataFrame used for the reordering. The order
+        in which values occur in 'values_order' determines the order in which
+        the DataFrame rows are reordered.
+
+    RETURNS
+    -------
+    dataframe : pandas DataFrame
+    -   Reordered DataFrame.
+    """
+
+    dataframe = deepcopy(dataframe)
+    dataframe = dataframe.set_index(key).loc[values_order].reset_index()
+
+    return dataframe
 
 
 def combine_col_vals_df(
@@ -651,7 +710,9 @@ def combine_col_vals_df(
         for key in keys:
             value = f"{key}-{str(dataframe[key].iloc[row_i])}"
             for to_replace, replacement in special_vals.items():
-                if value[: len(to_replace)] == to_replace:
+                start_i = len(f"{key}-")
+                end_i = start_i + len(to_replace)
+                if value[start_i:end_i] == to_replace:
                     value = f"{replacement}{key}"
             combined_vals[entry_i] += f"{value}{joiner}"
         combined_vals[entry_i] = combined_vals[entry_i][: -len(joiner)]
