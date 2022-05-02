@@ -73,18 +73,19 @@ def connectivity_plotting(
                 x_axis_limits=plot_settings["x_axis_limits"],
                 x_axis_label=plot_settings["x_axis_label"],
                 y_axis_limits=plot_settings["y_axis_limits"],
-                y_axis_label=plot_settings["y_axis_label"],
+                y_axis_labels=plot_settings["y_axis_labels"],
                 y_axis_cap_max=plot_settings["y_axis_cap_max"],
                 y_axis_cap_min=plot_settings["y_axis_cap_min"],
-                var_measures=plot_settings["var_measures"],
+                var_measure=plot_settings["var_measure"],
                 y_axis_limits_grouping=plot_settings["y_axis_limits_grouping"],
                 figure_grouping=plot_settings["figure_grouping"],
                 subplot_grouping=plot_settings["subplot_grouping"],
                 analysis_entries=plot_settings["analysis_entries"],
                 identical_entries=plot_settings["identical_entries"],
                 eligible_values=plot_settings["eligible_values"],
-                average_as_equal=plot_settings["average_as_equal"],
+                order_values=plot_settings["order_values"],
                 figure_layout=plot_settings["figure_layout"],
+                average_as_equal=plot_settings["average_as_equal"],
             )
         else:
             raise ValueError(
