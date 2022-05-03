@@ -666,8 +666,8 @@ class LinePlot(Plotting):
         RETURNS
         -------
         str
-        -   Title of the figure in two lines. Line one: {identical entry names
-            and values}. Line two: {group_name}.
+        -   Title of the figure in two lines. Line one: identical entry names
+            and values. Line two: group name.
         """
 
         if self.identical_entries is not None:
