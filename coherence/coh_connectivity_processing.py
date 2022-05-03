@@ -18,7 +18,7 @@ import coh_signal
 
 def coherence_processing(
     signal: coh_signal.Signal,
-    folderpath_extras: str,
+    folderpath_processing: str,
     dataset: str,
     analysis: str,
     subject: str,
@@ -65,27 +65,24 @@ def coherence_processing(
 
     ### Analysis setup
     ## Gets the relevant filepaths
-    analysis_settings_fpath = generate_analysiswise_fpath(
-        folderpath_extras + "\\settings", analysis, ".json"
+    generic_settings_fpath = generate_analysiswise_fpath(
+        f"{folderpath_processing}\\Settings\\Generic", analysis, ".json"
     )
-    data_folderpath = f"{folderpath_extras}\\Data"
-    data_settings_fpath = generate_sessionwise_fpath(
-        data_folderpath,
+    specific_settings_fpath = generate_sessionwise_fpath(
+        f"{folderpath_processing}\\Settings\\Specific",
         dataset,
         subject,
         session,
         task,
         acquisition,
         run,
-        "settings",
+        "connectivity-coherence",
         ".json",
     )
 
     ## Loads the analysis settings
-    analysis_settings = load_file(fpath=analysis_settings_fpath)
-    analysis_settings = analysis_settings["coherence_processing"]
-    data_settings = load_file(fpath=data_settings_fpath)
-    data_settings = data_settings["connectivity_coherence"]
+    analysis_settings = load_file(fpath=generic_settings_fpath)
+    data_settings = load_file(fpath=specific_settings_fpath)
 
     ### Data processing
     ## Coherence analysis

@@ -720,6 +720,36 @@ def combine_col_vals_df(
     return combined_vals
 
 
+def rearrange_axes(
+    obj: Union[list, NDArray], old_order: list[str], new_order: list[str]
+) -> Union[list, NDArray]:
+    """Rearranges the axes of an object.
+
+    PARAMETERS
+    ----------
+    obj : list | numpy array
+    -   The object whose axes should be rearranged.
+
+    old_order : list[str]
+    -   Names of the axes in 'obj' in their current positions.
+
+    new_axes : list[str]
+    -   Names of the axes in 'obj' in their desired positions.
+
+    RETURNS
+    -------
+    new_obj : list | numpy array
+    -   The object with the rearranged axis order.
+    """
+
+    new_obj = np.transpose(obj, [old_order.index(dim) for dim in new_order])
+
+    if isinstance(obj, list):
+        new_obj = new_obj.tolist()
+
+    return new_obj
+
+
 def check_repeated_vals(
     to_check: list,
 ) -> tuple[bool, Optional[list]]:

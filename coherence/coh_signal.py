@@ -8,11 +8,8 @@ Signal
 
 
 from copy import deepcopy
-from numpy.typing import NDArray
 from typing import Any, Optional, Union
-import csv
-import json
-import pickle
+from numpy.typing import NDArray
 import mne
 import mne_bids
 import numpy as np
@@ -25,11 +22,14 @@ from coh_exceptions import (
 from coh_rereference import Reref, RerefBipolar, RerefCommonAverage, RerefPseudo
 from coh_handle_entries import (
     check_lengths_list_identical,
+    check_repeated_vals,
     ordered_dict_keys_from_list,
     ordered_list_from_dict,
+    rearrange_axes,
 )
 from coh_handle_files import check_ftype_present, identify_ftype
-from coh_saving import check_before_overwrite
+from coh_handle_objects import create_extra_info, create_mne_data_object
+from coh_saving import check_before_overwrite, save_as_json, save_as_pkl
 
 
 class Signal:
@@ -386,10 +386,11 @@ class Signal:
             ch_coords[ch_i] = [coord * 1000 for coord in coords]
         self.set_coordinates(ch_names=self.data.ch_names, ch_coords=ch_coords)
 
-    def load_raw(self, path_raw: mne_bids.BIDSPath) -> None:
-        """Loads an mne.io.Raw object, loads it into memory, and sets it as the
-        data, also assigning rereferencing types in 'extra_info' for the
-        channels present in the mne.io.Raw object to 'none'.
+    def raw_from_fpath(self, path_raw: mne_bids.BIDSPath) -> None:
+        """Loads an mne.io.Raw object from a filepath, loads it into memory, and
+        sets it as the data, also assigning additional information in
+        'extra_info' for the channels present in the mne.io.Raw object to
+        'none'.
 
         PARAMETERS
         ----------
@@ -420,7 +421,85 @@ class Signal:
 
         self._data_loaded = True
         if self._verbose:
-            print(f"Loading the data from the filepath:\n{path_raw}.")
+            print(f"Loading the data from the filepath:\n{path_raw}.\n")
+
+    def data_from_objects(
+        self,
+        data: Union[mne.io.Raw, mne.Epochs],
+        data_dimensions: list[str],
+        processing_steps: dict,
+        extra_info: dict,
+    ) -> None:
+        """Sets the data, its dimensions, processing steps, and additional
+        information from their respective objects.
+
+        PARAMETERS
+        ----------
+        data : MNE Raw | MNE Epochs
+        -   Data in an MNE object.
+
+        data_dimensions : list[str]
+        -   Names of the dimensions in the data.
+
+        processing_steps : dict
+        -   Information about the processing that has been applied to the data.
+
+        extra_info : dict
+        -   Additional information about the data not included in the MNE
+            object.
+        """
+
+        if self._data_loaded:
+            raise ProcessingOrderError(
+                "Error when trying to load data:\nData has already been loaded "
+                "into the object."
+            )
+
+        self.data = data
+        self.data_dimensions = data_dimensions
+        self.processing_steps = processing_steps
+        self.extra_info = extra_info
+
+        self._set_method_bools()
+
+        self._data_loaded = True
+        if self._verbose:
+            if isinstance(data, mne.io.Raw):
+                data_type = "raw"
+            else:
+                data_type = "epoched"
+            print(f"Loading the {data_type} data from a set of objects.\n")
+
+    def _set_method_bools(self) -> None:
+        """Sets the markers for methods that have been called on the data based
+        on the processing steps and extra information dictionaries."""
+
+        for steps in self.processing_steps.values():
+            for step in steps:
+                if "rereferencing_common_average" in step:
+                    self._rereferenced_common_average = True
+                    self._rereferenced = True
+                elif "rereferencing_bipolar" in step:
+                    self._rereferenced_bipolar = True
+                    self._rereferenced = True
+                elif "rereferencing_pseudo" in step:
+                    self._rereferenced_pseudo = True
+                    self._rereferenced = True
+                elif "annotations_loaded" in step:
+                    self._annotations_loaded = True
+                elif "bandpass_filter" in step:
+                    self._bandpass_filtered = True
+                elif "notch_filter" in step:
+                    self._notch_filtered = True
+                elif "resample" in step:
+                    self._resampled = True
+                elif "epoch_data" in step:
+                    self._epoched = True
+
+        if self.extra_info["ch_regions"] is not None:
+            self._regions_set = True
+        if self.extra_info["ch_hemispheres"] is not None:
+            self._hemispheres_set = True
 
     def _remove_bad_annotations(
         self,
@@ -501,6 +580,9 @@ class Signal:
             self._remove_bad_segments()
 
         self._annotations_loaded = True
+        self._update_processing_steps(
+            step_name="annotations_loaded", step_value=True
+        )
 
     def _pick_extra_info(self, ch_names: list[str]) -> None:
         """Retains entries for selected channels in 'extra_info', discarding
@@ -946,48 +1028,6 @@ class Signal:
 
         return combined_data
 
-    def _create_raw(
-        self,
-        data: list[NDArray],
-        ch_names: list[str],
-        ch_types: list[str],
-        ch_coords: list[list[Union[int, float]]],
-    ) -> mne.io.Raw:
-        """Creates an MNE Raw object.
-        -   Data should have the same sampling frequency as the data of channels
-            already in the object.
-
-        PARAMETERS
-        ----------
-        data : list[numpy array]
-        -   The data of the channels.
-
-        ch_names : list[str]
-        -   The names of the channels.
-
-        ch_types : list[str]
-        -   The types of the channels.
-
-        ch_coords : list[list[int | float]]
-        -   The coordinates of the channels.
-
-        RETURNS
-        -------
-        raw : MNE Raw
-        -   The created MNE Raw object.
-        """
-
-        info = mne.create_info(
-            ch_names=ch_names,
-            sfreq=self.data.info["sfreq"],
-            ch_types=ch_types,
-            verbose=self._verbose,
-        )
-        raw = mne.io.RawArray(data=data, info=info, verbose=self._verbose)
-        raw._set_channel_positions(pos=ch_coords, names=ch_names)
-
-        return raw
-
     def add_channels(
         self,
         data: list[NDArray],
@@ -1033,8 +1073,14 @@ class Signal:
                 "channels should be added prior to rereferencing."
             )
 
-        new_channels = self._create_raw(
-            data=data, ch_names=ch_names, ch_types=ch_types, ch_coords=ch_coords
+        new_channels = create_mne_data_object(
+            data=data,
+            data_dimensions=["channels", "timepoints"],
+            ch_names=ch_names,
+            ch_types=ch_types,
+            sfreq=self.data.info["sfreq"],
+            ch_coords=ch_coords,
+            verbose=self._verbose,
         )
         self.data.add_channels([new_channels], force_update_info=True)
 
@@ -1246,29 +1292,6 @@ class Signal:
             ch_hemispheres_new,
         ).rereference()
 
-    def _check_conflicting_channels(
-        self, ch_names_1: list[str], ch_names_2: list[str]
-    ) -> list:
-        """Checks whether there are any of the same channel names in two lists.
-        -   Useful to perform before appending an external mne.io.Raw or
-            mne.Epochs object.
-
-        PARAMETERS
-        ----------
-        ch_names_1 : list[str]
-        -   List of channel names to compare.
-
-        ch_names_2 : list[str]
-        -   Another list of channel names to compare.
-
-        RETURNS
-        -------
-        empty list or list[str]
-        -   Names that are present in both channels.
-        """
-
-        return [name for name in ch_names_1 if name in ch_names_2]
-
     def _remove_conflicting_channels(self, ch_names: list[str]) -> None:
         """Removes channels from the self mne.io.Raw or mne.Epochs object.
         -   Designed for use alongside '_append_rereferenced_raw'.
@@ -1301,11 +1324,14 @@ class Signal:
             appended.
         """
 
-        ch_names = self._check_conflicting_channels(
-            self.data.info["ch_names"], rerefed_raw.info["ch_names"]
+        _, repeated_chs = check_repeated_vals(
+            to_check=[
+                *self.data.info["ch_names"],
+                *rerefed_raw.info["ch_names"],
+            ]
         )
-        if ch_names != []:
-            self._remove_conflicting_channels(ch_names)
+        if repeated_chs is not None:
+            self._remove_conflicting_channels(repeated_chs)
 
         self.data.add_channels([rerefed_raw])
 
@@ -1763,62 +1789,15 @@ class Signal:
 
         extracted_signals = deepcopy(self.data.get_data())
 
-        if rearrange:
-            extracted_signals = np.transpose(
-                extracted_signals,
-                [self.data_dimensions.index(axis) for axis in rearrange],
+        if rearrange is not None:
+            extracted_signals = rearrange_axes(
+                obj=extracted_signals,
+                old_order=self.data_dimensions,
+                new_order=rearrange,
             )
+            self.data_dimensions = rearrange
 
         return extracted_signals.tolist()
-
-    def _save_as_json(self, to_save: dict, fpath: str) -> None:
-        """Saves entries in a dictionary as a json file.
-
-        PARAMETERS
-        ----------
-        to_save : dict
-        -   Dictionary in which the keys represent the names of the entries in
-            the json file, and the values represent the corresponding values.
-
-        fpath : str
-        -   Location where the data should be saved.
-        """
-
-        with open(fpath, "w", encoding="utf8") as file:
-            json.dump(to_save, file)
-
-    def _save_as_csv(self, to_save: dict, fpath: str) -> None:
-        """Saves entries in a dictionary as a csv file.
-
-        PARAMETERS
-        ----------
-        to_save : dict
-        -   Dictionary in which the keys represent the names of the entries in
-            the csv file, and the values represent the corresponding values.
-
-        fpath : str
-        -   Location where the data should be saved.
-        """
-
-        with open(fpath, "wb") as file:
-            save_file = csv.writer(file)
-            save_file.writerow(to_save.keys())
-            save_file.writerow(to_save.values())
-
-    def _save_as_pkl(self, to_save: Any, fpath: str) -> None:
-        """Pickles and saves information in any format.
-
-        PARAMETERS
-        ----------
-        to_save : Any
-        -   Information that will be and saved.
-
-        fpath : str
-        -   Location where the data should be saved.
-        """
-
-        with open(fpath, "wb") as file:
-            pickle.dump(to_save, file)
 
     def save_object(
         self, fpath: str, ask_before_overwrite: Optional[bool] = None
@@ -1851,9 +1830,45 @@ class Signal:
             write = True
 
         if write:
-            self._save_as_pkl(self, fpath)
+            save_as_pkl(to_save=self, fpath=fpath)
 
-    def save_signals(
+    def data_as_dict(self) -> dict:
+        """Returns the data as a dictionary.
+
+        RETURNS
+        -------
+        data_dict : dict
+        -   The data as a dictionary.
+        """
+
+        extracted_signals = self._extract_signals(
+            rearrange=["channels", "epochs", "timepoints"]
+        )
+
+        data_dict = {
+            "signals": extracted_signals,
+            "signals_dimensions": self.data_dimensions,
+            "ch_names": self.data.ch_names,
+            "ch_types": self.data.get_channel_types(),
+            "ch_coords": self.get_coordinates(),
+            "ch_regions": ordered_list_from_dict(
+                self.data.ch_names, self.extra_info["ch_regions"]
+            ),
+            "ch_hemispheres": ordered_list_from_dict(
+                self.data.ch_names, self.extra_info["ch_hemispheres"]
+            ),
+            "reref_types": ordered_list_from_dict(
+                self.data.ch_names, self.extra_info["reref_types"]
+            ),
+            "samp_freq": self.data.info["sfreq"],
+            "metadata": self.extra_info["metadata"],
+            "processing_steps": self.processing_steps,
+            "subject_info": self.data.info["subject_info"],
+        }
+
+        return data_dict
+
+    def save_as_dict(
         self,
         fpath: str,
         ftype: Optional[str] = None,
@@ -1890,30 +1905,7 @@ class Signal:
             format.
         """
 
-        extracted_signals = self._extract_signals(
-            rearrange=["channels", "timepoints", "epochs"]
-        )
-
-        to_save = {
-            "signals": extracted_signals,
-            "signals_dimensions": self.data_dimensions,
-            "ch_names": self.data.ch_names,
-            "ch_types": self.data.get_channel_types(),
-            "ch_coords": self.get_coordinates(),
-            "ch_regions": ordered_list_from_dict(
-                self.data.ch_names, self.extra_info["ch_regions"]
-            ),
-            "ch_hemispheres": ordered_list_from_dict(
-                self.data.ch_names, self.extra_info["ch_hemispheres"]
-            ),
-            "reref_types": ordered_list_from_dict(
-                self.data.ch_names, self.extra_info["reref_types"]
-            ),
-            "samp_freq": self.data.info["sfreq"],
-            "metadata": self.extra_info["metadata"],
-            "processing_steps": self.processing_steps,
-            "subject_info": self.data.info["subject_info"],
-        }
+        to_save = self.data_as_dict()
 
         if ftype is None:
             ftype = identify_ftype(fpath)
@@ -1929,15 +1921,54 @@ class Signal:
 
         if write:
             if ftype == "json":
-                self._save_as_json(to_save, fpath)
-            elif ftype == "csv":
-                self._save_as_csv(to_save, fpath)
+                save_as_json(to_save=to_save, fpath=fpath)
             elif ftype == "pkl":
-                self._save_as_pkl(to_save, fpath)
+                save_as_pkl(to_save=to_save, fpath=fpath)
             else:
                 raise UnavailableProcessingError(
                     f"Error when trying to save the raw signals:\nThe {ftype} "
                     "format for saving is not supported."
                 )
             if self._verbose:
-                print(f"Saving the raw signals to:\n'{fpath}'.")
+                print(f"Saving the raw signals to:\n'{fpath}'.\n")
+
+
+def data_dict_to_signal(data: dict) -> Signal:
+    """Converts a data dictionary into a Signal object.
+    -   The signals themselves will be converted to either an MNE Raw object or
+        MNE Epochs object, depending on whether the signals have been epoched.
+
+    PARAMETERS
+    ----------
+    data : dict
+    -   Data dictionary, following the same structure as a data dictionary
+        derived from a Signal object.
+
+    RETURNS
+    -------
+    signal : Signal
+    -   The data dictionary as a Signal object.
+    """
+
+    signal = Signal()
+
+    mne_object = create_mne_data_object(
+        data=data["signals"],
+        data_dimensions=data["signals_dimensions"],
+        ch_names=data["ch_names"],
+        ch_types=data["ch_types"],
+        ch_coords=data["ch_coords"],
+        sfreq=data["samp_freq"],
+        subject_info=data["subject_info"],
+    )
+
+    extra_info = create_extra_info(data=data)
+
+    signal.data_from_objects(
+        data=mne_object,
+        data_dimensions=data["signals_dimensions"],
+        processing_steps=data["processing_steps"],
+        extra_info=extra_info,
+    )
+
+    return signal

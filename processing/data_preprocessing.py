@@ -1,4 +1,4 @@
-"""Processes ECoG and LFP data to generate coherence values."""
+"""Preprocesses ECoG and LFP data and saves the data."""
 
 
 import os
@@ -7,20 +7,19 @@ from pathlib import Path
 
 cd_path = Path(__file__).absolute().parent.parent
 sys.path.append(os.path.join(cd_path, "coherence"))
-from coh_connectivity_processing import coherence_processing
-from coh_loading import load_preprocessed_dict
+from coh_preprocess_data import preprocessing
 
 
 ### Info about the data to analyse
+FOLDERPATH_DATA = (
+    "C:\\Users\\User\\OneDrive - Charité - Universitätsmedizin Berlin\\"
+    "PROJECT ECOG-LFP Coherence\\Data"
+)
 FOLDERPATH_PREPROCESSING = (
     "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN\\Preprocessing"
 )
-FOLDERPATH_PROCESSING = (
-    "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN\\Processing"
-)
 DATASET = "BIDS_Berlin_ECOG_LFP"
-PREPROCESSING = "preprocessed-with_notch_filter"
-ANALYSIS = "connectivity_coherence"
+ANALYSIS = "with_notch_filter"
 SUBJECT = "003"
 SESSION = "EcogLfpMedOn01"
 TASK = "Rest"
@@ -30,26 +29,15 @@ RUN = "1"
 
 if __name__ == "__main__":
 
-    preprocessed = load_preprocessed_dict(
+    preprocessing(
+        folderpath_data=FOLDERPATH_DATA,
         folderpath_preprocessing=FOLDERPATH_PREPROCESSING,
         dataset=DATASET,
-        preprocessing=PREPROCESSING,
+        analysis=ANALYSIS,
         subject=SUBJECT,
         session=SESSION,
         task=TASK,
         acquisition=ACQUISITION,
         run=RUN,
-    )
-
-    coherence_processing(
-        preprocessed,
-        FOLDERPATH_PROCESSING,
-        DATASET,
-        ANALYSIS,
-        SUBJECT,
-        SESSION,
-        TASK,
-        ACQUISITION,
-        RUN,
         save=True,
     )

@@ -18,7 +18,7 @@ from coh_signal import Signal
 
 def preprocessing(
     folderpath_data: str,
-    folderpath_processing: str,
+    folderpath_preprocessing: str,
     dataset: str,
     analysis: str,
     subject: str,
@@ -26,6 +26,7 @@ def preprocessing(
     task: str,
     acquisition: str,
     run: str,
+    save: bool = False,
 ) -> Signal:
     """Loads an mne.io.Raw object, preprocesses it, and epochs it.
 
@@ -34,8 +35,8 @@ def preprocessing(
     folderpath_data : str
     -   The folderpath to the location of the datasets.
 
-    folderpath_processing : str
-    -   The folderpath to the location of the processing settings and
+    folderpath_preprocessing : str
+    -   The folderpath to the location of the preprocessing settings and
         derivatives.
 
     dataset : str
@@ -59,6 +60,9 @@ def preprocessing(
     run : str
     -   The name of the run for which the data will be analysed.
 
+    save : bool; default False
+    -   Whether or not to save the preprocessed data
+
     RETURNS
     -------
     signal : Signal
@@ -67,13 +71,13 @@ def preprocessing(
 
     ### Analysis setup
     ## Gets the relevant filepaths
-    analysis_folder = f"{folderpath_processing}\\Settings"
-    data_folder = f"{folderpath_processing}\\Data"
+    generic_analysis_folder = f"{folderpath_preprocessing}\\Settings\\Generic"
+    specific_analysis_folder = f"{folderpath_preprocessing}\\Settings\\Specific"
     analysis_settings_fpath = generate_analysiswise_fpath(
-        analysis_folder, analysis, ".json"
+        generic_analysis_folder, analysis, ".json"
     )
     data_settings_fpath = generate_sessionwise_fpath(
-        data_folder,
+        specific_analysis_folder,
         dataset,
         subject,
         session,
@@ -87,7 +91,7 @@ def preprocessing(
         folderpath_data, dataset, subject, session, task, acquisition, run
     )
     annotations_fpath = generate_sessionwise_fpath(
-        data_folder,
+        specific_analysis_folder,
         dataset,
         subject,
         session,
@@ -100,12 +104,11 @@ def preprocessing(
 
     ## Loads the analysis settings
     analysis_settings = load_file(fpath=analysis_settings_fpath)
-    analysis_settings = analysis_settings["preprocessing"]
     data_settings = load_file(fpath=data_settings_fpath)
 
     ### Data Pre-processing
     signal = Signal()
-    signal.load_raw(raw_fpath)
+    signal.raw_from_fpath(raw_fpath)
     if analysis_settings["load_annotations"]:
         signal.load_annotations(annotations_fpath)
     signal.pick_channels(data_settings["ch_names"])
@@ -153,12 +156,9 @@ def preprocessing(
         signal.order_channels(data_settings["post_reref_organisation"])
     if "line_noise" in analysis_settings.keys():
         signal.notch_filter(analysis_settings["line_noise"])
-    if (
-        "lowpass" in analysis_settings.keys()
-        and "highpass" in analysis_settings.keys()
-    ):
+    if "bandpass" in analysis_settings.keys():
         signal.bandpass_filter(
-            analysis_settings["lowpass"], analysis_settings["highpass"]
+            analysis_settings["bandpass"][1], analysis_settings["bandpass"][0]
         )
     if "epoch_length" in analysis_settings.keys():
         signal.epoch(analysis_settings["epoch_length"])
@@ -168,5 +168,20 @@ def preprocessing(
     ## Adds metadata about the preprocessed data
     metadata = extract_metadata(settings=data_settings)
     signal.add_metadata(metadata)
+
+    if save:
+        preprocessed_data_folder = f"{folderpath_preprocessing}\\Data"
+        preprocessed_data_fpath = generate_sessionwise_fpath(
+            preprocessed_data_folder,
+            dataset,
+            subject,
+            session,
+            task,
+            acquisition,
+            run,
+            f"preprocessed-{analysis}",
+            ".json",
+        )
+        signal.save_as_dict(fpath=preprocessed_data_fpath)
 
     return signal
