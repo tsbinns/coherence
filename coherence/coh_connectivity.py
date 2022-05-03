@@ -24,6 +24,7 @@ from coh_handle_entries import FillerObject, ordered_list_from_dict
 from coh_processing_methods import ProcMethod
 import coh_signal
 from coh_saving import save_object, save_dict
+from coherence.coh_handle_entries import rearrange_axes
 
 
 class ConnectivityCoherence(ProcMethod):
@@ -93,23 +94,18 @@ class ConnectivityCoherence(ProcMethod):
         self._timepoints_averaged = False
 
     def _sort_inputs(self) -> None:
-        """Checks the inputs to the PowerFOOOF object to ensure that they
-        match the requirements for processing and assigns inputs.
-
-        RAISES
-        ------
-        InputTypeError
-        -   Raised if the PowerMorlet object input does not contain data in a
-            supported format.
+        """Checks the inputs to the object to ensure that they match the
+        requirements for processing and assigns inputs.
         """
 
-        supported_data_dims = [["epochs", "channels", "timepoints"]]
-        if self.signal.data_dimensions not in supported_data_dims:
-            raise TypeError(
-                "Error when performing coherence analysis on the data:\nThe "
-                f"preprocessed data is in the form {self.signal.power_dims}, "
-                f"but only data in the form {supported_data_dims} is supported."
+        supported_data_dims = ["epochs", "channels", "timepoints"]
+        if self.signal.data_dimensions != supported_data_dims:
+            self.signal.data = rearrange_axes(
+                obj=self.signal.get_data(),
+                old_order=self.signal.data_dimensions,
+                new_order=supported_data_dims,
             )
+            self.signal.data_dimensions = supported_data_dims
 
         super()._sort_inputs()
 
