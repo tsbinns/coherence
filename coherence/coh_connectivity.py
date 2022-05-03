@@ -20,11 +20,14 @@ from coh_exceptions import (
     ProcessingOrderError,
     UnavailableProcessingError,
 )
-from coh_handle_entries import FillerObject, ordered_list_from_dict
+from coh_handle_entries import (
+    FillerObject,
+    ordered_list_from_dict,
+    rearrange_axes,
+)
 from coh_processing_methods import ProcMethod
 import coh_signal
 from coh_saving import save_object, save_dict
-from coherence.coh_handle_entries import rearrange_axes
 
 
 class ConnectivityCoherence(ProcMethod):
