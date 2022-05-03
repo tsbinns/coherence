@@ -113,7 +113,7 @@ def coherence_processing(
         )
         if save:
             coherence_fpath = generate_sessionwise_fpath(
-                data_folderpath,
+                f"{folderpath_processing}\\Data",
                 dataset,
                 subject,
                 session,
