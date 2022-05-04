@@ -1590,8 +1590,8 @@ def _sort_dicts_results(
 def sort_inputs_results(
     results: dict,
     extract_from_dicts: Union[dict[list[str]], None],
-    identical_entries: Union[list[str], None],
-    discard_entries: Union[list[str], None],
+    identical_keys: Union[list[str], None],
+    discard_keys: Union[list[str], None],
     verbose: bool = True,
 ) -> None:
     """Checks that the values in 'results' are in the appropriate format for
@@ -1610,44 +1610,44 @@ def sort_inputs_results(
     -   Entries which are extracted are treated as being identical for all
         values in the 'results' dictionary.
 
-    identical_entries : list[str] | None
-    -   The entries in 'results' which are identical across channels and for
+    identical_keys : list[str] | None
+    -   The keys in 'results' which are identical across channels and for
         which only one copy is present.
 
-    discard_entries : list[str] | None
-    -   The entries which should be discarded immediately without
+    discard_keys : list[str] | None
+    -   The keys which should be discarded immediately without
         processing.
 
     RETURNS
     -------
     dict
-    -   The results with requested dictionary entries extracted to the
-        results, if applicable, and the dictionaries subsequently removed.
+    -   The results with requested dictionary keys extracted to the results, if
+        applicable, and the dictionaries subsequently removed.
     """
 
-    if discard_entries is not None:
-        results = drop_from_dict(obj=results, drop=discard_entries)
+    if discard_keys is not None:
+        results = drop_from_dict(obj=results, drop=discard_keys)
 
     results, dims_keys = _sort_dimensions_results(
         results=results, verbose=verbose
     )
 
-    if identical_entries is None:
-        identical_entries = []
-    identical_entries = [*identical_entries, *dims_keys]
+    if identical_keys is None:
+        identical_keys = []
+    identical_keys = [*identical_keys, *dims_keys]
 
     entry_length = _check_entry_lengths_results(
-        results=results, ignore=identical_entries
+        results=results, ignore=identical_keys
     )
 
     results = _add_desc_measures_results(
         results=results, entry_length=entry_length
     )
 
-    if identical_entries is not None:
+    if identical_keys is not None:
         results = _sort_identical_entries_results(
             results=results,
-            identical_entries=identical_entries,
+            identical_entries=identical_keys,
             entry_length=entry_length,
             verbose=verbose,
         )

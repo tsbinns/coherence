@@ -41,8 +41,8 @@ def connectivity_analysis(
     (
         analysis_settings,
         extract_from_dicts,
-        identical_entries,
-        discard_entries,
+        identical_keys,
+        discard_keys,
     ) = get_analysis_settings(
         settings_fpath=(f"{folderpath_analysis}\\Settings\\{analysis}.json")
     )
@@ -58,8 +58,8 @@ def connectivity_analysis(
         to_analyse=to_analyse,
         result_types=result_types,
         extract_from_dicts=extract_from_dicts,
-        identical_entries=identical_entries,
-        discard_entries=discard_entries,
+        identical_keys=identical_keys,
+        discard_keys=discard_keys,
     )
 
     if freq_bands is not None:

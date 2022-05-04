@@ -76,14 +76,14 @@ class PostProcess:
     -   Entries which are extracted are treated as being identical for all
         values in the 'results' dictionary.
 
-    identical_entries : list[str] | None; default None
-    -   The entries in 'results' which are identical across channels and for
+    identical_keys : list[str] | None; default None
+    -   The keys in 'results' which are identical across channels and for
         which only one copy is present.
     -   If any dimension attributes are present, these should be included as an
         identical entry, as they will be added automatically.
 
-    discard_entries : list[str] | None; default None
-    -   The entries which should be discarded immediately without processing.
+    discard_keys : list[str] | None; default None
+    -   The keys which should be discarded immediately without processing.
 
     freq_bands : dict | None; default None
     -   Dictionary containing the frequency bands whose results should also be
@@ -114,8 +114,8 @@ class PostProcess:
         self,
         results: dict,
         extract_from_dicts: Optional[dict[list[str]]] = None,
-        identical_entries: Optional[list[str]] = None,
-        discard_entries: Optional[list[str]] = None,
+        identical_keys: Optional[list[str]] = None,
+        discard_keys: Optional[list[str]] = None,
         verbose: bool = True,
     ) -> None:
 
@@ -123,8 +123,8 @@ class PostProcess:
         results = sort_inputs_results(
             results=results,
             extract_from_dicts=extract_from_dicts,
-            identical_entries=identical_entries,
-            discard_entries=discard_entries,
+            identical_keys=identical_keys,
+            discard_keys=discard_keys,
             verbose=verbose,
         )
         self._results = dict_to_df(obj=results)
@@ -149,8 +149,8 @@ class PostProcess:
         self,
         new_results: dict,
         extract_from_dicts: Optional[dict[list[str]]] = None,
-        identical_entries: Optional[list[str]] = None,
-        discard_entries: Optional[list[str]] = None,
+        identical_keys: Optional[list[str]] = None,
+        discard_keys: Optional[list[str]] = None,
     ) -> None:
         """Appends a dictionary of results to the results stored in the
         PostProcess object.
@@ -172,12 +172,12 @@ class PostProcess:
         -   Entries which are extracted are treated as being identical for all
             values in the 'results' dictionary.
 
-        identical_entries : list[str] | None; default None
-        -   The entries in 'results' which are identical across channels and for
+        identical_keys : list[str] | None; default None
+        -   The keys in 'results' which are identical across channels and for
             which only one copy is present.
 
-        discard_entries : list[str] | None; default None
-        -   The entries which should be discarded immediately without
+        discard_keys : list[str] | None; default None
+        -   The keys which should be discarded immediately without
             processing.
 
         RAISES
@@ -195,8 +195,8 @@ class PostProcess:
         new_results = sort_inputs_results(
             results=new_results,
             extract_from_dicts=extract_from_dicts,
-            identical_entries=identical_entries,
-            discard_entries=discard_entries,
+            identical_keys=identical_keys,
+            discard_keys=discard_keys,
             verbose=self._verbose,
         )
 
@@ -387,8 +387,8 @@ class PostProcess:
         self,
         new_results: dict,
         extract_from_dicts: Optional[dict[list[str]]] = None,
-        identical_entries: Optional[list[str]] = None,
-        discard_entries: Optional[list[str]] = None,
+        identical_keys: Optional[list[str]] = None,
+        discard_keys: Optional[list[str]] = None,
         allow_missing: bool = False,
     ) -> None:
         """Merges a dictionary of results to the results stored in the
@@ -411,12 +411,12 @@ class PostProcess:
         -   Entries which are extracted are treated as being identical for all
             values in the 'results' dictionary.
 
-        identical_entries : list[str] | None; default None
-        -   The entries in 'results' which are identical across channels and for
+        identical_keys : list[str] | None; default None
+        -   The keys in 'results' which are identical across channels and for
             which only one copy is present.
 
-        discard_entries : list[str] | None; default None
-        -   The entries which should be discarded immediately without
+        discard_keys : list[str] | None; default None
+        -   The keys which should be discarded immediately without
             processing.
 
         allow_missing : bool; default False
@@ -443,8 +443,8 @@ class PostProcess:
         new_results = sort_inputs_results(
             results=new_results,
             extract_from_dicts=extract_from_dicts,
-            identical_entries=identical_entries,
-            discard_entries=discard_entries,
+            identical_keys=identical_keys,
+            discard_keys=discard_keys,
             verbose=self._verbose,
         )
 
@@ -1415,8 +1415,8 @@ def load_results_of_types(
     to_analyse: dict[str],
     result_types: list[str],
     extract_from_dicts: Optional[dict[list[str]]] = None,
-    identical_entries: Optional[list[str]] = None,
-    discard_entries: Optional[list[str]] = None,
+    identical_keys: Optional[list[str]] = None,
+    discard_keys: Optional[list[str]] = None,
     allow_missing: bool = False,
 ) -> PostProcess:
     """Loads results of a multiple types and merges them into a single
@@ -1441,12 +1441,12 @@ def load_results_of_types(
     -   Entries which are extracted are treated as being identical for all
         values in the 'results' dictionary.
 
-    identical_entries : list[str] | None; default None
-    -   The entries in 'results' which are identical across channels and for
+    identical_keys : list[str] | None; default None
+    -   The keys in 'results' which are identical across channels and for
         which only one copy is present.
 
-    discard_entries : list[str] | None; default None
-    -   The entries which should be discarded immediately without
+    discard_keys : list[str] | None; default None
+    -   The keys which should be discarded immediately without
         processing.
 
     allow_missing : bool; default False
@@ -1471,8 +1471,8 @@ def load_results_of_types(
             to_analyse=to_analyse,
             result_type=result_type,
             extract_from_dicts=extract_from_dicts,
-            identical_entries=identical_entries,
-            discard_entries=discard_entries,
+            identical_keys=identical_keys,
+            discard_keys=discard_keys,
         )
         if first_type:
             all_results = deepcopy(results)
@@ -1491,8 +1491,8 @@ def load_results_of_type(
     to_analyse: list[dict[str]],
     result_type: str,
     extract_from_dicts: Optional[dict[list[str]]] = None,
-    identical_entries: Optional[list[str]] = None,
-    discard_entries: Optional[list[str]] = None,
+    identical_keys: Optional[list[str]] = None,
+    discard_keys: Optional[list[str]] = None,
 ) -> PostProcess:
     """Loads results of a single type and appends them into a single PostProcess
     object.
@@ -1516,12 +1516,12 @@ def load_results_of_type(
     -   Entries which are extracted are treated as being identical for all
         values in the 'results' dictionary.
 
-    identical_entries : list[str] | None; default None
-    -   The entries in 'results' which are identical across channels and for
+    identical_keys : list[str] | None; default None
+    -   The keys in 'results' which are identical across channels and for
         which only one copy is present.
 
-    discard_entries : list[str] | None; default None
-    -   The entries which should be discarded immediately without
+    discard_keys : list[str] | None; default None
+    -   The keys which should be discarded immediately without
         processing.
 
     RETURNS
@@ -1548,16 +1548,16 @@ def load_results_of_type(
             results = PostProcess(
                 results=result,
                 extract_from_dicts=extract_from_dicts,
-                identical_entries=identical_entries,
-                discard_entries=discard_entries,
+                identical_keys=identical_keys,
+                discard_keys=discard_keys,
             )
             first_result = False
         else:
             results.append_from_dict(
                 new_results=result,
                 extract_from_dicts=extract_from_dicts,
-                identical_entries=identical_entries,
-                discard_entries=discard_entries,
+                identical_keys=identical_keys,
+                discard_keys=discard_keys,
             )
 
     return results

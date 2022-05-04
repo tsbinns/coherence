@@ -99,16 +99,22 @@ class ConnectivityCoherence(ProcMethod):
     def _sort_inputs(self) -> None:
         """Checks the inputs to the object to ensure that they match the
         requirements for processing and assigns inputs.
+
+        RAISES
+        ------
+        ValueError
+        -   Raised if the dimensions of the data in the Signal object is not
+            supported.
         """
 
         supported_data_dims = ["epochs", "channels", "timepoints"]
         if self.signal.data_dimensions != supported_data_dims:
-            self.signal.data = rearrange_axes(
-                obj=self.signal.get_data(),
-                old_order=self.signal.data_dimensions,
-                new_order=supported_data_dims,
+            raise ValueError(
+                "Error when trying to perform coherence analysis on the "
+                "data:\nData in the Signal object has the dimensions "
+                f"{self.signal.data_dimensions}, but only data with dimensions "
+                f"{supported_data_dims} is supported."
             )
-            self.signal.data_dimensions = supported_data_dims
 
         super()._sort_inputs()
 
@@ -1016,6 +1022,8 @@ class ConnectivityCoherence(ProcMethod):
         )
         if self._shuffled_present:
             connectivity = self._sort_shuffled_results(results=connectivity)
+        if self._method == "imcoh":
+            connectivity._data = np.abs(connectivity._data)
         self.coherence = connectivity
 
         self._sort_dimensions()

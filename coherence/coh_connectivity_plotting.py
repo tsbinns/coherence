@@ -43,7 +43,7 @@ def connectivity_plotting(
     ### Plotting setup
     ## Gets the relevant filepaths and loads the plotting settings
     plotting_settings_fpath = generate_analysiswise_fpath(
-        folderpath_plotting + "\\Settings", plotting, ".json"
+        f"{folderpath_plotting}\\Settings", plotting, ".json"
     )
     plotting_settings = load_file(fpath=plotting_settings_fpath)
     analysis_settings = plotting_settings["analysis"]
@@ -80,12 +80,15 @@ def connectivity_plotting(
                 y_axis_limits_grouping=plot_settings["y_axis_limits_grouping"],
                 figure_grouping=plot_settings["figure_grouping"],
                 subplot_grouping=plot_settings["subplot_grouping"],
-                analysis_entries=plot_settings["analysis_entries"],
-                identical_entries=plot_settings["identical_entries"],
+                analysis_keys=plot_settings["analysis_keys"],
+                identical_keys=plot_settings["identical_keys"],
                 eligible_values=plot_settings["eligible_values"],
                 order_values=plot_settings["order_values"],
                 figure_layout=plot_settings["figure_layout"],
                 average_as_equal=plot_settings["average_as_equal"],
+                save=plot_settings["save"],
+                save_folderpath=f"{folderpath_plotting}\\Figures\\{plotting}",
+                save_ftype=plot_settings["save_ftype"],
             )
         else:
             raise ValueError(

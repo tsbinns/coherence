@@ -92,12 +92,12 @@ def get_analysis_settings(
     -   Entries which are extracted are treated as being identical for all
         values in the results dictionary.
 
-    identical_entries : list[str]
-    -   The entries in the results which are identical across channels and for
+    identical_keys : list[str]
+    -   The keys in the results which are identical across channels and for
         which only one copy is present.
 
-    discard_entries : list[str]
-    -   The entries in the results which should be discarded immediately without
+    discard_keys : list[str]
+    -   The keys in the results which should be discarded immediately without
         processing.
     """
 
@@ -107,8 +107,8 @@ def get_analysis_settings(
         "metadata": ["sub", "med", "stim", "ses", "task", "run"]
     }
 
-    identical_entries = ["freqs"]
-    discard_entries = [
+    identical_keys = ["freqs"]
+    discard_keys = [
         "samp_freq",
         "subject_info",
     ]
@@ -116,6 +116,6 @@ def get_analysis_settings(
     return (
         analysis_settings,
         extract_from_dicts,
-        identical_entries,
-        discard_entries,
+        identical_keys,
+        discard_keys,
     )
