@@ -16,7 +16,7 @@ FOLDERPATH_PLOTTING = (
 FOLDERPATH_ANALYSIS = (
     "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN\\Analysis"
 )
-PLOTTING = "ECOG-LFP_coherence-MedOffOn_connectivity"
+PLOTTING = "connectivity-MedOffOn"
 
 
 if __name__ == "__main__":

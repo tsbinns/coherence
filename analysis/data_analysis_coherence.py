@@ -16,7 +16,7 @@ FOLDERPATH_ANALYSIS = (
 FOLDERPATH_PROCESSING = (
     "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN\\Processing"
 )
-ANALYSIS = "ECOG-LFP_coherence-MedOffOn_connectivity"
+ANALYSIS = "connectivity-MedOffOn"
 
 
 if __name__ == "__main__":

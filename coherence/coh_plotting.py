@@ -32,10 +32,86 @@ from coh_handle_entries import (
     sort_inputs_results,
     dict_to_df,
 )
+from coh_handle_plots import get_plot_colours, maximise_figure_windows
+from coh_saving import check_before_overwrite
 
 
 class Plotting(ABC):
     """Abstract class for plotting results.
+
+    PARAMETERS
+    ----------
+    results : dict
+    -   A dictionary containing results to process.
+    -   The entries in the dictionary should be either lists, numpy arrays, or
+        dictionaries.
+    -   Entries which are dictionaries will have their values treated as being
+        identical for all values in the 'results' dictionary, given they are
+        extracted from these dictionaries into the results.
+    -   Keys ending with "_dimensions" are treated as containing information
+        about the dimensions of other attributes in the results, e.g.
+        'X_dimensions' would specify the dimensions for attribute 'X'. The
+        dimensions should be a list of strings containing the values "channels"
+        and "frequencies" in the positions corresponding to the axis of these
+        dimensions in 'X'. A single list should be given, i.e. 'X_dimensions'
+        should hold for all entries of 'X'.If no dimensions, are given, the 0th
+        axis is assumed to correspond to channels and the 1st axis to
+        frequencies.
+    -   E.g. if 'X' has shape [25, 10, 50, 300] with an 'X_dimensions' of
+        ['epochs', 'channels', 'frequencies', 'timepoints'], the shape of 'X'
+        would be rearranged to [10, 50, 25, 300], corresponding to the
+        dimensions ["channels", "frequencies", "epochs", "timepoints"].
+
+    extract_from_dicts : dict[list[str]] | None; default None
+    -   The keys of dictionaries within 'results' to include in the processing.
+    -   Keys which are extracted are treated as being identical for all values
+        in the 'results' dictionary.
+
+    identical_keys : list[str] | None; default None
+    -   The keys in 'results' which are identical across channels and for which
+        only one copy is present.
+    -   If any dimension attributes are present, these should be included as an
+        identical entry, as they will be added automatically.
+
+    discard_keys : list[str] | None; default None
+    -   The keys which should be discarded immediately without processing.
+
+    verbose : bool; default True
+    -   Whether or not to print updates about the plotting process.
+
+    METHODS
+    -------
+    plot
+    -   Abstract method for plotting the results.
+    """
+
+    def __init__(
+        self,
+        results: dict,
+        extract_from_dicts: Union[dict[list[str]], None] = None,
+        identical_keys: Union[list[str], None] = None,
+        discard_keys: Union[list[str], None] = None,
+        verbose: bool = True,
+    ) -> None:
+
+        # Initialises inputs of the object.
+        results = sort_inputs_results(
+            results=results,
+            extract_from_dicts=extract_from_dicts,
+            identical_keys=identical_keys,
+            discard_keys=discard_keys,
+            verbose=verbose,
+        )
+        self._results = dict_to_df(obj=results)
+        self._verbose = verbose
+
+    @abstractmethod
+    def plot(self) -> None:
+        """Abstract method for plotting the results."""
+
+
+class LinePlot(Plotting):
+    """Class for plotting results on line plots.
 
     PARAMETERS
     ----------
@@ -77,124 +153,154 @@ class Plotting(ABC):
 
     verbose : bool; default True
     -   Whether or not to print updates about the plotting process.
-
-    METHODS
-    -------
     """
 
     def __init__(
         self,
         results: dict,
         extract_from_dicts: Union[dict[list[str]], None] = None,
-        identical_entries: Union[list[str], None] = None,
-        discard_entries: Union[list[str], None] = None,
+        identical_keys: Union[list[str], None] = None,
+        discard_keys: Union[list[str], None] = None,
         verbose: bool = True,
     ) -> None:
 
-        # Initialises inputs of the object.
-        results = sort_inputs_results(
+        super().__init__(
             results=results,
             extract_from_dicts=extract_from_dicts,
-            identical_entries=identical_entries,
-            discard_entries=discard_entries,
+            identical_keys=identical_keys,
+            discard_keys=discard_keys,
             verbose=verbose,
         )
-        self._results = dict_to_df(obj=results)
-        self._verbose = verbose
 
-    @abstractmethod
-    def plot(self) -> None:
-        """Abstract method for plotting the results."""
+        # Initialises input settings for plotting.
+        self.x_axis_var = None
+        self.y_axis_vars = None
+        self.x_axis_limits = None
+        self.x_axis_label = None
+        self.y_axis_limits = None
+        self.y_axis_labels = None
+        self.y_axis_cap_max = None
+        self.y_axis_cap_min = None
+        self.var_measure = None
+        self.y_axis_limits_grouping = None
+        self.figure_grouping = None
+        self.subplot_grouping = None
+        self.analysis_keys = None
+        self.identical_keys = None
+        self.eligible_values = None
+        self.order_values = None
+        self.figure_layout = None
+        self.average_as_equal = None
+        self.save = None
+        self.save_folderpath = None
+        self.save_ftype = None
+        self._special_values = None
 
+        # Initialises aspects of the object that will be filled with information
+        # as the results are plotted.
+        self._eligible_idcs = None
+        self._x_axis_limit_idcs = None
+        self._y_axis_limits_idcs = None
+        self._plot_grouping = None
 
-class LinePlot(Plotting):
-    """Class for plotting results on line plots."""
+        # Initialises aspects of the object that indicate which methods have
+        # been called (starting as 'False'), which can later be updated.
+        self._plotted = False
 
-    def _get_present_entries(self) -> list[str]:
-        """Finds which entries in the results have been accounted for in the
+    def _reinitialise_aspects(self) -> None:
+        """Reinitialises aspects of the object that will be filled with
+        information as the results are plotted by setting the aspects to
+        'None'."""
+
+        self._eligible_idcs = None
+        self._x_axis_limit_idcs = None
+        self._y_axis_limits_idcs = None
+        self._plot_grouping = None
+
+    def _get_present_keys(self) -> list[str]:
+        """Finds which keys in the results have been accounted for in the
         plotting settings.
 
         RETURNS
         -------
-        present_entries : list[str]
-        -   Names of the entries in the results accounted for by the plotting
+        present_keys : list[str]
+        -   Names of the keys in the results accounted for by the plotting
             settings.
         """
 
-        entry_inputs = [
+        settings_inputs = [
             "x_axis_var",
             "y_axis_vars",
             "y_axis_limits_grouping",
             "figure_grouping",
             "subplot_grouping",
-            "analysis_entries",
-            "identical_entries",
+            "analysis_keys",
+            "identical_keys",
         ]
 
-        present_entries = ["n_from"]
+        present_keys = ["n_from"]
         if self.eligible_values is not None:
-            present_entries.extend(list(self.eligible_values.keys()))
-        for entry_name in entry_inputs:
-            entry = getattr(self, entry_name)
-            if entry is not None:
-                if isinstance(entry, list):
-                    present_entries.extend(entry)
+            present_keys.extend(list(self.eligible_values.keys()))
+        for setting in settings_inputs:
+            key = getattr(self, setting)
+            if key is not None:
+                if isinstance(key, list):
+                    present_keys.extend(key)
                 else:
-                    present_entries.append(entry)
+                    present_keys.append(key)
 
-        add_entries = []
-        for entry in present_entries:
-            if f"{entry}_dimensions" in self._results.keys():
-                add_entries.append(f"{entry}_dimensions")
+        add_keys = []
+        for key in present_keys:
+            if f"{key}_dimensions" in self._results.keys():
+                add_keys.append(f"{key}_dimensions")
             if self.var_measure is not None:
-                if f"{entry}_{self.var_measure}" in self._results.keys():
-                    add_entries.append(f"{entry}_{self.var_measure}")
-        present_entries.extend(add_entries)
+                if f"{key}_{self.var_measure}" in self._results.keys():
+                    add_keys.append(f"{key}_{self.var_measure}")
+        present_keys.extend(add_keys)
 
-        return present_entries
+        return present_keys
 
-    def _get_missing_entries(self) -> list[str]:
-        """Finds which entries in the results are not accounted for in the
-        plotting settings.
+    def _get_missing_keys(self) -> list[str]:
+        """Finds which keys in the results are not accounted for in the plotting
+        settings.
 
         RETURNS
         -------
         list[str]
-        -   Names of entries in the reuslts not accounted for by the plotting
+        -   Names of keys in the reuslts not accounted for by the plotting
             settings.
         """
 
-        present_entries = self._get_present_entries()
+        present_keys = self._get_present_keys()
 
-        return [
-            entry
-            for entry in self._results.keys()
-            if entry not in present_entries
-        ]
+        return [key for key in self._results.keys() if key not in present_keys]
 
-    def _discard_entries(self, entries: list[str]) -> None:
-        """Drops entries from the results DataFrame and resets the DataFrame
+    def _discard_keys(self, keys: list[str]) -> None:
+        """Drops keys from the results DataFrame and resets the DataFrame
         index."""
 
-        self._results = self._results.drop(columns=entries)
+        self._results = self._results.drop(columns=keys)
         self._results = self._results.reset_index()
 
-    def _check_identical_entries(self) -> None:
-        """Checks that entries in the results marked as identical are
+        if self._verbose:
+            print(f"Discarding the following keys from the results: {keys}\n")
+
+    def _check_identical_keys(self) -> None:
+        """Checks that keys in the results marked as identical are
         identical."""
 
-        for entry in self.identical_entries:
-            values = deepcopy(self._results[entry])
+        for key in self.identical_keys:
+            values = deepcopy(self._results[key])
             if self.average_as_equal:
                 for i, val in enumerate(values):
                     if isinstance(val, str):
                         if val[:4] == "avg[":
-                            values[i] = f"avg_{entry}"
+                            values[i] = f"avg_{key}"
             is_identical, vals = check_vals_identical_list(to_check=values)
             if not is_identical:
                 raise ValueError(
-                    "Error when trying to plot the results:\nThe results entry "
-                    f"'{entry}' is marked as an identical entry, however its "
+                    "Error when trying to plot the results:\nThe results key "
+                    f"'{key}' is marked as an identical key, however its "
                     "values are not identical for all results:\n- Unique "
                     f"values: {vals}\n"
                 )
@@ -217,7 +323,6 @@ class LinePlot(Plotting):
         """Finds the indices of the x-axis limits"""
 
         self._x_axis_limit_idcs = {}
-
         for eligible_idx in self._eligible_idcs:
             x_axis_vals = self._results[self.x_axis_var][eligible_idx]
             if self.x_axis_limits is not None:
@@ -631,7 +736,9 @@ class LinePlot(Plotting):
         self._sort_subplot_grouping()
 
     def _sort_values_order(self) -> None:
-        """"""
+        """Reorders the rows in the results based on the order of the values in
+        the key specified in 'self.order_values', such that results belonging to
+        certain values are plotted in a certain order."""
 
         if self.order_values is not None:
             self._results = reorder_rows_dataframe(
@@ -644,15 +751,42 @@ class LinePlot(Plotting):
         """Sorts the plotting settings."""
 
         self._sort_special_indexing_values()
+        self._sort_saving_inputs()
         self._sort_values_order()
-        self._discard_entries(entries=self._get_missing_entries())
-        self._check_identical_entries()
+        self._discard_keys(keys=self._get_missing_keys())
+        self._check_identical_keys()
         self._get_eligible_indices()
         self._sort_x_axis_limit_idcs()
         self._sort_y_axis_limits_grouping()
         self._sort_y_axis_limits()
         self._sort_y_axis_labels()
         self._sort_plot_grouping()
+
+    def _sort_saving_inputs(self) -> None:
+        """Sorts the inputs associated with saving figures, making sure they are
+        in the correct format.
+
+        RAISES
+        ------
+        ValueError
+        -   Raised if the figures will be saved, but no folderpath is given.
+        -   Raised if the figures will be saved, but no filetype extension is
+            given.
+        """
+
+        if self.save:
+            if self.save_folderpath is None:
+                raise ValueError(
+                    "Error when trying to plot results:\nIt has been requested "
+                    "for the figures to be saved, but no folderpath for saving "
+                    "has been specified."
+                )
+            if self.save_ftype is None:
+                raise ValueError(
+                    "Error when trying to plot results:\nIt has been requested "
+                    "for the figures to be saved, but no filetype extension "
+                    "for saving has been specified."
+                )
 
     def _get_figure_title(self, group_name: str) -> str:
         """Generates a title for a figure based on the identical entries in the
@@ -670,10 +804,10 @@ class LinePlot(Plotting):
             and values. Line two: group name.
         """
 
-        if self.identical_entries is not None:
+        if self.identical_keys is not None:
             identical_entries_title = combine_col_vals_df(
                 dataframe=self._results,
-                keys=self.identical_entries,
+                keys=self.identical_keys,
                 idcs=[0],
                 special_vals=self._special_values,
             )[0]
@@ -737,7 +871,7 @@ class LinePlot(Plotting):
 
         label = combine_col_vals_df(
             dataframe=self._results,
-            keys=self.analysis_entries,
+            keys=self.analysis_keys,
             idcs=[idx],
             special_vals=self._special_values,
         )[0]
@@ -961,22 +1095,36 @@ class LinePlot(Plotting):
 
         fig, axes = plt.subplots(n_rows, n_cols)
         plt.tight_layout()
-        fig.suptitle(self._get_figure_title(group_name=title))
+        fig.suptitle(self._get_figure_title(group_name=title), fontsize=10)
         axes = self._sort_axes(axes=axes, n_rows=n_rows, n_cols=n_cols)
 
         return fig, axes
 
-    def _plot_figure(self, group_name: str, y_axis_vars: list[str]) -> None:
-        """Plots the results of the subplot groups belonging to a specified
-        figure group.
+    def _get_subplot_group_info(
+        self, figure_group_name: str, n_y_axis_vars: int
+    ) -> tuple[list[str], list[list[int]]]:
+        """Gets information about subplot groups for a given figure group.
 
         PARAMETERS
         ----------
-        group_name : str
-        -   Name of the figure group whose results should be plotted.
+        figure_group_name : str
+        -   Name of the figure group.
 
-        y_axis_vars : list[str]
-        -   Names of the y-axis variables to plot on the same figure group.
+        n_y_axis_vars : int
+        -   Number of y-axis variables being plotted.
+        -   If multiple y-axis variables are not being plotted on the same
+            subplots, subplot group names and indices are multiplied by how many
+            y-axis variables are being plotted so that the correct number of
+            subplots allowing each y-axis variable to be plotted on a separate
+            subplot are created.
+
+        RETURNS
+        -------
+        subplot_group_names : list[str]
+        -   Names of the subplot groups to plot.
+
+        subplot_group_indices : list[str]
+        -   Indices of the rows of results in the subplot groups to plot.
         """
 
         if "Y_AXIS_VARS" in self.subplot_grouping:
@@ -984,21 +1132,47 @@ class LinePlot(Plotting):
             subplot_group_indices = []
             subplot_group_names.extend(
                 [
-                    [name] * len(y_axis_vars)
-                    for name in self._plot_grouping[group_name].keys()
+                    [name] * n_y_axis_vars
+                    for name in self._plot_grouping[figure_group_name].keys()
                 ]
             )
             subplot_group_indices.extend(
                 [
-                    [idcs] * len(y_axis_vars)
-                    for idcs in self._plot_grouping[group_name].values()
+                    [idcs] * n_y_axis_vars
+                    for idcs in self._plot_grouping[figure_group_name].values()
                 ]
             )
         else:
-            subplot_group_names = list(self._plot_grouping[group_name].keys())
-            subplot_group_indices = list(
-                self._plot_grouping[group_name].values()
+            subplot_group_names = list(
+                self._plot_grouping[figure_group_name].keys()
             )
+            subplot_group_indices = list(
+                self._plot_grouping[figure_group_name].values()
+            )
+
+        return subplot_group_names, subplot_group_indices
+
+    def _plot_figure(
+        self, figure_group_name: str, y_axis_vars: list[str]
+    ) -> None:
+        """Plots the results of the subplot groups belonging to a specified
+        figure group.
+
+        PARAMETERS
+        ----------
+        figure_group_name : str
+        -   Name of the figure group whose results should be plotted.
+
+        y_axis_vars : list[str]
+        -   Names of the y-axis variables to plot on the same figure group.
+        """
+
+        (
+            subplot_group_names,
+            subplot_group_indices,
+        ) = self._get_subplot_group_info(
+            figure_group_name=figure_group_name, n_y_axis_vars=len(y_axis_vars)
+        )
 
         n_subplot_groups = len(subplot_group_names)
         n_subplots_per_fig = self.figure_layout[0] * self.figure_layout[1]
@@ -1006,10 +1180,18 @@ class LinePlot(Plotting):
         n_rows = self.figure_layout[0]
         n_cols = self.figure_layout[1]
 
+        if self._verbose:
+            print(
+                f"Plotting {n_subplot_groups} subplot group(s) in a {n_rows} "
+                f"by {n_cols} pattern across {n_figs} figure(s).\n- Figure "
+                f"group: {figure_group_name}\n- Subplot groups: "
+                f"{subplot_group_names}\n"
+            )
+
         still_to_plot = True
         for fig_i in range(n_figs):
             fig, axes = self._establish_figure(
-                n_rows=n_rows, n_cols=n_cols, title=group_name
+                n_rows=n_rows, n_cols=n_cols, title=figure_group_name
             )
             subplot_group_i = 0
             for row_i in range(n_rows):
@@ -1036,7 +1218,105 @@ class LinePlot(Plotting):
                     else:
                         if extra_subplots > 0:
                             fig.delaxes(axes[row_i, col_i])
+            try:
+                maximise_figure_windows()
+            except NotImplementedError:
+                print(
+                    "The figure could not be made fullscreen before being "
+                    "saved with the current combination of operating system "
+                    "and plotting backend."
+                )
             plt.tight_layout()
+            plt.show()
+            if self.save:
+                self._save_figure(
+                    figure=fig,
+                    figure_group=figure_group_name,
+                    figure_n=fig_i + 1,
+                    n_figures=n_figs,
+                    y_axis_vars=y_axis_vars,
+                )
+
+    def _save_figure(
+        self,
+        figure: plt.figure,
+        figure_group: str,
+        figure_n: int,
+        n_figures: int,
+        y_axis_vars: list[str],
+    ) -> None:
+        """Saves a figure.
+
+        PARAMETERS
+        ----------
+        figure : matplotlib pyplot figure
+        -   The figure to save.
+
+        figure_group : str
+        -   Name of the figure group.
+
+        figure_n : int
+        -   The number of the current figure in the group.
+
+        n_figures : int
+        -   The total number of figures in the group.
+
+        y_axis_vars : list[str]
+        -   The y-axis variables being plotted.
+        """
+
+        save_fpath = self._get_save_fpath(
+            figure_group=figure_group,
+            figure_n=figure_n,
+            n_figures=n_figures,
+            y_axis_vars=y_axis_vars,
+        )
+
+        write = check_before_overwrite(fpath=save_fpath)
+        if write:
+            figure.savefig(save_fpath, bbox_inches="tight")
+            if self._verbose:
+                print(f"Saving the figure to: {save_fpath}\n")
+
+    def _get_save_fpath(
+        self,
+        figure_group: str,
+        figure_n: int,
+        n_figures: int,
+        y_axis_vars: list[str],
+    ) -> str:
+        """Generates a filepath for saving a figure based on the name of the
+        figure group, the y-axis variables being plotted, and the number of the
+        figure in the group.
+
+        PARAMETERS
+        ----------
+        figure_group : str
+        -   Name of the figure group.
+
+        figure_n : int
+        -   The number of the current figure in the group.
+
+        n_figures : int
+        -   The total number of figures in the group.
+
+        y_axis_vars : list[str]
+        -   The y-axis variables being plotted.
+
+        RETURNS
+        -------
+        str
+        -   Filepath for the location to save the figure.
+        """
+
+        filename = figure_group
+        for var in y_axis_vars:
+            filename += f" & {var}"
+
+        return (
+            f"{self.save_folderpath}\\{filename}_{str(figure_n)}of"
+            f"{str(n_figures)}.{self.save_ftype}"
+        )
 
     def _plot_results(self) -> None:
         """Plots the results of the figure and subplot groups."""
@@ -1048,12 +1328,12 @@ class LinePlot(Plotting):
             if "Y_AXIS_VARS" in self.figure_grouping:
                 for y_axis_var in self.y_axis_vars:
                     self._plot_figure(
-                        group_name=figure_group,
+                        figure_group_name=figure_group,
                         y_axis_vars=[y_axis_var],
                     )
             else:
                 self._plot_figure(
-                    group_name=figure_group,
+                    figure_group_name=figure_group,
                     y_axis_vars=self.y_axis_vars,
                 )
 
@@ -1071,14 +1351,143 @@ class LinePlot(Plotting):
         y_axis_limits_grouping: Union[list[str], None] = None,
         figure_grouping: Union[list[str], None] = None,
         subplot_grouping: Union[list[str], None] = None,
-        analysis_entries: Union[list[str], None] = None,
-        identical_entries: Union[list[str], None] = None,
+        analysis_keys: Union[list[str], None] = None,
+        identical_keys: Union[list[str], None] = None,
         eligible_values: Union[dict[list[str]], None] = None,
-        order_values: Union[dict[str], None] = None,
+        order_values: Union[dict[list[str]], None] = None,
         average_as_equal: bool = True,
         figure_layout: Union[list[int], None] = None,
+        save: bool = False,
+        save_folderpath: Union[str, None] = None,
+        save_ftype: Union[str, None] = None,
     ) -> None:
-        """Plots the results as line graphs."""
+        """Plots the results as line graphs.
+        -   Keys not present in 'analysis_keys', 'identical_keys',
+            'y_axis_limits_grouping', 'figure_grouping', 'subplot_grouping', or
+            'eligible_values' will be excluded from the results.
+
+        PARAMETERS
+        ----------
+        x_axis_var : str
+        -   Key in the results to plot on the x-axis.
+
+        y_axis_vars : list[str]
+        -   Key(s) in the results to plot on the y-axis.
+
+        x_axis_limits : list[int | float] | None; default None
+        -   Lower- and upper-boundary limits, respectively, to plot for the
+            x-axis variable in a list with two entries. If 'None', no limits are
+            imposed.
+
+        x_axis_label : str | None: default None
+        -   X-axis label. If 'None', the name of the x-axis variable is used.
+
+        y_axis_limits : dict[dict[list[int | float]] | None] | None; default
+        None
+        -   Y-axis limits. Each key in the dictionary corresponds to a name of a
+            y-axis limit group, whose value is a dictionary where each key
+            corresponds to the name of a y-axis variable being plotted, whose
+            value is a list with two entries corresponding to the lower- and
+            upper-boundary limits, respectively.
+        -   Dictionaries for the y-axis limit groups can also have values of
+            'None', in which case no limits are imposed.
+
+        y_axis_labels : list[str] | None; default None
+        -   Y-axis labels. If multiple y-axis variables are being plotted
+            together on the same plots, only one label should be present,
+            otherwise a label should be present for each y-axis variable.
+        -   If 'None', the names of the y-axis variables are used.
+
+        y_axis_cap_max : int | float | None; default None
+        -   Value to cap the maximum of the y-axis at. I.e. If the cap would be
+            exceeded by the plot limits, the cap is imposed, but the limits
+            would be kept as-is if the cap were not exceeded.
+        -   If 'None', no cap is imposed.
+
+        y_axis_cap_min : int | float | None; default None
+        -   Value to cap theminimum of the y-axis at. I.e. If the cap would be
+            exceeded by the plot limits, the cap is imposed, but the limits
+            would be kept as-is if the cap were not exceeded.
+        -   If 'None', no cap is imposed.
+
+        var_measure : str | None; default None
+        -   Name of the variability measure (e.g. standard deviation, standard
+            error of the mean) to plot alongside the results.
+
+        y_axis_limits_grouping : list[str] | None; default None
+        -   Keys in the results to use to group the y-axis limits.
+        -   A special string "Y_AXIS_VARS" is permitted, in which case results
+            belonging to different y-axis variables will have their own y-axis
+            limits. If present here, this string must also be present in either
+            'figure_grouping' or 'subplot'grouping'.
+        -   If 'None', all plots share the same y-axis limits.
+
+        figure_grouping : list[str] | None; default None
+        -   Keys in the results to use to group the results which are plotted on
+            the same figures, assuming this is permitted by 'figure_layout'.
+        -   A special string "Y_AXIS_VARS" is permitted, in which case results
+            belonging to different y-axis variables will be plotted on different
+            figures. If present here, this string cannot be present in
+            'subplot_grouping'.
+        -   If 'None', results belonging to all y-axis variables will try to be
+            plotted on the same figure.
+
+        subplot_grouping : list[str] | None; default None
+        -   Keys in the results to use to group the results which are plotted on
+            the same subplots, on the same figure.
+        -   A special string "Y_AXIS_VARS" is permitted, in which case results
+            belonging to different y-axis variables will be plotted on different
+            subplots. If present here, this string cannot be present in
+            'figure_grouping'.
+        -   If 'None', results belonging to all y-axis variables will be plotted
+            on the same subplots.
+
+        analysis_keys : list[str] | None; default None
+        -   Keys for which variables of multiple types can be plotted on the
+            same plots, and which will be included in the plot legend.
+
+        identical_keys : list[str] | None; default None
+        -   Keys for which only a single variable type should be present in the
+            data, and which will be included in the figure title.
+
+        eligible_values : dict[list[str]] | None; default None
+        -   A dictionary where the keys are keys in the results, and the values
+            are values belonging to those keys in the results that should be
+            plotted.
+        -   If 'None', all results are considered eligible for plotting.
+
+        order_values : dict[list[str]] | None; default None
+        -   Dictionary containing a single key which is a key in the results,
+            and whose value is a list of strings specifying how the rows in the
+            results should be reordered, such that rows where the value is the
+            first entry of the list is reordered into the first positions, the
+            rows where the value is the second entry of the list is reordered
+            into subsequent positions, etc...
+        -   Used to control in what order results are plotted on the figures.
+
+        average_as_equal : bool; default True
+        -   Whether or not to treat results which have been averaged across
+            multiple types beginning with the string "avg[", followed by the
+            names of the types the results were averaged from, as belonging to
+            the same type.
+
+        figure_layout : list[int] | None; default None
+        -   Structure of the subplots on each figure. A list with two entries
+            specifying the number of rows and columns of subplots, respectively.
+        -   If 'None', a 1x1 structure is used.
+
+        save : bool; default False
+        -   Whether or not to save the figures.
+
+        save_folderpath : str | None; default None
+        -   Folderpath to save the figures at.
+
+        save_ftype : str | None; default None
+        -   Filetype extension to save the figures as. Accepts whichever
+            filetypes are supported by the matplotlib 'save_figure' methods.
+        -   Filetypes should be given without the leading period, e.g. saving as
+            a .png file should be declared as "png", not ".png".
+        """
 
         self.x_axis_var = x_axis_var
         self.y_axis_vars = y_axis_vars
@@ -1092,40 +1501,19 @@ class LinePlot(Plotting):
         self.y_axis_limits_grouping = y_axis_limits_grouping
         self.figure_grouping = figure_grouping
         self.subplot_grouping = subplot_grouping
-        self.analysis_entries = analysis_entries
-        self.identical_entries = identical_entries
+        self.analysis_keys = analysis_keys
+        self.identical_keys = identical_keys
         self.eligible_values = eligible_values
         self.order_values = order_values
         self.figure_layout = figure_layout
         self.average_as_equal = average_as_equal
+        self.save = save
+        self.save_folderpath = save_folderpath
+        self.save_ftype = save_ftype
+
+        if self._plotted:
+            self._reinitialise_aspects()
 
         self._sort_plot_inputs()
 
         self._plot_results()
-
-        print("jeff")
-
-
-def get_plot_colours() -> list[str]:
-    """Returns the matplotlib default set of ten colours.
-
-    RETURNS
-    -------
-    colours : list[str]
-    -   The ten default matplotlib colours.
-    """
-
-    colours = [
-        "#1f77b4",
-        "#ff7f0e",
-        "#2ca02c",
-        "#d62728",
-        "#9467bd",
-        "#8c564b",
-        "#e377c2",
-        "#7f7f7f",
-        "#bcbd22",
-        "#17becf",
-    ]
-
-    return colours

@@ -352,7 +352,8 @@ class Signal:
 
     def get_data(self) -> np.array:
         """Extracts the data array from the mne.io.Raw or mne.Epochs object,
-        excluding data based on the annotations.
+        excluding data based on the annotations if the data is an MNE Raw
+        object.
 
         RETURNS
         -------
@@ -360,7 +361,12 @@ class Signal:
         -   Array of the data.
         """
 
-        return self.data.get_data(reject_by_annotation="omit").copy()
+        if isinstance(self.data, mne.io.Raw):
+            data = self.data.get_data(reject_by_annotation="omit").copy()
+        else:
+            data = self.data.get_data().copy()
+
+        return data
 
     def _initialise_additional_info(self) -> None:
         """Fills the extra_info dictionary with placeholder information. This
@@ -1952,7 +1958,7 @@ def data_dict_to_signal(data: dict) -> Signal:
 
     signal = Signal()
 
-    mne_object = create_mne_data_object(
+    mne_object, data_dimensions = create_mne_data_object(
         data=data["signals"],
         data_dimensions=data["signals_dimensions"],
         ch_names=data["ch_names"],
@@ -1966,7 +1972,7 @@ def data_dict_to_signal(data: dict) -> Signal:
 
     signal.data_from_objects(
         data=mne_object,
-        data_dimensions=data["signals_dimensions"],
+        data_dimensions=data_dimensions,
         processing_steps=data["processing_steps"],
         extra_info=extra_info,
     )

@@ -6,7 +6,7 @@ from numpy.typing import NDArray
 from coh_handle_entries import rearrange_axes
 
 
-def create_extra_info(data: dict) -> dict:
+def create_extra_info(data: dict) -> dict[dict]:
     """Create a dictionary for holding additional information used in Signal
     objects.
 
@@ -18,10 +18,11 @@ def create_extra_info(data: dict) -> dict:
 
     RETURNS
     -------
-    extra_info : dict
+    extra_info : dict[dict]
     -   Additional information extracted from the data dictionary.
     """
 
+    ch_dict_keys = ["ch_regions", "ch_hemispheres", "reref_types"]
     extra_info = {
         "ch_regions": None,
         "ch_hemispheres": None,
@@ -29,7 +30,12 @@ def create_extra_info(data: dict) -> dict:
         "metadata": None,
     }
     for key in extra_info.keys():
-        extra_info[key] = data[key]
+        if key in ch_dict_keys:
+            extra_info[key] = {
+                name: data[key][i] for i, name in enumerate(data["ch_names"])
+            }
+        else:
+            extra_info[key] = data[key]
 
     return extra_info
 
@@ -43,7 +49,7 @@ def create_mne_data_object(
     ch_coords: Union[list[list[Union[int, float]]], None] = None,
     subject_info: Union[dict, None] = None,
     verbose: bool = True,
-) -> Union[mne.io.Raw, mne.Epochs]:
+) -> tuple[Union[mne.io.Raw, mne.Epochs], list[str]]:
     """Creates an MNE Raw or Epochs object, depending on the structure of the
     data.
 
@@ -85,6 +91,12 @@ def create_mne_data_object(
     -------
     data_object : MNE Raw | MNE Epochs
     -   The generated MNE object containing the data.
+
+    new_dimensions : list[str]
+    -   Names of the new axes in 'data'.
+    -   ["epochs", "channels", "timepoints"] if 'data_object' is an MNE Epochs
+        object.
+    -   ["channels", "timepoints"] if 'data_object' is an MNE Raw object.
     """
 
     data_info = create_mne_data_info(
@@ -96,24 +108,26 @@ def create_mne_data_object(
     )
 
     if "epochs" in data_dimensions:
+        new_dimensions = ["epochs", "channels", "timepoints"]
         data = rearrange_axes(
             obj=data,
             old_order=data_dimensions,
-            new_order=["epochs", "channels", "timepoints"],
+            new_order=new_dimensions,
         )
         data_object = mne.EpochsArray(data=data, info=data_info)
     else:
+        new_dimensions = ["channels", "timepoints"]
         data = rearrange_axes(
             obj=data,
             old_order=data_dimensions,
-            new_order=["channels", "timepoints"],
+            new_order=new_dimensions,
         )
         data_object = mne.io.RawArray(data=data, info=data_info)
 
     if ch_coords is not None:
         data_object._set_channel_positions(pos=ch_coords, names=ch_names)
 
-    return data_object
+    return data_object, new_dimensions
 
 
 def create_mne_data_info(
