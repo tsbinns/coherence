@@ -117,7 +117,7 @@ class Signal:
         self.processing_steps = {"preprocessing": {}}
         self._processing_step_number = 1
         self.extra_info = {}
-        self.data = None
+        self.data = [None]
         self._path_raw = None
         self.data_dimensions = None
 
@@ -139,6 +139,7 @@ class Signal:
         self._rereferenced_bipolar = False
         self._rereferenced_common_average = False
         self._rereferenced_pseudo = False
+        self._windowed = False
         self._epoched = False
 
     def _update_processing_steps(self, step_name: str, step_value: Any) -> None:
@@ -188,7 +189,7 @@ class Signal:
             )
 
     def order_channels(self, ch_names: list[str]) -> None:
-        """Orders channels in the mne.io.Raw or mne.Epochs object, as well as
+        """Orders channels in the mne.io.Raw or mne.Epochs objects, as well as
         the 'extra_info' dictionary, based on a given order.
 
         PARAMETERS
@@ -198,7 +199,8 @@ class Signal:
             the order that you want the channels to be ordered.
         """
 
-        self.data.reorder_channels(ch_names)
+        for data in self.data:
+            data.reorder_channels(ch_names)
         self._order_extra_info(order=ch_names)
 
         if self._verbose:
@@ -207,7 +209,7 @@ class Signal:
 
     def get_coordinates(self) -> list[list[Union[int, float]]]:
         """Extracts coordinates of the channels from the mne.io.Raw or
-        mne.Epochs object.
+        mne.Epochs objects.
 
         RETURNS
         -------
@@ -216,14 +218,14 @@ class Signal:
             x, y, and z coordinates of each channel.
         """
 
-        return self.data._get_channel_positions().copy().tolist()
+        return self.data[0]._get_channel_positions().copy().tolist()
 
     def _discard_missing_coordinates(
         self, ch_names: list[str], ch_coords: list[list[Union[int, float]]]
     ) -> tuple[list, list]:
         """Removes empty sublists from a parent list of channel coordinates
         (also removes them from the corresponding entries of channel names)
-        before applying the coordinates to the mne.io.Raw or mne.Epochs object.
+        before applying the coordinates to the mne.io.Raw or mne.Epochs objects.
 
         PARAMETERS
         ----------
@@ -276,7 +278,8 @@ class Signal:
         ch_names, ch_coords = self._discard_missing_coordinates(
             ch_names, ch_coords
         )
-        self.data._set_channel_positions(ch_coords, ch_names)
+        for data in self.data:
+            data._set_channel_positions(ch_coords, ch_names)
 
         self._coordinates_set = True
         if self._verbose:
@@ -308,7 +311,8 @@ class Signal:
 
         for i, ch_name in enumerate(ch_names):
             self.extra_info["ch_regions"][ch_name] = ch_regions[i]
-        self.data.ch_regions = self.extra_info["ch_regions"]
+        for i in range(len(self.data)):
+            self.data[i].ch_regions = self.extra_info["ch_regions"]
 
         self._regions_set = True
         if self._verbose:
@@ -340,7 +344,8 @@ class Signal:
 
         for i, ch_name in enumerate(ch_names):
             self.extra_info["ch_hemispheres"][ch_name] = ch_hemispheres[i]
-        self.data.ch_hemispheres = self.extra_info["ch_hemispheres"]
+        for i in range(len(self.data)):
+            self.data[i].ch_hemispheres = self.extra_info["ch_hemispheres"]
 
         self._hemispheres_set = True
         if self._verbose:
@@ -351,22 +356,24 @@ class Signal:
             ]
 
     def get_data(self) -> np.array:
-        """Extracts the data array from the mne.io.Raw or mne.Epochs object,
+        """Extracts the data array from the mne.io.Raw or mne.Epochs objects,
         excluding data based on the annotations if the data is an MNE Raw
         object.
 
         RETURNS
         -------
-        np.array
+        data_arr : np.array
         -   Array of the data.
         """
 
-        if isinstance(self.data, mne.io.Raw):
-            data = self.data.get_data(reject_by_annotation="omit").copy()
-        else:
-            data = self.data.get_data().copy()
+        data_arr = np.empty(len(self.data))
+        for i, data in enumerate(self.data):
+            if isinstance(data, mne.io.Raw):
+                data_arr[i] = data.get_data(reject_by_annotation="omit").copy()
+            else:
+                data_arr[i] = data.get_data().copy()
 
-        return data
+        return data_arr
 
     def _initialise_additional_info(self) -> None:
         """Fills the extra_info dictionary with placeholder information. This
@@ -376,12 +383,9 @@ class Signal:
         info_to_set = ["reref_types", "ch_regions", "ch_hemispheres"]
         for info in info_to_set:
             self.extra_info[info] = {
-                ch_name: "none" for ch_name in self.data.info["ch_names"]
+                ch_name: "none" for ch_name in self.data[0].info["ch_names"]
             }
-
-        self.data.ch_regions = self.extra_info["ch_regions"]
-        self.data.ch_hemispheres = self.extra_info["ch_hemispheres"]
-        self.data_dimensions = ["channels", "timepoints"]
+        self.data_dimensions = ["windows", "channels", "timepoints"]
 
     def _fix_coords(self) -> None:
         """Fixes the units of the channel coordinates in the data by multiplying
@@ -390,7 +394,9 @@ class Signal:
         ch_coords = self.get_coordinates()
         for ch_i, coords in enumerate(ch_coords):
             ch_coords[ch_i] = [coord * 1000 for coord in coords]
-        self.set_coordinates(ch_names=self.data.ch_names, ch_coords=ch_coords)
+        self.set_coordinates(
+            ch_names=self.data[0].ch_names, ch_coords=ch_coords
+        )
 
     def raw_from_fpath(self, path_raw: mne_bids.BIDSPath) -> None:
         """Loads an mne.io.Raw object from a filepath, loads it into memory, and
@@ -418,10 +424,10 @@ class Signal:
             )
 
         self._path_raw = path_raw
-        self.data = mne_bids.read_raw_bids(
+        self.data[0] = mne_bids.read_raw_bids(
             bids_path=self._path_raw, verbose=False
         )
-        self.data.load_data()
+        self.data[0].load_data()
         self._initialise_additional_info()
         self._fix_coords()
 
@@ -431,7 +437,7 @@ class Signal:
 
     def data_from_objects(
         self,
-        data: Union[mne.io.Raw, mne.Epochs],
+        data: list[Union[mne.io.Raw, mne.Epochs]],
         data_dimensions: list[str],
         processing_steps: dict,
         extra_info: dict,
@@ -441,18 +447,19 @@ class Signal:
 
         PARAMETERS
         ----------
-        data : MNE Raw | MNE Epochs
-        -   Data in an MNE object.
+        data : list[MNE Raw | MNE Epochs]
+        -   Windowed data in an MNE object stored in a list..
 
         data_dimensions : list[str]
-        -   Names of the dimensions in the data.
+        -   Names of the dimensions in the data. Each window must have the same
+            dimensions.
 
         processing_steps : dict
         -   Information about the processing that has been applied to the data.
 
         extra_info : dict
         -   Additional information about the data not included in the MNE
-            object.
+            objects.
         """
 
         if self._data_loaded:
@@ -470,7 +477,7 @@ class Signal:
 
         self._data_loaded = True
         if self._verbose:
-            if isinstance(data, mne.io.Raw):
+            if isinstance(data[0], mne.io.Raw):
                 data_type = "raw"
             else:
                 data_type = "epoched"
@@ -499,6 +506,8 @@ class Signal:
                     self._notch_filtered = True
                 elif "resample" in step:
                     self._resampled = True
+                elif "windowed" in step:
+                    self._windowed = True
                 elif "epoch_data" in step:
                     self._epoched = True
 
@@ -521,7 +530,7 @@ class Signal:
         -   The number of segments annotated as 'bad'.
         """
 
-        annotations = deepcopy(self.data.annotations)
+        annotations = deepcopy(self.data[0].annotations)
         bad_annot_idcs = []
         for annot_i, annot_name in enumerate(annotations.description):
             if annot_name[:3] == "BAD":
@@ -533,10 +542,10 @@ class Signal:
         """Removes segments annotated as 'bad' from the Raw object."""
 
         new_annotations, n_bad_segments = self._remove_bad_annotations()
-        new_data = self.data.get_data(reject_by_annotation="omit")
+        new_data = self.data[0].get_data(reject_by_annotation="omit")
 
-        self.data = mne.io.RawArray(data=new_data, info=self.data.info)
-        self.data.set_annotations(annotations=new_annotations)
+        self.data[0] = mne.io.RawArray(data=new_data, info=self.data[0].info)
+        self.data[0].set_annotations(annotations=new_annotations)
 
         if self._verbose:
             print(
@@ -556,12 +565,20 @@ class Signal:
         ------
         ProcessingOrderError
         -   Raised if the user attempts to load annotations into the data after
+            it has been windowed.
+        -   Raised if the user attempts to load annotations into the data after
             it has been epoched.
         -   Annotations should be loaded before epoching has occured, when the
             data is in the form of an mne.io.Raw object rather than an
             mne.Epochs object.
         """
 
+        if self._windowed:
+            raise ProcessingOrderError(
+                "Error when adding annotations to the data:\nAnnotations "
+                "should be added to the raw data, however the data in this "
+                "class has been windowed."
+            )
         if self._epoched:
             raise ProcessingOrderError(
                 "Error when adding annotations to the data:\nAnnotations "
@@ -576,9 +593,9 @@ class Signal:
             )
 
         try:
-            self.data.set_annotations(mne.read_annotations(path_annots))
+            self.data[0].set_annotations(mne.read_annotations(path_annots))
             annotations_present = True
-        except:
+        except ValueError:
             print("There are no events to read from the annotations file.")
             annotations_present = False
 
@@ -620,8 +637,8 @@ class Signal:
             [self.extra_info[key].pop(name) for name in ch_names]
 
     def _drop_channels(self, ch_names: list[str]) -> None:
-        """Removes channels from the mne.io.Raw or mne.Epochs object, as well as
-        from entries in 'extra_info'.
+        """Removes channels from the mne.io.Raw or mne.Epochs objects, as well
+        as from entries in 'extra_info'.
 
         PARAMETERS
         ----------
@@ -629,14 +646,16 @@ class Signal:
         -   The names of the channels that should be discarded.
         """
 
-        self.data.drop_channels(ch_names)
         self._drop_extra_info(ch_names)
-        self.data.ch_regions = self.extra_info["ch_regions"]
-        self.data.ch_hemispheres = self.extra_info["ch_hemispheres"]
+        for i, data in enumerate(self.data):
+            data.drop_channels(ch_names)
+            self.data[i].ch_regions = self.extra_info["ch_regions"]
+            self.data[i].ch_hemispheres = self.extra_info["ch_hemispheres"]
 
     def pick_channels(self, ch_names: list[str]) -> None:
-        """Retains only certain channels in the mne.io.Raw or mne.Epochs object,
-        also retaining only entries for these channels from the 'extra_info'.
+        """Retains only certain channels in the mne.io.Raw or mne.Epochs
+        objects, also retaining only entries for these channels from the
+        'extra_info'.
 
         PARAMETERS
         ----------
@@ -644,10 +663,11 @@ class Signal:
         -   The names of the channels that should be retained.
         """
 
-        self.data.pick_channels(ch_names)
         self._pick_extra_info(ch_names)
-        self.data.ch_regions = self.extra_info["ch_regions"]
-        self.data.ch_hemispheres = self.extra_info["ch_hemispheres"]
+        for i, data in enumerate(self.data):
+            data.pick_channels(ch_names)
+            self.data[i].ch_regions = self.extra_info["ch_regions"]
+            self.data[i].ch_hemispheres = self.extra_info["ch_hemispheres"]
 
         self._channels_picked = True
         self._update_processing_steps("channel_picks", ch_names)
@@ -658,7 +678,7 @@ class Signal:
             )
 
     def bandpass_filter(self, lowpass_freq: int, highpass_freq: int) -> None:
-        """Bandpass filters the mne.io.Raw or mne.Epochs object.
+        """Bandpass filters the mne.io.Raw or mne.Epochs objects.
 
         PARAMETERS
         ----------
@@ -669,7 +689,8 @@ class Signal:
         -   The frequency (Hz) at which to highpass filter the data.
         """
 
-        self.data.filter(highpass_freq, lowpass_freq)
+        for data in self.data:
+            data.filter(highpass_freq, lowpass_freq)
 
         self._bandpass_filtered = True
         self._update_processing_steps(
@@ -693,11 +714,12 @@ class Signal:
 
         freqs = np.arange(
             line_noise_freq,
-            self.data.info["lowpass"],
+            self.data[0].info["lowpass"],
             line_noise_freq,
             dtype=int,
         ).tolist()
-        self.data.notch_filter(freqs)
+        for data in self.data:
+            data.notch_filter(freqs)
 
         self._notch_filtered = True
         self._update_processing_steps("notch_filter", freqs)
@@ -714,10 +736,11 @@ class Signal:
         PARAMETERS
         ----------
         resample_freq : int
-        -   The frequency at which to resample the data.
+        -   The frequency, in Hz, at which to resample the data.
         """
 
-        self.data.resample(resample_freq)
+        for data in self.data:
+            data.resample(resample_freq)
 
         self._resampled = True
         self._update_processing_steps("resample", resample_freq)
@@ -840,7 +863,7 @@ class Signal:
             if value is None:
                 if input_type == "ch_types":
                     existing_values = np.unique(
-                        self.data.get_channel_types(picks=ch_names_old[i])
+                        self.data[0].get_channel_types(picks=ch_names_old[i])
                     )
                 elif input_type == "ch_regions":
                     existing_values = np.unique(
@@ -920,7 +943,7 @@ class Signal:
                     new_value = np.mean(
                         [
                             self.get_coordinates()[
-                                self.data.ch_names.index(channel)
+                                self.data[0].ch_names.index(channel)
                             ]
                             for channel in ch_names_old[i]
                         ],
@@ -1028,9 +1051,12 @@ class Signal:
         """
 
         combined_data = []
-        for channels in to_combine:
-            data = np.sum(deepcopy(self.data.get_data(picks=channels)), axis=0)
-            combined_data.append(data)
+        for data in self.data:
+            for channels in to_combine:
+                data_arr = np.sum(
+                    deepcopy(data.get_data(picks=channels)), axis=0
+                )
+                combined_data.append(data_arr)
 
         return combined_data
 
@@ -1070,6 +1096,11 @@ class Signal:
 
         ch_hemispheres : list[str]
         -   The hemispheres of the new channels.
+
+        RAISES
+        ------
+        ProcessingOrderError
+        -   Raised if the data has been rereferenced, windowed, or epoched.
         """
 
         if self._rereferenced:
@@ -1077,6 +1108,18 @@ class Signal:
                 "Error when attempting to add new channels to the data:\nThe "
                 "data in the object has already been rereferenced, however "
                 "channels should be added prior to rereferencing."
+            )
+        if self._windowed:
+            raise ProcessingOrderError(
+                "Error when adding new channels to the data:\nThe data in the "
+                "object has already been windowed. New channels cannot be "
+                "added after windowing."
+            )
+        if self._epoched:
+            raise ProcessingOrderError(
+                "Error when adding new channels to the data:\nThe data in the "
+                "object has already been epoched. New channels cannot be added "
+                "after epoching."
             )
 
         new_channels = create_mne_data_object(
@@ -1146,8 +1189,19 @@ class Signal:
             hemispheres of the channels being combined. This only works if all
             channels being combined are from the same hemisphere.
         -   If None, all hemispheres are determined automatically.
+
+        RAISES
+        ------
+        ProcessingOrderError
+        -   Raised if the data has been windowed or epoched.
         """
 
+        if self._windowed:
+            raise ProcessingOrderError(
+                "Error when attempting to combine data across channels:\nThis "
+                "is only supported for non-windowed data, however the data has "
+                "been windowed."
+            )
         if self._epoched:
             raise ProcessingOrderError(
                 "Error when attempting to combine data across channels:\nThis "
@@ -1191,6 +1245,7 @@ class Signal:
                 print(f"{ch_names_old[i]} -> {ch_names_new[i]}")
                 for i in range(len(ch_names_old))
             ]
+            print("\n")
 
     def drop_unrereferenced_channels(self) -> None:
         """Drops channels that have not been rereferenced from the mne.io.Raw or
@@ -1288,7 +1343,7 @@ class Signal:
         """
 
         return reref_method(
-            deepcopy(self.data),
+            deepcopy(self.data[0]),
             ch_names_old,
             ch_names_new,
             ch_types_new,
@@ -1315,7 +1370,7 @@ class Signal:
         print(
             "Warning when rereferencing data:\nThe following rereferenced "
             f"channels {ch_names} are already present in the raw data.\n"
-            "Removing the channels from the raw data."
+            "Removing the channels from the raw data.\n"
         )
 
     def _append_rereferenced_raw(self, rerefed_raw: mne.io.Raw) -> None:
@@ -1332,14 +1387,14 @@ class Signal:
 
         _, repeated_chs = check_repeated_vals(
             to_check=[
-                *self.data.info["ch_names"],
+                *self.data[0].info["ch_names"],
                 *rerefed_raw.info["ch_names"],
             ]
         )
         if repeated_chs is not None:
             self._remove_conflicting_channels(repeated_chs)
 
-        self.data.add_channels([rerefed_raw])
+        self.data[0].add_channels([rerefed_raw])
 
     def _add_rereferencing_info(self, info_to_add: dict) -> None:
         """Adds channel rereferencing information to 'extra_info'.
@@ -1458,15 +1513,18 @@ class Signal:
         ------
         ProcessingOrderError
         -   Raised if the user attempts to rereference the data after it has
-            already been epoched.
-        -   Rereferencing should only be applied when the data in self is held
-            as an mne.io.Raw object rather than an mne.Epochs object.
+            already been windowed or epoched.
         """
 
+        if self._windowed:
+            raise ProcessingOrderError(
+                "Error when rereferencing the data:\nThe data to rereference "
+                "has been windowed."
+            )
         if self._epoched:
             raise ProcessingOrderError(
                 "Error when rereferencing the data:\nThe data to rereference "
-                "should be raw, but it has been epoched."
+                "has been epoched."
             )
 
         (
@@ -1577,6 +1635,7 @@ class Signal:
                 print(f"{old[0]} - {old[1]} -> {new}")
                 for [old, new] in ch_reref_pairs
             ]
+            print("\n")
 
     def rereference_common_average(
         self,
@@ -1658,6 +1717,7 @@ class Signal:
                 "The following channels have been common-average rereferenced:"
             )
             [print(f"{old} -> {new}") for [old, new] in ch_reref_pairs]
+            print("\n")
 
     def rereference_pseudo(
         self,
@@ -1742,12 +1802,63 @@ class Signal:
             print("The following channels have been pseudo rereferenced:")
             [print(f"{old} -> {new}") for [old, new] in ch_reref_pairs]
 
-    def epoch(self, epoch_length: int) -> None:
-        """Divides the mne.io.Raw object into epochs of a specified duration.
+    def window(self, window_length: Union[int, float]) -> None:
+        """Converts an MNE Raw object into multiple MNE Raw objects, each with a
+        specified duration.
 
         PARAMETERS
         ----------
-        epoch_length : int
+        window_length : int | float
+        -   The duration of the windows (seconds) to divide the data into.
+
+        RAISES
+        ------
+        ProcessingOrderError
+        -   Raised if the user attempts to divide the data into windows once it
+            has already been windowed or epoched.
+        """
+
+        if self._windowed:
+            raise ProcessingOrderError(
+                "Error when windowing the data:\nThe data has already been "
+                "windowed."
+            )
+        if self._epoched:
+            raise ProcessingOrderError(
+                "Error when windowing the data:\nThe data has been epoched. "
+                "Windowing can only be performed on non-epoched data."
+            )
+
+        windows = mne.make_fixed_length_epochs(self.data[0], window_length)
+        windowed_data = []
+        for window in windows:
+            data, _ = create_mne_data_object(
+                data=window,
+                data_dimensions=["channels", "timepoints"],
+                ch_names=windows.ch_names,
+                ch_types=windows.get_channel_types(),
+                sfreq=windows.info["sfreq"],
+                ch_coords=self.get_coordinates(),
+                subject_info=windows.info["subject_info"],
+            )
+            windowed_data.append(data)
+        self.data = windowed_data
+
+        self._windowed = True
+        self._update_processing_steps("window_data", window_length)
+        if self._verbose:
+            print(
+                f"Windowing the data with window lengths of {window_length} "
+                "seconds.\n"
+            )
+
+    def epoch(self, epoch_length: int) -> None:
+        """Converts the data in one or many MNE Raw object(s) into one or many
+        MNE Epochs object(s) containing epochs of a specified duration.
+
+        PARAMETERS
+        ----------
+        epoch_length : int | float
         -   The duration of the epochs (seconds) to divide the data into.
 
         RAISES
@@ -1755,17 +1866,19 @@ class Signal:
         ProcessingOrderError
         -   Raised if the user attempts to epoch the data once it has already
             been epoched.
-        -   This method can only be called if the data is stored as an
-            mne.io.Raw object, not as an mne.Epochs object.
+        -   This method can only be called if the data is stored as an MNE Raw
+            object, not as an MNE Epochs object.
         """
 
         if self._epoched:
             raise ProcessingOrderError(
-                "Error when epoching data:\nThe data has already been epoched."
+                "Error when epoching the data:\nThe data has already been "
+                "epoched."
             )
 
-        self.data = mne.make_fixed_length_epochs(self.data, epoch_length)
-        self.data.load_data()
+        for i, data in enumerate(self.data):
+            self.data[i] = mne.make_fixed_length_epochs(data, epoch_length)
+            self.data[i].load_data()
 
         self._epoched = True
         self._update_processing_steps("epoch_data", epoch_length)
@@ -1774,7 +1887,7 @@ class Signal:
                 f"Epoching the data with epoch lengths of {epoch_length} "
                 "seconds."
             )
-        self.data_dimensions = ["epochs", "channels", "timepoints"]
+        self.data_dimensions = ["windows", "epochs", "channels", "timepoints"]
 
     def _extract_signals(self, rearrange: Union[list[str], None]) -> np.array:
         """Extracts the signals from the mne.io.Raw object.
@@ -1793,7 +1906,10 @@ class Signal:
         -   The time-series signals extracted from the mne.io.Raw oject.
         """
 
-        extracted_signals = deepcopy(self.data.get_data())
+        extracted_signals = []
+        for data in self.data:
+            extracted_signals.append(deepcopy(data.get_data()))
+        extracted_signals = np.asarray(extracted_signals)
 
         if rearrange is not None:
             extracted_signals = rearrange_axes(
@@ -1848,28 +1964,28 @@ class Signal:
         """
 
         extracted_signals = self._extract_signals(
-            rearrange=["channels", "epochs", "timepoints"]
+            rearrange=["channels", "windows", "epochs", "timepoints"]
         )
 
         data_dict = {
             "signals": extracted_signals,
             "signals_dimensions": self.data_dimensions,
-            "ch_names": self.data.ch_names,
-            "ch_types": self.data.get_channel_types(),
+            "ch_names": self.data[0].ch_names,
+            "ch_types": self.data[0].get_channel_types(),
             "ch_coords": self.get_coordinates(),
             "ch_regions": ordered_list_from_dict(
-                self.data.ch_names, self.extra_info["ch_regions"]
+                self.data[0].ch_names, self.extra_info["ch_regions"]
             ),
             "ch_hemispheres": ordered_list_from_dict(
-                self.data.ch_names, self.extra_info["ch_hemispheres"]
+                self.data[0].ch_names, self.extra_info["ch_hemispheres"]
             ),
             "reref_types": ordered_list_from_dict(
-                self.data.ch_names, self.extra_info["reref_types"]
+                self.data[0].ch_names, self.extra_info["reref_types"]
             ),
-            "samp_freq": self.data.info["sfreq"],
+            "samp_freq": self.data[0].info["sfreq"],
             "metadata": self.extra_info["metadata"],
             "processing_steps": self.processing_steps,
-            "subject_info": self.data.info["subject_info"],
+            "subject_info": self.data[0].info["subject_info"],
         }
 
         return data_dict

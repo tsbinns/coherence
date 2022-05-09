@@ -160,6 +160,8 @@ def preprocessing(
         signal.bandpass_filter(
             analysis_settings["bandpass"][1], analysis_settings["bandpass"][0]
         )
+    if "window_length" in analysis_settings.keys():
+        signal.window(analysis_settings["window_length"])
     if "epoch_length" in analysis_settings.keys():
         signal.epoch(analysis_settings["epoch_length"])
     if "resample" in analysis_settings.keys():
