@@ -738,16 +738,11 @@ def rearrange_axes(
 
     RETURNS
     -------
-    new_obj : list | numpy array
+    list | numpy array
     -   The object with the rearranged axis order.
     """
 
-    new_obj = np.transpose(obj, [old_order.index(dim) for dim in new_order])
-
-    if isinstance(obj, list):
-        new_obj = new_obj.tolist()
-
-    return new_obj
+    return np.transpose(obj, [old_order.index(dim) for dim in new_order])
 
 
 def check_repeated_vals(

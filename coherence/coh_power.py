@@ -477,10 +477,10 @@ class PowerMorlet(ProcMethod):
             if return_itc:
                 print(
                     "Performing Morlet wavelet power analysis on the data and "
-                    "returning the inter-trial coherence."
+                    "returning the inter-trial coherence.\n"
                 )
             else:
-                print("Performing Morlet wavelet power analysis on the data.")
+                print("Performing Morlet wavelet power analysis on the data.\n")
 
         result = self._get_result(
             freqs=freqs,
