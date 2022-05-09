@@ -2074,20 +2074,23 @@ def data_dict_to_signal(data: dict) -> Signal:
 
     signal = Signal()
 
-    mne_object, data_dimensions = create_mne_data_object(
-        data=data["signals"],
-        data_dimensions=data["signals_dimensions"],
-        ch_names=data["ch_names"],
-        ch_types=data["ch_types"],
-        ch_coords=data["ch_coords"],
-        sfreq=data["samp_freq"],
-        subject_info=data["subject_info"],
-    )
+    mne_objects = []
+    for data_arr in data["signals"]:
+        mne_object, data_dimensions = create_mne_data_object(
+            data=data_arr,
+            data_dimensions=data["signals_dimensions"][1:],
+            ch_names=data["ch_names"],
+            ch_types=data["ch_types"],
+            ch_coords=data["ch_coords"],
+            sfreq=data["samp_freq"],
+            subject_info=data["subject_info"],
+        )
+        mne_objects.append(mne_object)
 
     extra_info = create_extra_info(data=data)
 
     signal.data_from_objects(
-        data=mne_object,
+        data=mne_objects,
         data_dimensions=data_dimensions,
         processing_steps=data["processing_steps"],
         extra_info=extra_info,
