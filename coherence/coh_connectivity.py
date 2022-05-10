@@ -103,7 +103,7 @@ class ConnectivityCoherence(ProcMethod):
             supported.
         """
 
-        supported_data_dims = ["epochs", "channels", "timepoints"]
+        supported_data_dims = ["windows", "epochs", "channels", "timepoints"]
         if self.signal.data_dimensions != supported_data_dims:
             raise ValueError(
                 "Error when trying to perform coherence analysis on the "
@@ -125,12 +125,12 @@ class ConnectivityCoherence(ProcMethod):
         self._indices = seed_target_indices(
             seeds=[
                 i
-                for i, name in enumerate(self.signal.data.ch_names)
+                for i, name in enumerate(self.signal.data[0].ch_names)
                 if name in self._seeds
             ],
             targets=[
                 i
-                for i, name in enumerate(self.signal.data.ch_names)
+                for i, name in enumerate(self.signal.data[0].ch_names)
                 if name in self._targets
             ],
         )
@@ -140,11 +140,11 @@ class ConnectivityCoherence(ProcMethod):
         connectivity between signals."""
 
         groups = ["_seeds", "_targets"]
-        channel_types = self.signal.data.get_channel_types()
+        channel_types = self.signal.data[0].get_channel_types()
         for group in groups:
             channels = getattr(self, group)
             if channels is None:
-                setattr(self, group, self.signal.data.ch_names)
+                setattr(self, group, self.signal.data[0].ch_names)
             elif isinstance(channels, str):
                 if channels[:5] == "type_":
                     setattr(
@@ -152,7 +152,9 @@ class ConnectivityCoherence(ProcMethod):
                         group,
                         [
                             name
-                            for i, name in enumerate(self.signal.data.ch_names)
+                            for i, name in enumerate(
+                                self.signal.data[0].ch_names
+                            )
                             if channel_types[i] == channels[5:]
                         ],
                     )

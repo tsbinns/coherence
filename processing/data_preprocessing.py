@@ -19,9 +19,9 @@ FOLDERPATH_PREPROCESSING = (
     "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN\\Preprocessing"
 )
 DATASET = "BIDS_Berlin_ECOG_LFP"
-ANALYSIS = "with_window_and_notch_filter"
-SUBJECT = "001"
-SESSION = "EcogLfpMedOn02"
+ANALYSIS = "with_notch_filter"
+SUBJECT = "003"
+SESSION = "EcogLfpMedOff01"
 TASK = "Rest"
 ACQUISITION = "StimOff"
 RUN = "1"

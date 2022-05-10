@@ -56,9 +56,16 @@ class SignalViewer:
         RAISES
         ------
         InputTypeError
-        -   Raised if the data contained in the Signal object has been epoched.
+        -   Raised if the data contained in the Signal object has been windowed
+            or epoched.
         """
 
+        if self.signal._windowed:
+            raise TypeError(
+                "Error when trying to instantiate the Annotations object:\n"
+                "The data in the Signal object being used has been windowed. "
+                "Only non-windowed data is supported."
+            )
         if self.signal._epoched:
             raise TypeError(
                 "Error when trying to instantiate the Annotations object:\n"
