@@ -10,6 +10,7 @@ Signal
 from copy import deepcopy
 from typing import Any, Optional, Union
 from numpy.typing import NDArray
+from mne import concatenate_epochs
 import mne
 import mne_bids
 import numpy as np
@@ -141,6 +142,7 @@ class Signal:
         self._rereferenced_pseudo = False
         self._windowed = False
         self._epoched = False
+        self._shuffled = False
 
     def _update_processing_steps(self, step_name: str, step_value: Any) -> None:
         """Updates the 'preprocessing' entry of the 'processing_steps'
@@ -182,11 +184,17 @@ class Signal:
             the 'extra_info' dictionary.
         """
 
-        to_order = ["reref_types", "ch_regions", "ch_hemispheres"]
+        to_order = [
+            "ch_reref_types",
+            "ch_regions",
+            "ch_hemispheres",
+            "ch_epoch_orders",
+        ]
         for key in to_order:
-            self.extra_info[key] = ordered_dict_keys_from_list(
-                dict_to_order=self.extra_info[key], keys_order=order
-            )
+            if key in self.extra_info.keys():
+                self.extra_info[key] = ordered_dict_keys_from_list(
+                    dict_to_order=self.extra_info[key], keys_order=order
+                )
 
     def order_channels(self, ch_names: list[str]) -> None:
         """Orders channels in the mne.io.Raw or mne.Epochs objects, as well as
@@ -380,10 +388,10 @@ class Signal:
         should only be called when the data is initially loaded.
         """
 
-        info_to_set = ["reref_types", "ch_regions", "ch_hemispheres"]
+        info_to_set = ["ch_reref_types", "ch_regions", "ch_hemispheres"]
         for info in info_to_set:
             self.extra_info[info] = {
-                ch_name: "none" for ch_name in self.data[0].info["ch_names"]
+                ch_name: None for ch_name in self.data[0].info["ch_names"]
             }
         self.data_dimensions = ["windows", "channels", "timepoints"]
 
@@ -510,6 +518,8 @@ class Signal:
                     self._windowed = True
                 elif "epoch_data" in step:
                     self._epoched = True
+                elif "shuffle_data" in step:
+                    self._shuffled = True
 
         if self.extra_info["ch_regions"] is not None:
             self._regions_set = True
@@ -1062,23 +1072,31 @@ class Signal:
 
     def add_channels(
         self,
-        data: list[NDArray],
+        data: list[list[NDArray]],
+        data_dimensions: list[str],
         ch_names: list[str],
         ch_types: list[str],
         ch_coords: list[list[Union[int, float]]],
+        ch_reref_types: list[str],
         ch_regions: list[str],
         ch_hemispheres: list[str],
+        ch_epoch_orders: Union[list[str], None] = None,
     ) -> None:
         """Adds channels to the Signal object.
         -   Data for the new channels should have the same sampling frequency as
             the data of channels already in the object.
-        -   Should be performed prior to rereferencing.
+        -   Each new channel must contain data for each window of the data in
+            the signal object.
 
         PARAMETERS
         ----------
-        data : list[numpy array]
-        -   List containing the data for the new channels with each entry
-            consisting of a numpy array for the data of a channel.
+        data : list[list[numpy array]]
+        -   List containing the data for the new channels, with each entry
+            consisting of list corresponding to a data window, with each entry
+            being a numpy array for the data of a channel.
+
+        data_dimensions : list[str]
+        -   Names of the dimensions in the data.
 
         ch_names : list[str]
         -   The names of the new channels.
@@ -1091,52 +1109,58 @@ class Signal:
             being a sublist containing the x-, y-, and z-axis coordinates of the
             channel.
 
+        ch_reref_types : list[str]
+        -   Rereferencing types of the new channels.
+
         ch_regions : list[str]
         -   The regions of the new channels.
 
         ch_hemispheres : list[str]
         -   The hemispheres of the new channels.
 
+        ch_epoch_orders : list[str] | None; default None
+        -   Epoch orders of the new channels. Entries should be "original" or
+            "shuffled". If no epoching of the data has yet been performed, the
+            value should be None (default).
+
         RAISES
         ------
-        ProcessingOrderError
-        -   Raised if the data has been rereferenced, windowed, or epoched.
+        ValueError
+        -   Raised if the number of windows in the original data and the data
+            being added do not match.
         """
 
-        if self._rereferenced:
-            raise ProcessingOrderError(
-                "Error when attempting to add new channels to the data:\nThe "
-                "data in the object has already been rereferenced, however "
-                "channels should be added prior to rereferencing."
-            )
-        if self._windowed:
-            raise ProcessingOrderError(
-                "Error when adding new channels to the data:\nThe data in the "
-                "object has already been windowed. New channels cannot be "
-                "added after windowing."
-            )
-        if self._epoched:
-            raise ProcessingOrderError(
-                "Error when adding new channels to the data:\nThe data in the "
-                "object has already been epoched. New channels cannot be added "
-                "after epoching."
+        if len(data) != len(self.data):
+            raise ValueError(
+                "Error when adding channels to the Signal object:\nThe number "
+                f"of windows in the original data ({len(self.data)}) and in "
+                f"the data being added ({len(data)}) do not match. If data is "
+                "being added, data must be given for each window in the "
+                "original data."
             )
 
-        new_channels = create_mne_data_object(
-            data=data,
-            data_dimensions=["channels", "timepoints"],
-            ch_names=ch_names,
-            ch_types=ch_types,
-            sfreq=self.data.info["sfreq"],
-            ch_coords=ch_coords,
-            verbose=self._verbose,
+        data = rearrange_axes(
+            obj=data, old_order=data_dimensions, new_order=self.data_dimensions
         )
-        self.data.add_channels([new_channels], force_update_info=True)
 
-        for i, channel in enumerate(ch_names):
-            self.extra_info["reref_types"][channel] = "none"
-            self.extra_info["ch_regions"][channel] = ch_regions[i]
-            self.extra_info["ch_hemispheres"][channel] = ch_hemispheres[i]
+        for i, data_window in enumerate(data):
+            new_channels, _ = create_mne_data_object(
+                data=data_window,
+                data_dimensions=self.data_dimensions[1:],
+                ch_names=ch_names,
+                ch_types=ch_types,
+                sfreq=self.data[0].info["sfreq"],
+                ch_coords=ch_coords,
+                verbose=self._verbose,
+            )
+            self.data[i].add_channels([new_channels], force_update_info=True)
+
+        for i, name in enumerate(ch_names):
+            self.extra_info["ch_reref_types"][name] = ch_reref_types[i]
+            self.extra_info["ch_regions"][name] = ch_regions[i]
+            self.extra_info["ch_hemispheres"][name] = ch_hemispheres[i]
+            if ch_epoch_orders is not None:
+                self.extra_info["ch_epoch_orders"][name] = ch_epoch_orders[i]
 
     def combine_channels(
         self,
@@ -1229,11 +1253,14 @@ class Signal:
 
         self.add_channels(
             data=combined_data,
+            data_dimensions=["channels", "timepoints"],
             ch_names=ch_names_new,
             ch_types=ch_types_new,
             ch_coords=ch_coords_new,
+            ch_reref_types=[None] * len(ch_names_new),
             ch_regions=ch_regions_new,
             ch_hemispheres=ch_hemispheres_new,
+            ch_epoch_orders=None,
         )
 
         if self._verbose:
@@ -1256,8 +1283,8 @@ class Signal:
         self._drop_channels(
             [
                 ch_name
-                for ch_name in self.extra_info["reref_types"].keys()
-                if self.extra_info["reref_types"][ch_name] == "none"
+                for ch_name in self.extra_info["ch_reref_types"].keys()
+                if self.extra_info["ch_reref_types"][ch_name] == "none"
             ]
         )
 
@@ -1267,7 +1294,7 @@ class Signal:
         ch_names_old: list[Union[str, list[str]]],
         ch_names_new: Union[list[Union[str, None]], None],
         ch_types_new: Union[list[Union[str, None]], None],
-        reref_types: Union[list[Union[str, None]], None],
+        ch_reref_types: Union[list[Union[str, None]], None],
         ch_coords_new: Union[list[Union[list[Union[int, float]], None]], None],
         ch_regions_new: Union[list[Union[str, None]], None],
         ch_hemispheres_new: Union[list[Union[str, None]], None],
@@ -1347,7 +1374,7 @@ class Signal:
             ch_names_old,
             ch_names_new,
             ch_types_new,
-            reref_types,
+            ch_reref_types,
             ch_coords_new,
             ch_regions_new,
             ch_hemispheres_new,
@@ -1448,7 +1475,7 @@ class Signal:
         ch_names_old: list[Union[str, list[str]]],
         ch_names_new: Union[list[Union[str, None]], None],
         ch_types_new: Union[list[Union[str, None]], None],
-        reref_types: Union[list[Union[str, None]], None],
+        ch_reref_types: Union[list[Union[str, None]], None],
         ch_coords_new: Union[list[Union[list[Union[int, float]], None]], None],
         ch_regions_new: Union[list[Union[str, None]], None],
         ch_hemispheres_new: Union[list[Union[str, None]], None],
@@ -1476,7 +1503,7 @@ class Signal:
         -   Missing values (None) will be set based on the types of channels in
             'ch_names_old'.
 
-        reref_types : list[str | None] | None; default None
+        ch_reref_types : list[str | None] | None; default None
         -   The rereferencing type applied to the channels, corresponding to the
             channels in 'ch_names_new'.
         -   Missing values (None) will be set as 'common_average'.
@@ -1530,7 +1557,7 @@ class Signal:
         (
             rerefed_raw,
             ch_names_new,
-            reref_types_dict,
+            ch_reref_types_dict,
             ch_regions_dict,
             ch_hemispheres_dict,
         ) = self._apply_rereference(
@@ -1538,7 +1565,7 @@ class Signal:
             ch_names_old,
             ch_names_new,
             ch_types_new,
-            reref_types,
+            ch_reref_types,
             ch_coords_new,
             ch_regions_new,
             ch_hemispheres_new,
@@ -1546,7 +1573,7 @@ class Signal:
         self._append_rereferenced_raw(rerefed_raw)
         self._add_rereferencing_info(
             info_to_add={
-                "reref_types": reref_types_dict,
+                "ch_reref_types": ch_reref_types_dict,
                 "ch_regions": ch_regions_dict,
                 "ch_hemispheres": ch_hemispheres_dict,
             }
@@ -1561,7 +1588,7 @@ class Signal:
         ch_names_old: list[list[str]],
         ch_names_new: Union[list[Union[str, None]], None],
         ch_types_new: Union[list[Union[str, None]], None],
-        reref_types: Union[list[Union[str, None]], None],
+        ch_reref_types: Union[list[Union[str, None]], None],
         ch_coords_new: Union[list[Union[list[Union[int, float]], None]], None],
         ch_regions_new: Union[list[Union[str, None]], None],
         ch_hemispheres_new: Union[list[Union[str, None]], None],
@@ -1584,7 +1611,7 @@ class Signal:
         -   Missing values (None) will be set based on the types of channels in
             'ch_names_old'.
 
-        reref_types : list[str | None] | None; default None
+        ch_reref_types : list[str | None] | None; default None
         -   The rereferencing type applied to the channels, corresponding to the
             channels in 'ch_names_new'.
         -   Missing values (None) will be set as 'common_average'.
@@ -1618,7 +1645,7 @@ class Signal:
             ch_names_old,
             ch_names_new,
             ch_types_new,
-            reref_types,
+            ch_reref_types,
             ch_coords_new,
             ch_regions_new,
             ch_hemispheres_new,
@@ -1642,7 +1669,7 @@ class Signal:
         ch_names_old: list[str],
         ch_names_new: Union[list[Union[str, None]], None],
         ch_types_new: Union[list[Union[str, None]], None],
-        reref_types: Union[list[Union[str, None]], None],
+        ch_reref_types: Union[list[Union[str, None]], None],
         ch_coords_new: Union[list[Union[list[Union[int, float]], None]], None],
         ch_regions_new: Union[list[Union[str, None]], None],
         ch_hemispheres_new: Union[list[Union[str, None]], None],
@@ -1665,7 +1692,7 @@ class Signal:
         -   Missing values (None) will be set based on the types of channels in
             'ch_names_old'.
 
-        reref_types : list[str | None] | None; default None
+        ch_reref_types : list[str | None] | None; default None
         -   The rereferencing type applied to the channels, corresponding to the
             channels in 'ch_names_new'.
         -   Missing values (None) will be set as 'common_average'.
@@ -1699,7 +1726,7 @@ class Signal:
             ch_names_old,
             ch_names_new,
             ch_types_new,
-            reref_types,
+            ch_reref_types,
             ch_coords_new,
             ch_regions_new,
             ch_hemispheres_new,
@@ -1724,7 +1751,7 @@ class Signal:
         ch_names_old: list[str],
         ch_names_new: Union[list[Union[str, None]], None],
         ch_types_new: Union[list[Union[str, None]], None],
-        reref_types: list[str],
+        ch_reref_types: list[str],
         ch_coords_new: Optional[list[Optional[list[Union[int, float]]]]],
         ch_regions_new: Union[list[Union[str, None]], None],
         ch_hemispheres_new: Union[list[Union[str, None]], None],
@@ -1751,7 +1778,7 @@ class Signal:
         -   Missing values (None) will be set based on the types of channels in
             'ch_names_old'.
 
-        reref_types : list[str]
+        ch_reref_types : list[str]
         -   The rereferencing type applied to the channels, corresponding to the
             channels in 'ch_names_new'.
         -   No missing values (None) can be given, as the rereferencing type
@@ -1787,7 +1814,7 @@ class Signal:
             ch_names_old,
             ch_names_new,
             ch_types_new,
-            reref_types,
+            ch_reref_types,
             ch_coords_new,
             ch_regions_new,
             ch_hemispheres_new,
@@ -1882,14 +1909,117 @@ class Signal:
 
         self._epoched = True
         self._update_processing_steps("epoch_data", epoch_length)
+        self.data_dimensions = ["windows", "epochs", "channels", "timepoints"]
+        self.extra_info["ch_epoch_orders"] = {
+            name: "original" for name in self.data[0].ch_names
+        }
         if self._verbose:
             print(
                 f"Epoching the data with epoch lengths of {epoch_length} "
-                "seconds."
+                "seconds.\n"
             )
-        self.data_dimensions = ["windows", "epochs", "channels", "timepoints"]
 
-    def _extract_signals(self, rearrange: Union[list[str], None]) -> np.array:
+    def shuffle(
+        self,
+        channels: list[str],
+        n_shuffles: int,
+        rng_seed: Union[int, float, None] = None,
+    ) -> None:
+        """Creates new channels by randomly reordering the epochs of channels,
+        creating time-series data with a disrupted temporal order.
+
+        PARAMETERS
+        ----------
+        channels : list[str]
+        -   Names of the channels to create shuffled copies of.
+
+        n_shuffles : int
+        -   The number of shuffled copies to create for each channel.
+
+        rng_seed : int | float
+        -   The seed to use for the random number generator. The seed is set
+            once before any shuffling takes place, and is not set again once the
+            shuffling has begun.
+
+        RAISES
+        ------
+        ProcessingOrderError
+        -   Raised if the data has not been epoched.
+        """
+
+        if not self._epoched:
+            raise ProcessingOrderError(
+                "Error when shuffling the data:\nThe data has not been "
+                "epoched, but shuffling requires the data be epoched."
+            )
+
+        if rng_seed is not None:
+            np.random.seed(rng_seed)
+
+        shuffled_data = []
+        for window_i, data in enumerate(self.data):
+            to_shuffle = deepcopy(data)
+            to_shuffle.pick_channels(ch_names=channels, ordered=True)
+            shuffled_data.append([])
+            for shuffle_i in range(n_shuffles):
+                epoch_order = np.arange(len(to_shuffle.events))
+                np.random.shuffle(epoch_order)
+                shuffled_data[window_i].append(
+                    concatenate_epochs(
+                        [to_shuffle[epoch_order]], verbose="ERROR"
+                    )
+                )
+                shuffled_data[window_i][shuffle_i].rename_channels(
+                    {name: f"SHUFFLED[{shuffle_i}]_{name}" for name in channels}
+                )
+            if n_shuffles > 1:
+                shuffled_data[window_i] = shuffled_data[window_i][
+                    0
+                ].add_channels(shuffled_data[window_i][1:])
+
+        ch_reref_types = (
+            ordered_list_from_dict(channels, self.extra_info["ch_reref_types"])
+            * n_shuffles
+        )
+        ch_regions = (
+            ordered_list_from_dict(channels, self.extra_info["ch_regions"])
+            * n_shuffles
+        )
+        ch_hemispheres = (
+            ordered_list_from_dict(channels, self.extra_info["ch_hemispheres"])
+            * n_shuffles
+        )
+        self.add_channels(
+            data=shuffled_data,
+            data_dimensions=self.data_dimensions,
+            ch_names=shuffled_data[0].ch_names,
+            ch_types=shuffled_data[0].get_channel_types(),
+            ch_coords=shuffled_data[0]._get_channel_positions(),
+            ch_reref_types=ch_reref_types,
+            ch_regions=ch_regions,
+            ch_hemispheres=ch_hemispheres,
+            ch_epoch_orders=["shuffled"] * len(channels) * n_shuffles,
+        )
+
+        self._shuffled = True
+        self._update_processing_steps(
+            "shuffle_data",
+            {
+                "channels": channels,
+                "n_shuffles": n_shuffles,
+                "rng_seed": rng_seed,
+            },
+        )
+        for n_shuffle in range(n_shuffles):
+            for name in shuffled_data[n_shuffle].ch_names:
+                self.extra_info["ch_epoch_orders"][name] = "shuffled"
+        if self._verbose:
+            print(
+                "Creating epoch-shuffled data for the following channels over "
+                f"{n_shuffles} iterations:\n{channels}\n"
+            )
+
+    def _extract_data(self, rearrange: Union[list[str], None]) -> NDArray:
         """Extracts the signals from the mne.io.Raw object.
 
         PARAMETERS
@@ -1902,24 +2032,24 @@ class Signal:
 
         RETURNS
         -------
-        extracted_signals : array
+        extracted_data : numpy array
         -   The time-series signals extracted from the mne.io.Raw oject.
         """
 
-        extracted_signals = []
+        extracted_data = []
         for data in self.data:
-            extracted_signals.append(deepcopy(data.get_data()))
-        extracted_signals = np.asarray(extracted_signals)
+            extracted_data.append(deepcopy(data.get_data()))
+        extracted_data = np.asarray(extracted_data)
 
         if rearrange is not None:
-            extracted_signals = rearrange_axes(
-                obj=extracted_signals,
+            extracted_data = rearrange_axes(
+                obj=extracted_data,
                 old_order=self.data_dimensions,
                 new_order=rearrange,
             )
             self.data_dimensions = rearrange
 
-        return extracted_signals.tolist()
+        return extracted_data
 
     def save_object(
         self, fpath: str, ask_before_overwrite: Optional[bool] = None
@@ -1963,13 +2093,13 @@ class Signal:
         -   The data as a dictionary.
         """
 
-        extracted_signals = self._extract_signals(
+        extracted_data = self._extract_data(
             rearrange=["channels", "windows", "epochs", "timepoints"]
-        )
+        ).tolist()
 
         data_dict = {
-            "signals": extracted_signals,
-            "signals_dimensions": self.data_dimensions,
+            "data": extracted_data,
+            "data_dimensions": self.data_dimensions,
             "ch_names": self.data[0].ch_names,
             "ch_types": self.data[0].get_channel_types(),
             "ch_coords": self.get_coordinates(),
@@ -1979,14 +2109,18 @@ class Signal:
             "ch_hemispheres": ordered_list_from_dict(
                 self.data[0].ch_names, self.extra_info["ch_hemispheres"]
             ),
-            "reref_types": ordered_list_from_dict(
-                self.data[0].ch_names, self.extra_info["reref_types"]
+            "ch_reref_types": ordered_list_from_dict(
+                self.data[0].ch_names, self.extra_info["ch_reref_types"]
             ),
             "samp_freq": self.data[0].info["sfreq"],
             "metadata": self.extra_info["metadata"],
             "processing_steps": self.processing_steps,
             "subject_info": self.data[0].info["subject_info"],
         }
+        if self._epoched:
+            data_dict["ch_epoch_orders"] = ordered_list_from_dict(
+                self.data[0].ch_names, self.extra_info["ch_epoch_orders"]
+            )
 
         return data_dict
 
@@ -2074,11 +2208,21 @@ def data_dict_to_signal(data: dict) -> Signal:
 
     signal = Signal()
 
+    if "epochs" in data["data_dimensions"]:
+        new_dims = ["windows", "channels", "epochs", "timepoints"]
+    else:
+        new_dims = ["windows", "channels", "timepoints"]
+    data_windows = rearrange_axes(
+        obj=data["data"],
+        old_order=data["data_dimensions"],
+        new_order=new_dims,
+    )
+
     mne_objects = []
-    for data_arr in data["signals"]:
-        mne_object, data_dimensions = create_mne_data_object(
-            data=data_arr,
-            data_dimensions=data["signals_dimensions"][1:],
+    for data_window in data_windows:
+        mne_object, _ = create_mne_data_object(
+            data=data_window,
+            data_dimensions=new_dims[1:],
             ch_names=data["ch_names"],
             ch_types=data["ch_types"],
             ch_coords=data["ch_coords"],
@@ -2091,7 +2235,7 @@ def data_dict_to_signal(data: dict) -> Signal:
 
     signal.data_from_objects(
         data=mne_objects,
-        data_dimensions=data_dimensions,
+        data_dimensions=new_dims,
         processing_steps=data["processing_steps"],
         extra_info=extra_info,
     )
