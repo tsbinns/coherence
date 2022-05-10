@@ -57,7 +57,7 @@ class Reref(ABC):
         ch_names_old: list[str],
         ch_names_new: Optional[list[Optional[str]]] = None,
         ch_types_new: Optional[list[Optional[str]]] = None,
-        reref_types: Optional[list[Optional[str]]] = None,
+        ch_reref_types: Optional[list[Optional[str]]] = None,
         ch_coords_new: Optional[list[Optional[list[Union[int, float]]]]] = None,
         ch_regions_new: Optional[list[Optional[str]]] = None,
         ch_hemispheres_new: Optional[list[Optional[str]]] = None,
@@ -69,9 +69,10 @@ class Reref(ABC):
         self._new_data_info = None
         self._new_ch_coords = None
         self._n_channels = None
-        self.reref_types = None
+        self.ch_reref_types = None
         self.ch_regions = None
         self.ch_hemispheres = None
+        self.epoch_orders = None
 
         # Initialises inputs of the Reref object.
         self.raw = raw
@@ -90,7 +91,7 @@ class Reref(ABC):
         self._ch_coords_new = ch_coords_new
         self._ch_regions_new = ch_regions_new
         self._ch_hemispheres_new = ch_hemispheres_new
-        self._reref_types = reref_types
+        self._ch_reref_types = ch_reref_types
         self._sort_inputs()
 
     @abstractmethod
@@ -145,7 +146,7 @@ class Reref(ABC):
                 self._ch_names_old,
                 self._ch_names_new,
                 self._ch_types_new,
-                self._reref_types,
+                self._ch_reref_types,
                 self._ch_coords_new,
                 self._ch_regions_new,
                 self._ch_hemispheres_new,
@@ -204,7 +205,7 @@ class Reref(ABC):
                 if ch_type is None:
                     self._ch_types_new[i] = ch_types_old[i]
 
-    def _sort_reref_types(self, fill_type: str) -> None:
+    def _sort_ch_reref_types(self, fill_type: str) -> None:
         """Resolves any missing entries from the rereference types of the
         channels.
 
@@ -214,12 +215,12 @@ class Reref(ABC):
         -   The type of rereferencing to fill missing entries.
         """
 
-        if self._reref_types is None:
-            self._reref_types = [fill_type] * self._n_channels
-        elif any(item is None for item in self._reref_types):
-            for i, reref_type in enumerate(self._reref_types):
+        if self._ch_reref_types is None:
+            self._ch_reref_types = [fill_type] * self._n_channels
+        elif any(item is None for item in self._ch_reref_types):
+            for i, reref_type in enumerate(self._ch_reref_types):
                 if reref_type is None:
-                    self._reref_types[i] = fill_type
+                    self._ch_reref_types[i] = fill_type
 
     def _sort_ch_coords_new(self) -> None:
         """Resolves any missing entries for the channel coordinates of the new,
@@ -333,8 +334,8 @@ class Reref(ABC):
         """Generates a dictionary of key:value pairs consisting of channel name
         : rereferencing type."""
 
-        self.reref_types = {
-            self._ch_names_new[i]: self._reref_types[i]
+        self.ch_reref_types = {
+            self._ch_names_new[i]: self._ch_reref_types[i]
             for i in range(len(self._ch_names_new))
         }
 
@@ -403,7 +404,7 @@ class Reref(ABC):
         return (
             self.raw,
             self._ch_names_new,
-            self.reref_types,
+            self.ch_reref_types,
             self.ch_regions,
             self.ch_hemispheres,
         )
@@ -432,7 +433,7 @@ class RerefBipolar(Reref):
     -   Missing values (None) will be set based on the types of channels in
         'ch_names_old'.
 
-    reref_types : list[str | None] | None; default None
+    ch_reref_types : list[str | None] | None; default None
     -   The rereferencing type applied to the channels, corresponding to the
         channels in 'ch_names_new'.
     -   If some or all entries are None, they will be set as 'bipolar'.
@@ -648,7 +649,7 @@ class RerefBipolar(Reref):
         )
         self._sort_ch_names_new()
         self._sort_ch_types_new()
-        self._sort_reref_types(fill_type="bipolar")
+        self._sort_ch_reref_types(fill_type="bipolar")
         self._sort_ch_coords_new()
         self._sort_ch_regions_new()
         self._sort_ch_hemispheres_new()
@@ -759,7 +760,7 @@ class RerefCommonAverage(Reref):
     -   Missing values (None) will be set based on the types of channels in
         'ch_names_old'.
 
-    reref_types : list[str | None] | None; default None
+    ch_reref_types : list[str | None] | None; default None
     -   The rereferencing type applied to the channels, corresponding to the
         channels in 'ch_names_new'.
     -   If some or all entries are None, they will be set as 'common_average'.
@@ -799,7 +800,7 @@ class RerefCommonAverage(Reref):
         )
         self._sort_ch_names_new()
         self._sort_ch_types_new()
-        self._sort_reref_types(fill_type="common_average")
+        self._sort_ch_reref_types(fill_type="common_average")
         self._sort_ch_coords_new()
         self._sort_ch_regions_new()
         self._sort_ch_hemispheres_new()
@@ -879,7 +880,7 @@ class RerefPseudo(Reref):
     -   Missing values (None) will be set based on the types of channels in
         'ch_names_old'.
 
-    reref_types : list[str]
+    ch_reref_types : list[str]
     -   The rereferencing type applied to the channels, corresponding to the
         channels in 'ch_names_new'.
     -   No missing values (None) can be given, as the rereferencing type cannot
@@ -909,7 +910,7 @@ class RerefPseudo(Reref):
     -   Rereferences the data in an mne.io.Raw object.
     """
 
-    def _sort_reref_types(self) -> None:
+    def _sort_ch_reref_types(self) -> None:
         """Checks that all rereferencing types have been specified for the new
         channels, as these cannot be derived from the arbitrary method of pseudo
         rereferencing.
@@ -921,7 +922,7 @@ class RerefPseudo(Reref):
             of type None.
         """
 
-        if None in self._reref_types:
+        if None in self._ch_reref_types:
             raise TypeError(
                 "Error when pseudo rereferencing:\nRereferencing types of each "
                 "new channel must be specified, there can be no missing entries"
@@ -939,7 +940,7 @@ class RerefPseudo(Reref):
         )
         self._sort_ch_names_new()
         self._sort_ch_types_new()
-        self._sort_reref_types()
+        self._sort_ch_reref_types()
         self._sort_ch_coords_new()
         self._sort_ch_regions_new()
         self._sort_ch_hemispheres_new()

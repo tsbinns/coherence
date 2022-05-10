@@ -147,25 +147,31 @@ def preprocessing(
                 reref_settings["ch_names_old"],
                 reref_settings["ch_names_new"],
                 reref_settings["ch_types_new"],
-                reref_settings["reref_types"],
+                reref_settings["ch_reref_types"],
                 reref_settings["ch_coords_new"],
                 reref_settings["ch_regions_new"],
                 reref_settings["ch_hemispheres_new"],
             )
         signal.drop_unrereferenced_channels()
         signal.order_channels(data_settings["post_reref_organisation"])
-    if "line_noise" in analysis_settings.keys():
+    if analysis_settings["line_noise"] is not None:
         signal.notch_filter(analysis_settings["line_noise"])
-    if "bandpass" in analysis_settings.keys():
+    if analysis_settings["bandpass"] is not None:
         signal.bandpass_filter(
             analysis_settings["bandpass"][1], analysis_settings["bandpass"][0]
         )
-    if "window_length" in analysis_settings.keys():
+    if analysis_settings["window_length"] is not None:
         signal.window(analysis_settings["window_length"])
-    if "epoch_length" in analysis_settings.keys():
+    if analysis_settings["epoch_length"] is not None:
         signal.epoch(analysis_settings["epoch_length"])
-    if "resample" in analysis_settings.keys():
+    if analysis_settings["resample"] is not None:
         signal.resample(analysis_settings["resample"])
+    if analysis_settings["n_shuffles"] > 0:
+        signal.shuffle(
+            channels=data_settings["shuffle_channels"],
+            n_shuffles=analysis_settings["n_shuffles"],
+            rng_seed=analysis_settings["rng_seed"],
+        )
 
     ## Adds metadata about the preprocessed data
     metadata = extract_metadata(settings=data_settings)

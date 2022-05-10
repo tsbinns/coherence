@@ -9,6 +9,7 @@ ProcMethod
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from typing import Union
+from numpy.typing import NDArray
 import numpy as np
 import coh_signal
 
@@ -80,7 +81,7 @@ class ProcMethod(ABC):
 
     def _prepare_results_for_saving(
         self,
-        results: np.array,
+        results: NDArray,
         results_dims: Union[list[str], None],
         rearrange: Union[list[str], None],
     ) -> list:
