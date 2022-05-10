@@ -22,20 +22,29 @@ def create_extra_info(data: dict) -> dict[dict]:
     -   Additional information extracted from the data dictionary.
     """
 
-    ch_dict_keys = ["ch_regions", "ch_hemispheres", "reref_types"]
-    extra_info = {
-        "ch_regions": None,
-        "ch_hemispheres": None,
-        "reref_types": None,
-        "metadata": None,
-    }
-    for key in extra_info.keys():
-        if key in ch_dict_keys:
-            extra_info[key] = {
-                name: data[key][i] for i, name in enumerate(data["ch_names"])
-            }
-        else:
-            extra_info[key] = data[key]
+    ch_dict_keys = [
+        "ch_regions",
+        "ch_hemispheres",
+        "ch_reref_types",
+        "ch_epoch_orders",
+    ]
+    extra_info_keys = [
+        "ch_regions",
+        "ch_hemispheres",
+        "ch_reref_types",
+        "ch_epoch_orders",
+        "metadata",
+    ]
+    extra_info = {}
+    for key in extra_info_keys:
+        if key in data.keys():
+            if key in ch_dict_keys:
+                extra_info[key] = {
+                    name: data[key][i]
+                    for i, name in enumerate(data["ch_names"])
+                }
+            else:
+                extra_info[key] = data[key]
 
     return extra_info
 

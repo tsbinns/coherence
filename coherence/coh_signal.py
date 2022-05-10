@@ -2209,7 +2209,7 @@ def data_dict_to_signal(data: dict) -> Signal:
     signal = Signal()
 
     if "epochs" in data["data_dimensions"]:
-        new_dims = ["windows", "channels", "epochs", "timepoints"]
+        new_dims = ["windows", "epochs", "channels", "timepoints"]
     else:
         new_dims = ["windows", "channels", "timepoints"]
     data_windows = rearrange_axes(
