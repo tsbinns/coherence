@@ -73,7 +73,7 @@ def morlet_analysis(
     generic_settings_fpath = generate_analysiswise_fpath(
         f"{folderpath_processing}\\Settings\\Generic", analysis, ".json"
     )
-    power_fpath = generate_sessionwise_fpath(
+    morlet_fpath = generate_sessionwise_fpath(
         f"{folderpath_processing}\\Data",
         dataset,
         subject,
@@ -117,14 +117,14 @@ def morlet_analysis(
             line_noise_freq=norm_settings["line_noise_freq"],
         )
     if save:
-        morlet.save_results(fpath=power_fpath)
+        morlet.save_results(fpath=morlet_fpath)
 
     return morlet
 
 
 def fooof_analysis(
     signal: PowerMorlet,
-    folderpath_extras: str,
+    folderpath_processing: str,
     dataset: str,
     analysis: str,
     subject: str,
@@ -140,7 +140,7 @@ def fooof_analysis(
     signal : coh_power.PowerMorlet
     -   The power spcetra to analyse.
 
-    folderpath_extras : str
+    folderpath_processing : str
     -   The folderpath to the location of the datasets' 'extras', e.g. the
         annotations, processing settings, etc...
 
@@ -171,38 +171,35 @@ def fooof_analysis(
 
     ### Analysis setup
     ## Gets the relevant filepaths
-    analysis_settings_fpath = generate_analysiswise_fpath(
-        folderpath_extras + "\\settings", analysis, ".json"
+    generic_settings_fpath = generate_analysiswise_fpath(
+        f"{folderpath_processing}\\Settings\\Generic", analysis, ".json"
     )
-    data_folderpath = f"{folderpath_extras}\\Data"
-    data_settings_fpath = generate_sessionwise_fpath(
-        data_folderpath,
+    specific_settings_fpath = generate_sessionwise_fpath(
+        f"{folderpath_processing}\\Settings\\Specific",
         dataset,
         subject,
         session,
         task,
         acquisition,
         run,
-        "settings",
+        analysis,
         ".json",
     )
     fooof_fpath = generate_sessionwise_fpath(
-        data_folderpath,
+        f"{folderpath_processing}\\Data",
         dataset,
         subject,
         session,
         task,
         acquisition,
         run,
-        "power-FOOOF",
+        f"power-{analysis}",
         ".json",
     )
 
     ## Loads the analysis settings
-    analysis_settings = load_file(fpath=analysis_settings_fpath)
-    analysis_settings = analysis_settings["fooof_processing"]
-    data_settings = load_file(fpath=data_settings_fpath)
-    data_settings = data_settings["power_FOOOF"]
+    analysis_settings = load_file(fpath=generic_settings_fpath)
+    data_settings = load_file(fpath=specific_settings_fpath)
 
     ### Data processing
     ## FOOOF power analysis

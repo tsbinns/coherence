@@ -923,6 +923,12 @@ class ConnectivityCoherence(ProcMethod):
     def get_results(self, dimensions: Union[list[str], None] = None) -> NDArray:
         """Extracts and returns results.
 
+        PARAMETERS
+        ----------
+        dimensions : list[str] | None;  default None
+        -   The dimensions of the results that will be returned.
+        -   If 'None', the current dimensions are used.
+
         RETURNS
         -------
         results : numpy array
