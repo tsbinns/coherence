@@ -626,12 +626,14 @@ class PowerFOOOF(ProcMethod):
         """
 
         supported_data_dims = [["channels", "frequencies"]]
-        if self.signal.power_dims not in supported_data_dims:
+        if self.signal.results_dims not in supported_data_dims:
             raise TypeError(
                 "Error when applying FOOOF to the power data:\nThe data in the "
-                f"power object is in the form {self.signal.power_dims}, but "
+                f"power object is in the form {self.signal.results_dims}, but "
                 f"only data in the form {supported_data_dims} is supported."
             )
+        if self.signal._windows_averaged:
+            self.signal.results = self.signal.results[0]
 
         super()._sort_inputs()
 
@@ -685,15 +687,15 @@ class PowerFOOOF(ProcMethod):
 
         if freq_range is None:
             freq_range = [None, None]
-            freq_range[0] = self.signal.power.freqs[0]
-            freq_range[1] = self.signal.power.freqs[-1]
+            freq_range[0] = self.signal.results.freqs[0]
+            freq_range[1] = self.signal.results.freqs[-1]
         self.freq_range = freq_range
 
         if aperiodic_modes is None:
-            aperiodic_modes = [None] * len(self.signal.power.ch_names)
+            aperiodic_modes = [None] * len(self.signal.results.ch_names)
         else:
             identical, lengths = check_lengths_list_identical(
-                to_check=[self.signal.power.ch_names, aperiodic_modes]
+                to_check=[self.signal.results.ch_names, aperiodic_modes]
             )
             if not identical:
                 raise EntryLengthError(
@@ -754,7 +756,7 @@ class PowerFOOOF(ProcMethod):
         if self._verbose and report_fit:
             print(
                 "Fitting the FOOOF model for the data of channel "
-                f"'{self.signal.power.ch_names[channel_index]}' with aperiodic "
+                f"'{self.signal.results.ch_names[channel_index]}' with aperiodic "
                 f"mode '{aperiodic_mode}'."
             )
 
@@ -767,8 +769,8 @@ class PowerFOOOF(ProcMethod):
             verbose=self._verbose,
         )
         fooof_model.fit(
-            freqs=self.signal.power.freqs,
-            power_spectrum=self.signal.power.data[channel_index],
+            freqs=self.signal.results.freqs,
+            power_spectrum=self.signal.results.data[channel_index],
             freq_range=self.freq_range,
         )
 
@@ -794,7 +796,7 @@ class PowerFOOOF(ProcMethod):
         """
 
         fig, axs = plt.subplots(2, 2)
-        fig.suptitle(self.signal.power.ch_names[channel_index])
+        fig.suptitle(self.signal.results.ch_names[channel_index])
 
         fm_fixed.plot(plt_log=False, ax=axs[0, 0])
         fm_fixed.plot(plt_log=True, ax=axs[1, 0])
@@ -866,8 +868,8 @@ class PowerFOOOF(ProcMethod):
         if self._verbose:
             print(
                 "No aperiodic mode has been specified for channel "
-                f"'{self.signal.power.ch_names[channel_index]}'. Please choose "
-                "an aperiodic mode to use after closing the figure."
+                f"'{self.signal.results.ch_names[channel_index]}'. Please "
+                "choose an aperiodic mode to use after closing the figure."
             )
 
         fm_fixed = self._fit_fooof_model(
@@ -899,7 +901,7 @@ class PowerFOOOF(ProcMethod):
 
         fig, axs = plt.subplots(2, 1)
         model_title = (
-            f"{self.signal.power.ch_names[channel_index]} | "
+            f"{self.signal.results.ch_names[channel_index]} | "
             f"{self.aperiodic_modes[channel_index]} aperiodic mode | "
         )
 
@@ -1090,7 +1092,7 @@ class PowerFOOOF(ProcMethod):
         )
 
         if self._verbose:
-            print("Performing FOOOF analysis on the data.")
+            print("Performing FOOOF analysis on the data.\n")
 
         self.results = self._get_result()
 
@@ -1132,12 +1134,23 @@ class PowerFOOOF(ProcMethod):
             verbose=self._verbose,
         )
 
-    def _get_results_dict(self) -> dict:
-        """Organises the results into a dictionary.
+    def get_results(self) -> dict:
+        """Returns the results dictionary.
+
+        RETURNS
+        -------
+        dict
+        -   The results dictionary of the FOOOF analysis.
+        """
+
+        return deepcopy(self.results)
+
+    def results_as_dict(self) -> dict:
+        """Organises the results and additional information into a dictionary.
 
         RETURNS
         dict
-        -   The results dictionary.
+        -   A dictionary of results and additional information.
         """
 
         return {
@@ -1147,23 +1160,23 @@ class PowerFOOOF(ProcMethod):
             ].tolist(),
             "r_squared": self.results["r_squared"].tolist(),
             "error": self.results["error"].tolist(),
-            "freqs": self.signal.power.freqs.tolist(),
-            "ch_names": self.signal.power.ch_names,
-            "ch_types": self.signal.power.get_channel_types(),
+            "freqs": self.signal.results.freqs.tolist(),
+            "ch_names": self.signal.results.ch_names,
+            "ch_types": self.signal.results.get_channel_types(),
             "ch_coords": self.signal.signal.get_coordinates(),
             "ch_regions": ordered_list_from_dict(
-                self.signal.power.ch_names, self.extra_info["ch_regions"]
+                self.signal.results.ch_names, self.extra_info["ch_regions"]
             ),
             "ch_hemispheres": ordered_list_from_dict(
-                self.signal.power.ch_names, self.extra_info["ch_hemispheres"]
+                self.signal.results.ch_names, self.extra_info["ch_hemispheres"]
             ),
-            "reref_types": ordered_list_from_dict(
-                self.signal.power.ch_names, self.extra_info["reref_types"]
+            "ch_reref_types": ordered_list_from_dict(
+                self.signal.results.ch_names, self.extra_info["ch_reref_types"]
             ),
-            "samp_freq": self.signal.power.info["sfreq"],
+            "samp_freq": self.signal.results.info["sfreq"],
             "metadata": self.extra_info["metadata"],
             "processing_steps": self.processing_steps,
-            "subject_info": self.signal.power.info["subject_info"],
+            "subject_info": self.signal.results.info["subject_info"],
         }
 
     def save_results(
@@ -1211,7 +1224,7 @@ class PowerFOOOF(ProcMethod):
             to_check=[
                 self.results["periodic_component"],
                 self.results["aperiodic_component"],
-                self.signal.power.ch_names,
+                self.signal.results.ch_names,
             ]
         )
         if not identical:
@@ -1223,42 +1236,9 @@ class PowerFOOOF(ProcMethod):
             )
 
         save_dict(
-            to_save=self._get_results_dict(),
+            to_save=self.results_as_dict(),
             fpath=fpath,
             ftype=ftype,
             ask_before_overwrite=ask_before_overwrite,
             verbose=self._verbose,
         )
-
-    def results_as_dict(self) -> None:
-        """Returns the FOOOF analysis results and additional information as a
-        dictionary.
-
-        RETURNS
-        -------
-        results : dict
-        -   The results and additional information, stored as a dictionary.
-
-        RAISES
-        ------
-        EntryLengthError
-        -   Raised if the number of channels in the pre-processed data does not
-            match the number of channels in the results.
-        """
-
-        identical, lengths = check_lengths_list_identical(
-            to_check=[
-                self.results["periodic_component"],
-                self.results["aperiodic_component"],
-                self.signal.power.ch_names,
-            ]
-        )
-        if not identical:
-            raise EntryLengthError(
-                "Error when trying to save the results of the FOOOF power "
-                "analysis:\nThe number of channels in the power data "
-                f"({lengths[1]}) and in the FOOOF results ({lengths[0]}) do "
-                "not match."
-            )
-
-        return self._get_results_dict()
