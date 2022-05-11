@@ -1,11 +1,4 @@
-"""Generates connectivity results from preprocessed data.
-
-METHODS
--------
-connectivity_coherence_analysis
--   Takes a coh_signal.Signal object of pre-processed data and analyses the
-    coherence (standard or imaginary) between the signals.
-"""
+"""Generates connectivity results from preprocessed data."""
 
 from coh_handle_files import (
     generate_analysiswise_fpath,
@@ -34,7 +27,7 @@ def coherence_processing(
     signal : coh_signal.Signal
     -   The pre-processed data to analyse.
 
-    folderpath_extras : str
+    folderpath_processing : str
     -   The folderpath to the location of the datasets' 'extras', e.g. the
         annotations, processing settings, etc...
 
@@ -76,7 +69,7 @@ def coherence_processing(
         task,
         acquisition,
         run,
-        "connectivity-coherence",
+        analysis,
         ".json",
     )
 
@@ -118,7 +111,7 @@ def coherence_processing(
                 task,
                 acquisition,
                 run,
-                f"connectivity-{method}",
+                f"connectivity-{analysis}_{method}",
                 ".json",
             )
             coherence.save_results(coherence_fpath)

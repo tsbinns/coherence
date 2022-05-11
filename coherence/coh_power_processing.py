@@ -23,7 +23,7 @@ import coh_signal
 
 def morlet_analysis(
     signal: coh_signal.Signal,
-    folderpath_extras: str,
+    folderpath_processing: str,
     dataset: str,
     analysis: str,
     subject: str,
@@ -39,7 +39,7 @@ def morlet_analysis(
     signal : coh_signal.Signal
     -   The pre-processed data to analyse.
 
-    folderpath_extras : str
+    folderpath_processing : str
     -   The folderpath to the location of the datasets' 'extras', e.g. the
         annotations, processing settings, etc...
 
@@ -70,78 +70,54 @@ def morlet_analysis(
 
     ### Analysis setup
     ## Gets the relevant filepaths
-    analysis_settings_fpath = generate_analysiswise_fpath(
-        folderpath_extras + "\\settings", analysis, ".json"
+    generic_settings_fpath = generate_analysiswise_fpath(
+        f"{folderpath_processing}\\Settings\\Generic", analysis, ".json"
     )
-    data_folderpath = f"{folderpath_extras}\\Data"
     power_fpath = generate_sessionwise_fpath(
-        data_folderpath,
+        f"{folderpath_processing}\\Data",
         dataset,
         subject,
         session,
         task,
         acquisition,
         run,
-        "power-morlet",
-        ".json",
-    )
-    itc_fpath = generate_sessionwise_fpath(
-        data_folderpath,
-        dataset,
-        subject,
-        session,
-        task,
-        acquisition,
-        run,
-        "connectivity-itc_morlet",
+        f"power-{analysis}",
         ".json",
     )
 
     ## Loads the analysis settings
-    analysis_settings = load_file(analysis_settings_fpath)
-    morlet_settings = analysis_settings["morlet_processing"]
-    power_norm_settings = morlet_settings["normalise_power"]
-    itc_norm_settings = morlet_settings["normalise_itc"]
+    analysis_settings = load_file(fpath=generic_settings_fpath)
 
     ### Data processing
     ## Morlet wavelet power analysis
     morlet = PowerMorlet(signal)
     morlet.process(
         freqs=np.arange(
-            morlet_settings["freqs"][0], morlet_settings["freqs"][1] + 1
+            analysis_settings["freqs"][0], analysis_settings["freqs"][1] + 1
         ).tolist(),
-        n_cycles=morlet_settings["n_cycles"],
-        use_fft=morlet_settings["use_fft"],
-        return_itc=morlet_settings["return_itc"],
-        decim=morlet_settings["decim"],
-        n_jobs=morlet_settings["n_jobs"],
-        picks=morlet_settings["picks"],
-        zero_mean=morlet_settings["zero_mean"],
-        average_epochs=morlet_settings["average_epochs"],
-        average_timepoints_power=morlet_settings["average_timepoints_power"],
-        average_timepoints_itc=morlet_settings["average_timepoints_itc"],
-        output=morlet_settings["output"],
+        n_cycles=analysis_settings["n_cycles"],
+        use_fft=analysis_settings["use_fft"],
+        decim=analysis_settings["decim"],
+        n_jobs=analysis_settings["n_jobs"],
+        picks=analysis_settings["picks"],
+        zero_mean=analysis_settings["zero_mean"],
+        average_windows=analysis_settings["average_windows"],
+        average_epochs=analysis_settings["average_epochs"],
+        average_timepoints=analysis_settings["average_timepoints"],
+        output=analysis_settings["output"],
     )
-    if power_norm_settings["apply"]:
+    if "normalise" in analysis_settings.keys():
+        norm_settings = analysis_settings["normalise"]
         morlet.normalise(
-            norm_type=power_norm_settings["norm_type"],
-            apply_to="power",
-            within_dim=power_norm_settings["within_dim"],
-            exclude_line_noise_window=power_norm_settings[
+            norm_type=norm_settings["norm_type"],
+            within_dim=norm_settings["within_dim"],
+            exclude_line_noise_window=norm_settings[
                 "exclude_line_noise_window"
             ],
-        )
-    if itc_norm_settings["apply"]:
-        morlet.normalise(
-            norm_type=itc_norm_settings["norm_type"],
-            apply_to="itc",
-            within_dim=itc_norm_settings["within_dim"],
-            exclude_line_noise_window=itc_norm_settings[
-                "exclude_line_noise_window"
-            ],
+            line_noise_freq=norm_settings["line_noise_freq"],
         )
     if save:
-        morlet.save_results(fpath_power=power_fpath, fpath_itc=itc_fpath)
+        morlet.save_results(fpath=power_fpath)
 
     return morlet
 

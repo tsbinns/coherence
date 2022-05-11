@@ -20,7 +20,11 @@ from coh_exceptions import (
     ProcessingOrderError,
     UnavailableProcessingError,
 )
-from coh_handle_entries import ordered_list_from_dict
+from coh_handle_entries import (
+    check_matching_entries,
+    ordered_list_from_dict,
+    rearrange_axes,
+)
 from coh_processing_methods import ProcMethod
 import coh_signal
 from coh_saving import save_object, save_dict
@@ -60,8 +64,6 @@ class ConnectivityCoherence(ProcMethod):
 
         # Initialises aspects of the object that will be filled with information
         # as the data is processed.
-        self.coherence = None
-        self.coherence_dims = None
         self._method = None
         self._seeds = None
         self._targets = None
@@ -88,7 +90,6 @@ class ConnectivityCoherence(ProcMethod):
 
         # Initialises aspects of the object that indicate which methods have
         # been called (starting as 'False'), which can later be updated.
-        self._windows_averaged = False
         self._timepoints_averaged = False
 
     def _sort_inputs(self) -> None:
@@ -185,21 +186,21 @@ class ConnectivityCoherence(ProcMethod):
                 "windows:\nResults have already been averaged across windows."
             )
 
-        n_windows = len(self.coherence)
+        n_windows = len(self.results)
         coherence = []
-        for results in self.coherence:
+        for results in self.results:
             coherence.append(results.get_data())
         coherence = np.asarray(coherence).mean(axis=0)
-        self.coherence = [
+        self.results = [
             SpectroTemporalConnectivity(
                 data=coherence,
-                freqs=self.coherence[0].freqs,
-                times=self.coherence[0].times,
-                n_nodes=self.coherence[0].n_nodes,
-                names=self.coherence[0].names,
-                indices=self.coherence[0].indices,
-                method=self.coherence[0].method,
-                n_epochs_used=self.coherence[0].n_epochs_used,
+                freqs=self.results[0].freqs,
+                times=self.results[0].times,
+                n_nodes=self.results[0].n_nodes,
+                names=self.results[0].names,
+                indices=self.results[0].indices,
+                method=self.results[0].method,
+                n_epochs_used=self.results[0].n_epochs_used,
             )
         ]
 
@@ -226,26 +227,26 @@ class ConnectivityCoherence(ProcMethod):
                 "been performed."
             )
 
-        if "timepoints" not in self.coherence_dims:
+        if "timepoints" not in self.results_dims:
             raise UnavailableProcessingError(
                 "Error when attempting to average the timepoints in the "
                 "connectivity results:\n There is no timepoints axis present "
-                f"in the data. The present axes are: \n{self.coherence_dims}"
+                f"in the data. The present axes are: \n{self.results_dims}"
             )
 
-        timepoints_i = self.coherence_dims[1:].index("timepoints")
-        n_timepoints = np.shape(self.coherence[0].get_data())[timepoints_i]
-        for i, results in enumerate(self.coherence):
-            self.coherence[i] = SpectralConnectivity(
+        timepoints_i = self.results_dims.index("timepoints")
+        n_timepoints = np.shape(self.results[0].get_data())[timepoints_i]
+        for i, results in enumerate(self.results):
+            self.results[i] = SpectralConnectivity(
                 data=np.mean(results.get_data(), axis=timepoints_i),
-                freqs=self.coherence[0].freqs,
-                n_nodes=self.coherence[0].n_nodes,
-                names=self.coherence[0].names,
-                indices=self.coherence[0].indices,
-                method=self.coherence[0].method,
-                n_epochs_used=self.coherence[0].n_epochs_used,
+                freqs=self.results[0].freqs,
+                n_nodes=self.results[0].n_nodes,
+                names=self.results[0].names,
+                indices=self.results[0].indices,
+                method=self.results[0].method,
+                n_epochs_used=self.results[0].n_epochs_used,
             )
-        self.coherence_dims.pop(timepoints_i + 1)
+        self._results_dims.pop(timepoints_i + 1)
 
         self._timepoints_averaged = True
         if self._verbose:
@@ -263,13 +264,11 @@ class ConnectivityCoherence(ProcMethod):
 
         supported_modes = ["multitaper", "fourier", "cwt_morlet"]
 
-        self.coherence_dims = ["windows"]
+        self._results_dims = ["windows"]
         if self._mode in ["multitaper", "fourier"]:
-            self.coherence_dims.extend(["channels", "frequencies"])
+            self._results_dims.extend(["channels", "frequencies"])
         elif self._mode in ["cwt_morlet"]:
-            self.coherence_dims.extend(
-                ["channels", "frequencies", "timepoints"]
-            )
+            self._results_dims.extend(["channels", "frequencies", "timepoints"])
         else:
             raise UnavailableProcessingError(
                 "Error when sorting the results of the connectivity analysis:\n"
@@ -280,7 +279,7 @@ class ConnectivityCoherence(ProcMethod):
 
     def _sort_dimensions(self) -> None:
         """Establishes dimensions of the coherence results and averages across
-        timepoints, if requested."""
+        windows and/or timepoints, if requested."""
 
         self._establish_coherence_dimensions()
 
@@ -304,9 +303,9 @@ class ConnectivityCoherence(ProcMethod):
 
         node_names = [[], []]
 
-        for group_i, indices in enumerate(self.coherence[0].indices):
+        for group_i, indices in enumerate(self.results[0].indices):
             for index in indices:
-                node_names[group_i].append(self.coherence[0].names[index])
+                node_names[group_i].append(self.results[0].names[index])
 
         return node_names
 
@@ -332,7 +331,7 @@ class ConnectivityCoherence(ProcMethod):
 
         node_ch_types = [[], []]
         ch_types = {}
-        for name in self.coherence[0].names:
+        for name in self.results[0].names:
             ch_types[name] = self.signal.data[0].get_channel_types(picks=name)[
                 0
             ]
@@ -396,7 +395,7 @@ class ConnectivityCoherence(ProcMethod):
 
         node_ch_coords = [[], []]
         ch_coords = {}
-        for name in self.coherence[0].names:
+        for name in self.results[0].names:
             ch_coords[name] = self.signal.get_coordinates()[
                 self.signal.data[0].ch_names.index(name)
             ]
@@ -623,7 +622,7 @@ class ConnectivityCoherence(ProcMethod):
                     method=connectivity[i].method,
                     n_epochs_used=connectivity[i].n_epochs_used,
                 )
-        self.coherence = connectivity
+        self.results = connectivity
 
         self._sort_dimensions()
         self._generate_extra_info()
@@ -884,30 +883,6 @@ class ConnectivityCoherence(ProcMethod):
             verbose=self._verbose,
         )
 
-    def get_results(self) -> tuple[NDArray, list[str]]:
-        """Extracts and returns coherence results.
-
-        RETURNS
-        -------
-        results : numpy array
-        -   Coherence results.
-
-        dims : list[str]
-        -   Dimensions of the results.
-        """
-
-        if self._windows_averaged:
-            results = self.coherence[0].get_data()
-            dims = self.coherence_dims[1:]
-        else:
-            results = []
-            for mne_obj in self.coherence:
-                results.append(mne_obj.get_data())
-            results = np.asarray(results)
-            dims = self.coherence_dims
-
-        return deepcopy(results), deepcopy(dims)
-
     def results_as_dict(self) -> dict:
         """Returns the coherence results and additional information as a
         dictionary.
@@ -918,12 +893,13 @@ class ConnectivityCoherence(ProcMethod):
         -   The results and additional information stored as a dictionary.
         """
 
-        results, results_dims = self.get_results()
+        dimensions = self._get_optimal_dims()
+        results = self.get_results(dimensions=dimensions)
 
         return {
             f"connectivity-{self._method}": results.tolist(),
-            f"connectivity-{self._method}_dimensions": results_dims,
-            "freqs": self.coherence[0].freqs,
+            f"connectivity-{self._method}_dimensions": dimensions,
+            "freqs": self.results[0].freqs,
             "seed_names": self.extra_info["node_ch_names"][0],
             "seed_types": self.extra_info["node_ch_types"][0],
             "seed_coords": self.extra_info["node_ch_coords"][0],
@@ -943,3 +919,29 @@ class ConnectivityCoherence(ProcMethod):
             "processing_steps": self.processing_steps,
             "subject_info": self.signal.data[0].info["subject_info"],
         }
+
+    def get_results(self, dimensions: Union[list[str], None] = None) -> NDArray:
+        """Extracts and returns results.
+
+        RETURNS
+        -------
+        results : numpy array
+        -   The results.
+        """
+
+        if dimensions is None:
+            dimensions = self.results_dims
+
+        if self._windows_averaged:
+            results = self.results[0].get_data()
+        else:
+            results = []
+            for mne_obj in self.results:
+                results.append(mne_obj.get_data())
+            results = np.asarray(results)
+
+        results = rearrange_axes(
+            obj=results, old_order=self.results_dims, new_order=dimensions
+        )
+
+        return deepcopy(results)

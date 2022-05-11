@@ -70,21 +70,18 @@ def find_exclusion_indices(
             "window must be greater than 0."
         )
 
-    if exclusion_window != 0:
-        half_window = exclusion_window / 2
-        exclusion_indices = []
-        bad_freqs = np.arange(
-            start=0, stop=freqs[-1] + line_noise_freq, step=line_noise_freq
-        )
-        for bad_freq in bad_freqs:
-            for freq_i, freq in enumerate(freqs):
-                if (
-                    freq >= bad_freq - half_window
-                    and freq <= bad_freq + half_window
-                ):
-                    exclusion_indices.append(freq_i)
-    else:
-        exclusion_indices = []
+    half_window = exclusion_window / 2
+    exclusion_indices = []
+    bad_freqs = np.arange(
+        start=0, stop=freqs[-1] + line_noise_freq, step=line_noise_freq
+    )
+    for bad_freq in bad_freqs:
+        for freq_i, freq in enumerate(freqs):
+            if (
+                freq >= bad_freq - half_window
+                and freq <= bad_freq + half_window
+            ):
+                exclusion_indices.append(freq_i)
 
     return exclusion_indices
 
@@ -120,11 +117,14 @@ def find_inclusion_indices(
         calculation.
     """
 
-    exclusion_indices = find_exclusion_indices(
-        freqs=freqs,
-        line_noise_freq=line_noise_freq,
-        exclusion_window=exclusion_window,
-    )
+    if exclusion_window is not None or exclusion_window != 0:
+        exclusion_indices = find_exclusion_indices(
+            freqs=freqs,
+            line_noise_freq=line_noise_freq,
+            exclusion_window=exclusion_window,
+        )
+    else:
+        exclusion_indices = []
 
     return [i for i in range(len(freqs)) if i not in exclusion_indices]
 

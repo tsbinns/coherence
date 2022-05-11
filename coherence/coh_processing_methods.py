@@ -8,9 +8,6 @@ ProcMethod
 
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from typing import Union
-from numpy.typing import NDArray
-import numpy as np
 import coh_signal
 
 
@@ -55,6 +52,8 @@ class ProcMethod(ABC):
 
         # Initialises aspects of the ProcMethod object that will be filled with
         # information as the data is processed.
+        self.results = None
+        self._results_dims = None
         self.processing_steps = None
         self.extra_info = None
 
@@ -66,56 +65,62 @@ class ProcMethod(ABC):
         # methods have been called (starting as 'False'), which can later be
         # updated.
         self._processed = False
+        self._windows_averaged = False
 
     @abstractmethod
     def process(self) -> None:
         """Performs the processing on the data."""
 
     @abstractmethod
-    def _sort_inputs(self):
+    def _sort_inputs(self) -> None:
         """Checks the inputs to the processing method object to ensure that they
         match the requirements for processing and assigns inputs."""
 
         self.processing_steps = deepcopy(self.signal.processing_steps)
         self.extra_info = deepcopy(self.signal.extra_info)
 
-    def _prepare_results_for_saving(
-        self,
-        results: NDArray,
-        results_dims: Union[list[str], None],
-        rearrange: Union[list[str], None],
-    ) -> list:
-        """Copies analysis results and rearranges their dimensions as specified
-        in preparation for saving.
-
-        PARAMETERS
-        ----------
-        results : numpy array
-        -   The results of the analysis.
-
-        results_dims : list[str] | None; default None
-        -   The names of the axes in the results, used for rearranging the axes.
-            If None, the data cannot be rearranged.
-
-        rearrange : list[str] | None; default None
-        -   How to rearrange the axes of the data once extracted. If given,
-            'results_structure' must also be given.
-        -   E.g. ["channels", "epochs", "timepoints"] would give data in the
-            format channels x epochs x timepoints
-        -   If None, the data is taken as is.
+    @property
+    def results_dims(self) -> list[str]:
+        """Returns the dimensions of the results, corresponding to the results
+        that will be returned with the 'get_results' method.
 
         RETURNS
         -------
-        extracted_results : array
-        -   The transformed results.
+        dims : list[str]
+        -   Dimensions of the results.
         """
 
-        extracted_results = deepcopy(results)
+        if self._windows_averaged:
+            dims = self._results_dims[1:]
+        else:
+            dims = self._results_dims
 
-        if rearrange:
-            extracted_results = np.transpose(
-                extracted_results,
-                [results_dims.index(axis) for axis in rearrange],
-            )
+        return deepcopy(dims)
 
-        return extracted_results.tolist()
+    @abstractmethod
+    def save_results(self) -> None:
+        """"""
+
+    def _get_optimal_dims(self) -> tuple[list, list[str]]:
+        """Finds the optimal order of dimensions for the results, following the
+        order ["windows", "channels", "epochs", "frequencies", "timepoints"]
+        based on which dimensions are present in the reuslts.
+
+        RETURNS
+        -------
+        optimal_dims : list[str]
+        -   Optimal dimensions of the results.
+        """
+
+        possible_order = [
+            "windows",
+            "channels",
+            "epochs",
+            "frequencies",
+            "timepoints",
+        ]
+        optimal_dims = [
+            dim for dim in possible_order if dim in self.results_dims
+        ]
+
+        return optimal_dims

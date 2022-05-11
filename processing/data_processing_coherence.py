@@ -20,7 +20,7 @@ FOLDERPATH_PROCESSING = (
 )
 DATASET = "BIDS_Berlin_ECOG_LFP"
 PREPROCESSING = "preprocessed-with_notch_filter"
-ANALYSIS = "connectivity_coherence"
+ANALYSIS = "con_coherence"
 SUBJECT = "003"
 SESSION = "EcogLfpMedOff01"
 TASK = "Rest"
