@@ -217,29 +217,17 @@ class PowerMorlet(ProcMethod):
         if self._verbose:
             print("Performing Morlet wavelet power analysis on the data.\n")
 
-        self.results = []
-        for i, data in enumerate(self.signal.data):
-            if self._verbose:
-                print(
-                    f"\n---=== Computing power for window {i+1} of "
-                    f"{len(self.signal.data)} ===---\n"
-                )
-            self.results.append(
-                time_frequency.tfr_morlet(
-                    inst=data,
-                    freqs=freqs,
-                    n_cycles=n_cycles,
-                    use_fft=use_fft,
-                    return_itc=False,
-                    decim=decim,
-                    n_jobs=n_jobs,
-                    picks=picks,
-                    zero_mean=zero_mean,
-                    average=average_epochs,
-                    output=output,
-                    verbose=self._verbose,
-                )
-            )
+        self.results = self._get_results(
+            freqs=freqs,
+            n_cycles=n_cycles,
+            use_fft=use_fft,
+            decim=decim,
+            n_jobs=n_jobs,
+            picks=picks,
+            zero_mean=zero_mean,
+            average_epochs=average_epochs,
+            output=output,
+        )
 
         self._epochs_averaged = average_epochs
         self._establish_power_dims()
@@ -262,6 +250,46 @@ class PowerMorlet(ProcMethod):
             "average_timepoints": average_timepoints,
             "output": output,
         }
+
+    def _get_results(
+        self,
+        freqs: list[Union[int, float]],
+        n_cycles: Union[int, list[int]],
+        use_fft: bool,
+        decim: Union[int, slice],
+        n_jobs: int,
+        picks: list[int],
+        zero_mean: bool,
+        average_epochs: bool,
+        output: str,
+    ) -> list:
+        """"""
+
+        results = []
+        for i, data in enumerate(self.signal.data):
+            if self._verbose:
+                print(
+                    f"\n---=== Computing power for window {i+1} of "
+                    f"{len(self.signal.data)} ===---\n"
+                )
+            results.append(
+                time_frequency.tfr_morlet(
+                    inst=data,
+                    freqs=freqs,
+                    n_cycles=n_cycles,
+                    use_fft=use_fft,
+                    return_itc=False,
+                    decim=decim,
+                    n_jobs=n_jobs,
+                    picks=picks,
+                    zero_mean=zero_mean,
+                    average=average_epochs,
+                    output=output,
+                    verbose=self._verbose,
+                )
+            )
+
+        return results
 
     def _establish_power_dims(self) -> None:
         """Establishes the dimensions of the power results."""
@@ -996,7 +1024,7 @@ class PowerFOOOF(ProcMethod):
 
         return results
 
-    def _get_result(
+    def _get_results(
         self,
     ) -> dict[np.array]:
         """Fits the FOOOF models to the data.
@@ -1094,7 +1122,7 @@ class PowerFOOOF(ProcMethod):
         if self._verbose:
             print("Performing FOOOF analysis on the data.\n")
 
-        self.results = self._get_result()
+        self.results = self._get_results()
 
         self._processed = True
         self.processing_steps["power_FOOOF"] = {

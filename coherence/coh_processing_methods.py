@@ -25,26 +25,17 @@ class ProcMethod(ABC):
     METHODS
     -------
     process (abstract)
-    -   Performs the processing on the data.
+    -   Processes the data.
 
-    save (abstract)
-    -   Saves the processed data to a specified location as a specified
-        filetype.
+    save_object (abstract)
+    -   Saves the object as a .pkl file.
 
-    SUBCLASSES
-    ----------
-    PowerMorlet
-    -   Performs power analysis on data using Morlet wavelets.
+    save_results (abstract)
+    -   Converts the results and additional information to a dictionary and
+        saves them as a file.
 
-    PowerFOOOF
-    -   Performs power analysis on data using FOOOF.
-
-    ConnectivityCoh
-    -   Performs connectivity analysis on data with coherence.
-
-    ConnectivityiCoh
-    -   Performs connectivity analysis on data with the imaginary part of
-        coherence.
+    results_as_dict (abstract)
+    -   Organises the results and additional information into a dictionary.
     """
 
     @abstractmethod
@@ -69,7 +60,11 @@ class ProcMethod(ABC):
 
     @abstractmethod
     def process(self) -> None:
-        """Performs the processing on the data."""
+        """Processes the data."""
+
+    @abstractmethod
+    def _get_results(self) -> None:
+        """Performs the analysis to get the results."""
 
     @abstractmethod
     def _sort_inputs(self) -> None:
@@ -98,10 +93,20 @@ class ProcMethod(ABC):
         return deepcopy(dims)
 
     @abstractmethod
-    def save_results(self) -> None:
-        """"""
+    def save_object(self) -> None:
+        """Saves the object as a .pkl file."""
 
-    def _get_optimal_dims(self) -> tuple[list, list[str]]:
+    @abstractmethod
+    def save_results(self) -> None:
+        """Converts the results and additional information to a dictionary and
+        saves them as a file."""
+
+    @abstractmethod
+    def results_as_dict(self) -> None:
+        """Organises the results and additional information into a
+        dictionary."""
+
+    def _get_optimal_dims(self) -> list[str]:
         """Finds the optimal order of dimensions for the results, following the
         order ["windows", "channels", "epochs", "frequencies", "timepoints"]
         based on which dimensions are present in the reuslts.
