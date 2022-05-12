@@ -21,7 +21,6 @@ from coh_exceptions import (
     UnavailableProcessingError,
 )
 from coh_handle_entries import (
-    check_matching_entries,
     ordered_list_from_dict,
     rearrange_axes,
 )
