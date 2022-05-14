@@ -4,6 +4,10 @@ CLASSES
 -------
 ConnectivityCoherence : subclass of the abstract base class 'ProcMethod'
 -   Calculates the coherence (standard or imaginary) between signals.
+
+ConectivityMultivariate : subclass of the abstract base class 'ProcMethod'
+-   Calculates the multivariate connectivity (multivariate interaction measure,
+    MIM, or maximised imaginary coherence, MIC) between signals.
 """
 
 from copy import deepcopy
@@ -46,7 +50,7 @@ class ConnectivityCoherence(ProcMethod):
     -   Performs coherence analysis.
 
     save_object
-    -   Saves the ConnectivityCoherence object as a .pkl file.
+    -   Saves the object as a .pkl file.
 
     save_results
     -   Saves the results and additional information as a file.
@@ -950,3 +954,30 @@ class ConnectivityCoherence(ProcMethod):
         )
 
         return deepcopy(results)
+
+class ConnectivityMultivariate(ProcMethod):
+    """Calculates the multivariate connectivity (multivariate interaction
+    measure, MIM, or maximised imaginary coherence, MIC) between signals.
+
+    PARAMETERS
+    ----------
+    signal : coh_signal.Signal
+    -   The preprocessed data to analyse.
+
+    verbose : bool; default True
+    -   Whether or not to print information about the information processing.
+
+    METHODS
+    -------
+    process
+    -   Performs multivariate connectivity analysis.
+
+    save_object
+    -   Saves the object as a .pkl file.
+
+    save_results
+    -   Saves the results and additional information as a file.
+
+    results_as_dict
+    -   Returns the results and additional information as a dictionary.
+    """
