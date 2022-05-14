@@ -1,5 +1,5 @@
 classdef coh_ConnectivityTRGC < coh_ProcMethod
-    % Calculates the time-reversed Granger causality (TRGC) between signals.
+    % Calculates the net time-reversed Granger causality (TRGC) between signals.
     %
     % PARAMETERS
     % ----------

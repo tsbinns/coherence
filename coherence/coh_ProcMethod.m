@@ -17,18 +17,20 @@ classdef (Abstract) coh_ProcMethod
         processing_steps = []
         extra_info = []
     end
+
     properties(Access=protected)
         results_dims_ = []
         verbose = false
         processed = false
         windows_averaged = false
     end
+
     properties(Dependent)
         results_dims
     end
     
+    
     % ===== METHODS =====
-    % --- PUBLIC METHODS ---
     methods
         function obj = coh_ProcMethod(signal, verbose)
             % Initialises the object.
@@ -58,7 +60,6 @@ classdef (Abstract) coh_ProcMethod
         end
     end
 
-    % --- PRIVATE METHODS ---
     methods (Abstract, Access=protected)
         function obj = sort_inputs(obj)
             % Sorts inputs to the objects.
