@@ -12,6 +12,7 @@ ConectivityMultivariate : subclass of the abstract base class 'ProcMethod'
 
 from copy import deepcopy
 from typing import Optional, Union
+from mne import Epochs
 from mne_connectivity import (
     seed_target_indices,
     spectral_connectivity_epochs,
@@ -20,14 +21,12 @@ from mne_connectivity import (
 )
 from numpy.typing import NDArray
 import numpy as np
+from coh_connectivity_computations import multivariate_connectivity
 from coh_exceptions import (
     ProcessingOrderError,
     UnavailableProcessingError,
 )
-from coh_handle_entries import (
-    ordered_list_from_dict,
-    rearrange_axes,
-)
+from coh_handle_entries import ordered_list_from_dict, rearrange_axes, unique
 from coh_processing_methods import ProcMethod
 import coh_signal
 from coh_saving import save_object, save_dict
@@ -57,6 +56,9 @@ class ConnectivityCoherence(ProcMethod):
 
     results_as_dict
     -   Returns the results and additional information as a dictionary.
+
+    get_results
+    -   Extracts and returns results.
     """
 
     def __init__(self, signal: coh_signal.Signal, verbose: bool = True) -> None:
@@ -83,9 +85,6 @@ class ConnectivityCoherence(ProcMethod):
         self._mt_low_bias = None
         self._cwt_freqs = None
         self._cwt_n_cycles = None
-        self._shuffle_group = None
-        self._n_shuffles = None
-        self._shuffle_rng_seed = None
         self._average_windows = None
         self._average_timepoints = None
         self._block_size = None
@@ -139,26 +138,22 @@ class ConnectivityCoherence(ProcMethod):
         connectivity between signals."""
 
         groups = ["_seeds", "_targets"]
-        channel_types = self.signal.data[0].get_channel_types()
+        ch_types = self.signal.data[0].get_channel_types()
         for group in groups:
             channels = getattr(self, group)
             if channels is None:
-                setattr(self, group, self.signal.data[0].ch_names)
+                channels = deepcopy(self.signal.data[0].ch_names)
             elif isinstance(channels, str):
                 if channels[:5] == "type_":
-                    setattr(
-                        self,
-                        group,
-                        [
-                            name
-                            for i, name in enumerate(
-                                self.signal.data[0].ch_names
-                            )
-                            if channel_types[i] == channels[5:]
-                        ],
-                    )
+                    desired_type = channels[5:]
+                    channels = [
+                        name
+                        for i, name in enumerate(self.signal.data[0].ch_names)
+                        if ch_types[i] == desired_type
+                    ]
                 else:
-                    setattr(self, group, [channels])
+                    channels = [channels]
+            setattr(self, group, channels)
 
         self._generate_indices()
 
@@ -955,6 +950,7 @@ class ConnectivityCoherence(ProcMethod):
 
         return deepcopy(results)
 
+
 class ConnectivityMultivariate(ProcMethod):
     """Calculates the multivariate connectivity (multivariate interaction
     measure, MIM, or maximised imaginary coherence, MIC) between signals.
@@ -980,4 +976,489 @@ class ConnectivityMultivariate(ProcMethod):
 
     results_as_dict
     -   Returns the results and additional information as a dictionary.
+
+    get_results
+    -   Extracts and returns results.
     """
+
+    def __init__(self, signal: coh_signal.Signal, verbose: bool = True) -> None:
+        super().__init__(signal, verbose)
+
+        # Initialises inputs of the object.
+        self._sort_inputs()
+
+        # Initialises aspects of the object that will be filled with information
+        # as the data is processed.
+        self._method = None
+        self._seeds = None
+        self._targets = None
+        self._indices = None
+        self._mode = None
+        self._fmin = None
+        self._fmax = None
+        self._fskip = None
+        self._faverage = None
+        self._tmin = None
+        self._tmax = None
+        self._mt_bandwidth = None
+        self._mt_adaptive = None
+        self._mt_low_bias = None
+        self._cwt_freqs = None
+        self._cwt_n_cycles = None
+        self._average_windows = None
+        self._block_size = None
+        self._n_jobs = None
+
+    def _sort_inputs(self) -> None:
+        """Checks the inputs to the object to ensure that they match the
+        requirements for processing and assigns inputs.
+
+        RAISES
+        ------
+        ValueError
+        -   Raised if the dimensions of the data in the Signal object is not
+            supported.
+        """
+
+        supported_data_dims = ["windows", "epochs", "channels", "timepoints"]
+        if self.signal.data_dimensions != supported_data_dims:
+            raise ValueError(
+                "Error when trying to perform coherence analysis on the "
+                "data:\nData in the Signal object has the dimensions "
+                f"{self.signal.data_dimensions}, but only data with dimensions "
+                f"{supported_data_dims} is supported."
+            )
+
+        super()._sort_inputs()
+
+    def process(
+        self,
+        method: str,
+        mode: str,
+        seeds: Optional[Union[str, list[str]]] = None,
+        targets: Optional[Union[str, list[str]]] = None,
+        fmin: Optional[Union[float, tuple]] = None,
+        fmax: Optional[Union[float, tuple]] = float("inf"),
+        fskip: int = 0,
+        faverage: bool = False,
+        tmin: Optional[float] = None,
+        tmax: Optional[float] = None,
+        mt_bandwidth: Optional[float] = None,
+        mt_adaptive: bool = False,
+        mt_low_bias: bool = True,
+        cwt_freqs: Optional[Union[list, NDArray]] = None,
+        cwt_n_cycles: Union[int, float, NDArray] = 7,
+        average_windows: bool = False,
+        block_size: int = 1000,
+        n_jobs: int = 1,
+    ) -> None:
+        """Applies the connectivity analysis using the
+        spectral_connectivity_epochs function of the mne-connectivity package to
+        generate coherency values for the computation of multivariate connectivity
+        metrics.
+
+        PARAMETERS
+        ----------
+        method : str
+        -   The multivariate connectivity metric to compute.
+        -   Supported inputs are: 'mim' - multivariate interaction measure; and
+            'mic' - maximised imaginary coherence.
+
+        mode : str
+        -   The mode for calculating coherency.
+        -   Supported inputs are: 'multitaper'; 'fourier'; and 'cwt_morlet'.
+
+        seeds : str | list[str] | None; default None
+        -   The channels to use as seeds for the connectivity analysis.
+            Connectivity is calculated from each seed to each target.
+        -   If a string, can either be a single channel name, or a single
+            channel type. In the latter case, the channel type should be
+            preceded by 'type_', e.g. 'type_ecog'. In this case, channels belonging
+            to each type with different epoch orders and rereferencing types will be
+            handled separately.
+        -   If a list of strings, each entry of the list should be a channel
+            name.
+        -   If None, all channels will be used as seeds.
+
+        targets : str | list[str] | None; default None
+        -   The channels to use as targets for the connectivity analysis.
+            Connectivity is calculated from each seed to each target.
+        -   If a string, can either be a single channel name, or a single
+            channel type. In the latter case, the channel type should be
+            preceded by 'type_', e.g. 'type_ecog'. In this case, channels belonging
+            to each type with different epoch orders and rereferencing types will be
+            handled separately.
+        -   If a list of strings, each entry of the list should be a channel
+            name.
+        -   If None, all channels will be used as targets.
+
+        fmin : float | tuple | None
+        -   The lower frequency of interest.
+        -   If a float, this frequency is used.
+        -   If a tuple, multiple bands are defined, with each entry being the
+            lower frequency for that band. E.g. (8., 20.) would give two bands
+            using 8 Hz and 20 Hz, respectively, as their lower frequencies.
+        -   If None, no lower frequency is used.
+
+        fmax : float | tuple; default infinite
+        -   The higher frequency of interest.
+        -   If a float, this frequency is used.
+        -   If a tuple, multiple bands are defined, with each entry being the
+            higher frequency for that band. E.g. (8., 20.) would give two bands
+            using 8 Hz and 20 Hz, respectively, as their higher frequencies.
+        -   If an infinite float, no higher frequency is used.
+
+        fskip : int; default 0
+        -   Omit every 'fskip'+1th frequency bin to decimate the frequency
+            domain.
+        -   If 0, no bins are skipped.
+
+        faverage : bool; default False
+        -   Whether or not to average the connectivity values for each frequency
+            band.
+
+        tmin : float | None; default None
+        -   Time to start the connectivity estimation.
+        -   If None, the data is used from the beginning.
+
+        tmax : float | None; default None
+        -   Time to end the connectivity estimation.
+        -   If None, the data is used until the end.
+
+        mt_bandwidth : float | None
+        -   The bandwidth, in Hz, of the multitaper windowing function.
+        -   Only used if 'mode' is 'multitaper'.
+
+        mt_adaptive : bool; default False
+        -   Whether or not to use adaptive weights to comine the tapered spectra
+            into power spectra.
+        -   Only used if 'mode' is 'multitaper'.
+
+        mt_low_bias : bool: default True
+        -   Whether or not to only use tapers with > 90% spectral concentration
+            within bandwidth.
+        -   Only used if 'mode' is 'multitaper'.
+
+        cwt_freqs: list[int | float] | array[int | float] | None
+        -   The frequencies of interest to calculate connectivity for.
+        -   Only used if 'mode' is 'cwt_morlet'. In this case, 'cwt_freqs'
+            cannot be None.
+
+        cwt_n_cycles: int | float | array[int | float]; default 7
+        -   The number of cycles to use when calculating connectivity.
+        -   If an single integer or float, this number of cycles is for each
+            frequency.
+        -   If an array, the entries correspond to the number of cycles to use
+            for each frequency being analysed.
+        -   Only used if 'mode' is 'cwt_morlet'.
+
+        average_windows : bool; default False
+        -   Whether or not to average connectivity results across windows.
+
+        block_size : int; default 1000
+        -   The number of connections to compute at once.
+
+        n_jobs : int; default 1
+        -   The number of epochs to calculate connectivity for in parallel.
+        """
+
+        if self._processed:
+            ProcessingOrderError(
+                "The data in this object has already been processed. "
+                "Initialise a new instance of the object if you want to "
+                "perform other analyses on the data."
+            )
+
+        self._method = method
+        self._mode = mode
+        self._seeds = seeds
+        self._targets = targets
+        self._fmin = fmin
+        self._fmax = fmax
+        self._fskip = fskip
+        self._faverage = faverage
+        self._tmin = tmin
+        self._tmax = tmax
+        self._mt_bandwidth = mt_bandwidth
+        self._mt_adaptive = mt_adaptive
+        self._mt_low_bias = mt_low_bias
+        self._cwt_freqs = cwt_freqs
+        self._cwt_n_cycles = cwt_n_cycles
+        self._average_windows = average_windows
+        self._block_size = block_size
+        self._n_jobs = n_jobs
+
+        self._sort_processing_inputs()
+
+        self._get_results()
+
+        self._processed = True
+        self.processing_steps["connectivity_multivariate"] = {
+            "method": method,
+            "mode": mode,
+            "seeds": seeds,
+            "targets": targets,
+            "fmin": fmin,
+            "fmax": fmax,
+            "fskip": fskip,
+            "faverage": faverage,
+            "tmin": tmin,
+            "tmax": tmax,
+            "mt_bandwidth": mt_bandwidth,
+            "mt_adaptive": mt_adaptive,
+            "mt_low_bias": mt_low_bias,
+            "cwt_freqs": cwt_freqs,
+            "cwt_n_cycles": cwt_n_cycles,
+            "average_windows": average_windows,
+        }
+
+    def _sort_processing_inputs(self) -> None:
+        """Converts the connectivity seeds and targets into channel indices for
+        the connectivity analysis, and generates epoch-shuffled data, if
+        requested."""
+
+        self._sort_indices()
+
+        if self._cwt_freqs is not None:
+            self._cwt_freqs = np.arange(
+                start=self._cwt_freqs[0], stop=self._cwt_freqs[1] + 1
+            )
+
+    def _sort_indices(self) -> None:
+        """Sorts the inputs for generating MNE-readable indices for calculating
+        connectivity between signals."""
+
+        groups = ["_seeds", "_targets"]
+        expand_groups = False
+        for group in groups:
+            channels = getattr(self, group)
+            if channels is None:
+                channels = deepcopy(self.signal.data[0].ch_names)
+            elif isinstance(channels, str):
+                if channels[:5] == "type_":
+                    expand_groups = True
+                    channels = self._seeds_targets_from_type(
+                        ch_type=channels[5:]
+                    )
+                else:
+                    channels = [channels]
+            setattr(self, group, channels)
+
+        if expand_groups:
+            self._expand_seeds_targets()
+
+        self._generate_indices()
+
+    def _seeds_targets_from_type(self, ch_type: str) -> list[str]:
+        """Gets channel names to use for connectivity seeds or targets for a
+        particular channel type, grouping channels based on their rereferencing
+        and epoch order types.
+
+        PARAMETERS
+        ----------
+        ch_type : str
+        -   The channel type to get seed/target names for.
+
+        RETURNS
+        -------
+        channels : list[str]
+        -   Names of channels grouped according to their rereferencing and epoch
+            order types.
+        """
+
+        channels = []
+        chs_of_type = []
+        ch_types = self.signal.data[0].get_channel_types()
+        for ch_i, ch_name in enumerate(self.signal.data[0].ch_names):
+            if ch_types[ch_i] == ch_type:
+                chs_of_type.append(ch_name)
+
+        ch_reref_types = []
+        ch_epoch_orders = []
+        for ch_name in chs_of_type:
+            ch_reref_types.append(self.extra_info["ch_reref_types"][ch_name])
+            ch_epoch_orders.append(self.extra_info["ch_epoch_orders"][ch_name])
+        reref_types = unique(ch_reref_types)
+        epoch_orders = unique(ch_epoch_orders)
+
+        for reref_type in reref_types:
+            for epoch_order in epoch_orders:
+                channels.append([])
+                for ch_i, ch_name in enumerate(chs_of_type):
+                    if (
+                        ch_reref_types[ch_i] == reref_type
+                        and ch_epoch_orders[ch_i] == epoch_order
+                    ):
+                        channels[-1].append(ch_name)
+
+        return channels
+
+    def _expand_seeds_targets(self) -> None:
+        """Expands the channels in the seed and target groups such that
+        connectivity is computed bwteen each seed and each target group.
+        -   Should be used when seeds and/or targets have been automatically
+            generated based on channel types."""
+
+        seeds = []
+        targets = []
+        for seed in self._seeds:
+            for target in self._targets:
+                seeds.append(seed)
+                targets.append(target)
+
+        self._seeds = seeds
+        self._targets = targets
+
+    def _generate_indices(self) -> None:
+        """Generates MNE-readable indices for calculating connectivity between
+        signals."""
+
+        self._indices = []
+        for seeds, targets in zip(self._seeds, self._targets):
+            ch_names = [*seeds, *targets]
+            ch_idcs = [
+                ch_i
+                for ch_i, name in enumerate(self.signal.data[0].ch_names)
+                if name in ch_names
+            ]
+            self._indices.append(
+                seed_target_indices(seeds=ch_idcs, targets=ch_idcs)
+            )
+
+    def _get_results(self) -> None:
+        """Performs the connectivity analysis."""
+
+        connectivity = []
+        for win_i, win_data in enumerate(self.signal.data):
+            if self._verbose:
+                print(
+                    f"Computing connectivity for window {win_i+1} of "
+                    f"{len(self.signal.data)}.\n"
+                )
+            coherency = self._get_cohy(win_data)
+            connectivity.append(self._get_multivariate_results(coherency))
+
+    def _get_cohy(self, data: Epochs) -> list[SpectralConnectivity]:
+        """For the data of a single window, calculates the coherency between all
+        seeds and targets for use in computing multivariate measures using the
+        implementation of MNE's 'spectral_connectivity_epochs'.
+        -   Any resulting temporal data is averaged over to give a single
+            connectivity value per seed-target pair.
+
+        PARAMETERS
+        ----------
+        data : MNE Epochs
+        -   The data for a single window.
+
+        RETURNS
+        -------
+        coherency : list[MNE SpectralConnectivity]
+        -   List containing the coherency for each indices group.
+        """
+
+        coherency = []
+        for indices in self._indices:
+            results = spectral_connectivity_epochs(
+                data=data,
+                method="cohy",
+                indices=indices,
+                sfreq=data.info["sfreq"],
+                mode=self._mode,
+                fmin=self._fmin,
+                fmax=self._fmax,
+                fskip=self._fskip,
+                faverage=self._faverage,
+                tmin=self._tmin,
+                tmax=self._tmax,
+                mt_bandwidth=self._mt_bandwidth,
+                mt_adaptive=self._mt_adaptive,
+                mt_low_bias=self._mt_low_bias,
+                cwt_freqs=self._cwt_freqs,
+                cwt_n_cycles=self._cwt_n_cycles,
+                block_size=self._block_size,
+                n_jobs=self._n_jobs,
+                verbose=self._verbose,
+            )
+            if isinstance(results, SpectroTemporalConnectivity):
+                results = SpectralConnectivity(
+                    data=np.mean(results.get_data(), axis=-1),
+                    freqs=results.freqs,
+                    n_nodes=results.n_nodes,
+                    names=results.names,
+                    indices=results.indices,
+                    method=results.method,
+                    n_epochs_used=results.n_epochs_used,
+                )
+            coherency.append(results)
+
+        return coherency
+
+    def _get_multivariate_results(
+        self, data: list[SpectralConnectivity]
+    ) -> None:
+        """"""
+
+        connectivity = []
+        for con_i, coherency in enumerate(data):
+            cohy_matrix = self._get_cohy_matrix(coherency)
+            results = multivariate_connectivity(
+                data=cohy_matrix,
+                method=self._method,
+                n_group_a=len(self._seeds[con_i]),
+                n_group_b=len(self._targets[con_i]),
+            )
+            connectivity.append(results)
+        seed_indices = [indices[0] for indices in self._indices]
+        target_indices = [indices[1] for indices in self._indices]
+        indices = np.asarray([seed_indices, target_indices])
+        connectivity = SpectralConnectivity(
+            data=np.asarray(connectivity),
+            freqs=data[0].freqs,
+            n_nodes=data[0].n_nodes,
+            names=data[0].names,
+            indices=indices,
+            method=self._method,
+            n_epochs_used=data[0].n_epochs_used,
+        )
+
+    def _get_cohy_matrix(self, data: SpectralConnectivity) -> NDArray:
+        """Converts the coherency data with dimensions [connections x
+        frequencies] - where the number of connections is equal to the number of
+        nodes squared - into a three-dimensional matrix with dimensions [nodes x
+        nodes x frequencies].
+
+        PARAMETERS
+        ----------
+        data : MNE SpectralConnectivity
+        -   MNE connectivity object containing the coherency values for all
+            possible seed-target pairs for two groups of signals.
+
+        RETURNS
+        -------
+        data_matrix : numpy Array
+        -   A three-dimensional array containing the coherency values for all
+            possible connections between the seed-target pairs in the first two
+            dimensions, and frequencies in the third dimension.
+        """
+
+        data_vals = data.get_data()
+        n_nodes = len(np.unique(data.indices[0]))
+        n_freqs = len(data.freqs)
+        data_matrix = np.empty((n_nodes, n_nodes, n_freqs), dtype="complex128")
+        for freq_i in range(n_freqs):
+            data_matrix[:, :, freq_i] = np.reshape(
+                data_vals[:, freq_i], (n_nodes, n_nodes)
+            )
+
+        return data_matrix
+
+    def save_object(self) -> None:
+        """Saves the object as a .pkl file."""
+
+    def save_results(self) -> None:
+        """Converts the results and additional information to a dictionary and
+        saves them as a file."""
+
+    def results_as_dict(self) -> None:
+        """Organises the results and additional information into a
+        dictionary."""
