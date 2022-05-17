@@ -720,6 +720,97 @@ def combine_col_vals_df(
     return combined_vals
 
 
+def combine_vals_list(
+    obj: list,
+    idcs: Union[list[int], None] = None,
+    special_vals: Union[dict[str], None] = None,
+    joiner: str = " & ",
+) -> str:
+    """Combines the values of DataFrame columns into a string on a row-by-row
+    basis (i.e. one string for each row).
+
+    PARAMETERS
+    ----------
+    obj : list
+    -   List whose values should be combined.
+
+    idcs : list[int] | None
+    -   Indices of the values that should be combined.
+    -   If 'None', all values are used.
+
+    special_vals : dict[str] | None
+    -   Instructions for how to treat specific values in the list.
+    -   Keys are the special values that the values should begin with, whilst
+        values are the values that the special values should be replaced with.
+    -   E.g. {"avg[": "avg_"} would mean values in the list beginning with
+        'avg[' would have this beginning replaced with 'avg_', followed by the
+        column name, so a value beginning with 'avg[' in the 'channels' column
+        would become 'avg_channels'.
+
+    joiner : str; default " & "
+    -   String to join each value with.
+
+    RETURNS
+    -------
+    combined_vals : str
+    -   The values of the list combined into a single string.
+    """
+
+    if idcs is None:
+        idcs = np.arange(len(obj))
+    if special_vals is None:
+        special_vals = {}
+
+    combined_vals = ""
+    for val_i, val in enumerate(obj):
+        if val_i in idcs:
+            for to_replace, replacement in special_vals.items():
+                if val[: len(to_replace)] == to_replace:
+                    val = replacement
+            combined_vals += f"{val}{joiner}"
+
+    return combined_vals[: -len(joiner)]
+
+
+def separate_vals_string(obj: str, separate_at: str) -> list[str]:
+    """Splits a string into substrings based on the occurence of characters
+    within the string, printing a warning if no separation takes place.
+
+    PARAMETERS
+    ----------
+    obj : str
+    -   The string to separate.
+
+    separate_at : str
+    -   Characters in the string to split the data at.
+    -   E.g. if 'separate_at' were " & ", the string "one & two" would be split
+        into two strings: "one" and "two".
+
+    RETURNS
+    -------
+    separated_vals : list[str]
+    -   The string split into substrings.
+    """
+
+    separated_vals = []
+    start_i = 0
+    search = True
+    while search:
+        separate_i = obj.find(separate_at, start_i)
+        if separate_i == -1:
+            search = False
+        separated_vals.append(obj[start_i:separate_i])
+        start_i = separate_i + len(separate_at)
+
+    if len(separated_vals) == 1:
+        print(
+            "Warning: The string was not split into multiple substrings, as no "
+            f"occurence of '{separate_at}' within the input string was found."
+        )
+
+    return separated_vals
+
+
 def rearrange_axes(
     obj: Union[list, NDArray], old_order: list[str], new_order: list[str]
 ) -> Union[list, NDArray]:
