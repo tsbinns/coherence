@@ -794,11 +794,11 @@ def separate_vals_string(obj: str, separate_at: str) -> list[str]:
 
     separated_vals = []
     start_i = 0
-    search = True
-    while search:
+    while True:
         separate_i = obj.find(separate_at, start_i)
         if separate_i == -1:
-            search = False
+            separated_vals.append(obj[start_i:])
+            break
         separated_vals.append(obj[start_i:separate_i])
         start_i = separate_i + len(separate_at)
 
