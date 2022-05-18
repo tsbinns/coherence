@@ -34,6 +34,7 @@ from coh_handle_entries import (
     unique,
 )
 from coh_processing_methods import ProcMethod
+from coh_progress_bar import ProgressBar
 import coh_signal
 from coh_saving import save_object, save_dict
 
@@ -820,7 +821,7 @@ class ConnectivityCoherence(ProcMethod):
         fpath: str,
         ask_before_overwrite: Optional[bool] = None,
     ) -> None:
-        """Saves the ConnectivityCoherence object as a .pkl file.
+        """Saves the object as a .pkl file.
 
         PARAMETERS
         ----------
@@ -849,7 +850,7 @@ class ConnectivityCoherence(ProcMethod):
         ftype: Optional[str] = None,
         ask_before_overwrite: Optional[bool] = None,
     ) -> None:
-        """Saves the coherence results and additional information as a file.
+        """Saves the results and additional information as a file.
 
         PARAMETERS
         ----------
@@ -886,8 +887,7 @@ class ConnectivityCoherence(ProcMethod):
         )
 
     def results_as_dict(self) -> dict:
-        """Returns the coherence results and additional information as a
-        dictionary.
+        """Returns the results and additional information as a dictionary.
 
         RETURNS
         -------
@@ -1012,6 +1012,7 @@ class ConnectivityMultivariate(ProcMethod):
         self._average_windows = None
         self._block_size = None
         self._n_jobs = None
+        self._separated_names = None
 
     def _sort_inputs(self) -> None:
         """Checks the inputs to the object to ensure that they match the
@@ -1194,7 +1195,16 @@ class ConnectivityMultivariate(ProcMethod):
 
         self._sort_processing_inputs()
 
+        if self._verbose:
+            self._progress_bar = ProgressBar(
+                n_steps=len(self.signal.data) * len(self._indices) * 2,
+                title="Computing connectivity",
+            )
+
         self._get_results()
+
+        if self._verbose:
+            self._progress_bar.close()
 
         self._processed = True
         self.processing_steps["connectivity_multivariate"] = {
@@ -1408,6 +1418,8 @@ class ConnectivityMultivariate(ProcMethod):
                     n_epochs_used=results.n_epochs_used,
                 )
             coherency.append(results)
+            if self._verbose:
+                self._progress_bar.update_progress()
 
         return coherency
 
@@ -1446,6 +1458,8 @@ class ConnectivityMultivariate(ProcMethod):
                 n_group_b=len(self._targets[con_i]),
             )
             connectivity.append(results)
+            if self._verbose:
+                self._progress_bar.update_progress()
 
         return self._multivariate_to_mne(
             data=np.asarray(connectivity),
@@ -1634,16 +1648,16 @@ class ConnectivityMultivariate(ProcMethod):
             results.
         """
 
-        node_names = [[], []]
-        for group_i, indices in enumerate(self.results[0].indices):
-            for index in indices:
-                node_names[group_i].append(self.results[0].names[index])
-
         self._separated_names = []
         for combined_names in self.results[0].names:
             self._separated_names.append(
                 separate_vals_string(combined_names, " & ")
             )
+
+        node_names = [[], []]
+        for group_i, indices in enumerate(self.results[0].indices):
+            for index in indices:
+                node_names[group_i].append(self.results[0].names[index])
 
         return node_names
 
@@ -1662,7 +1676,6 @@ class ConnectivityMultivariate(ProcMethod):
             characters.
         """
 
-        node_ch_types = [[], []]
         ch_types = {}
         for node_i, combined_names in enumerate(self.results[0].names):
             ch_types[combined_names] = []
@@ -1675,6 +1688,7 @@ class ConnectivityMultivariate(ProcMethod):
                 unique_types = [combine_vals_list(unique_types)]
             ch_types[combined_names] = unique_types[0]
 
+        node_ch_types = [[], []]
         for group_i in range(2):
             for name in self.extra_info["node_ch_names"][group_i]:
                 node_ch_types[group_i].append(ch_types[name])
@@ -1696,7 +1710,6 @@ class ConnectivityMultivariate(ProcMethod):
             characters.
         """
 
-        node_reref_types = [[], []]
         ch_reref_types = {}
         for node_i, combined_names in enumerate(self.results[0].names):
             ch_reref_types[combined_names] = ordered_list_from_dict(
@@ -1708,6 +1721,7 @@ class ConnectivityMultivariate(ProcMethod):
                 unique_types = [combine_vals_list(unique_types)]
             ch_reref_types[combined_names] = unique_types[0]
 
+        node_reref_types = [[], []]
         for group_i in range(2):
             for name in self.extra_info["node_ch_names"][group_i]:
                 node_reref_types[group_i].append(ch_reref_types[name])
@@ -1755,7 +1769,6 @@ class ConnectivityMultivariate(ProcMethod):
             characters.
         """
 
-        node_ch_regions = [[], []]
         ch_regions = {}
         for node_i, combined_names in enumerate(self.results[0].names):
             ch_regions[combined_names] = ordered_list_from_dict(
@@ -1767,6 +1780,7 @@ class ConnectivityMultivariate(ProcMethod):
                 unique_types = [combine_vals_list(unique_types)]
             ch_regions[combined_names] = unique_types[0]
 
+        node_ch_regions = [[], []]
         for group_i in range(2):
             for name in self.extra_info["node_ch_names"][group_i]:
                 node_ch_regions[group_i].append(ch_regions[name])
@@ -1896,13 +1910,140 @@ class ConnectivityMultivariate(ProcMethod):
 
         return node_epoch_orders
 
-    def save_object(self) -> None:
-        """Saves the object as a .pkl file."""
+    def save_object(
+        self,
+        fpath: str,
+        ask_before_overwrite: Optional[bool] = None,
+    ) -> None:
+        """Saves the object as a .pkl file.
 
-    def save_results(self) -> None:
-        """Converts the results and additional information to a dictionary and
-        saves them as a file."""
+        PARAMETERS
+        ----------
+        fpath : str
+        -   Location where the data should be saved. The filetype extension
+            (.pkl) can be included, otherwise it will be automatically added.
 
-    def results_as_dict(self) -> None:
-        """Organises the results and additional information into a
-        dictionary."""
+        ask_before_overwrite : bool
+        -   Whether or not the user is asked to confirm to overwrite a
+            pre-existing file if one exists.
+        """
+
+        if ask_before_overwrite is None:
+            ask_before_overwrite = self._verbose
+
+        save_object(
+            to_save=self,
+            fpath=fpath,
+            ask_before_overwrite=ask_before_overwrite,
+            verbose=self._verbose,
+        )
+
+    def save_results(
+        self,
+        fpath: str,
+        ftype: Optional[str] = None,
+        ask_before_overwrite: Optional[bool] = None,
+    ) -> None:
+        """Saves the results and additional information as a file.
+
+        PARAMETERS
+        ----------
+        fpath : str
+        -   Location where the data should be saved.
+
+        ftype : str | None; default None
+        -   The filetype of the data that will be saved, without the leading
+            period. E.g. for saving the file in the json format, this would be
+            "json", not ".json".
+        -   The information being saved must be an appropriate type for saving
+            in this format.
+        -   If None, the filetype is determined based on 'fpath', and so the
+            extension must be included in the path.
+
+        ask_before_overwrite : bool | None; default the object's verbosity
+        -   If True, the user is asked to confirm whether or not to overwrite a
+            pre-existing file if one exists.
+        -   If False, the user is not asked to confirm this and it is done
+            automatically.
+        -   By default, this is set to None, in which case the value of the
+            verbosity when the Signal object was instantiated is used.
+        """
+
+        if ask_before_overwrite is None:
+            ask_before_overwrite = self._verbose
+
+        save_dict(
+            to_save=self.results_as_dict(),
+            fpath=fpath,
+            ftype=ftype,
+            ask_before_overwrite=ask_before_overwrite,
+            verbose=self._verbose,
+        )
+
+    def results_as_dict(self) -> dict:
+        """Returns the results and additional information as a dictionary.
+
+        RETURNS
+        -------
+        dict
+        -   The results and additional information stored as a dictionary.
+        """
+
+        dimensions = self._get_optimal_dims()
+        results = self.get_results(dimensions=dimensions)
+
+        return {
+            f"connectivity-{self._method}": results.tolist(),
+            f"connectivity-{self._method}_dimensions": dimensions,
+            "freqs": self.results[0].freqs,
+            "seed_names": self.extra_info["node_ch_names"][0],
+            "seed_types": self.extra_info["node_ch_types"][0],
+            "seed_coords": self.extra_info["node_ch_coords"][0],
+            "seed_regions": self.extra_info["node_ch_regions"][0],
+            "seed_hemispheres": self.extra_info["node_ch_hemispheres"][0],
+            "seed_reref_types": self.extra_info["node_ch_reref_types"][0],
+            "target_names": self.extra_info["node_ch_names"][1],
+            "target_types": self.extra_info["node_ch_types"][1],
+            "target_coords": self.extra_info["node_ch_coords"][1],
+            "target_regions": self.extra_info["node_ch_regions"][1],
+            "target_hemispheres": self.extra_info["node_ch_hemispheres"][1],
+            "target_reref_types": self.extra_info["node_ch_reref_types"][1],
+            "node_lateralisation": self.extra_info["node_lateralisation"],
+            "node_epoch_orders": self.extra_info["node_ch_epoch_orders"],
+            "samp_freq": self.signal.data[0].info["sfreq"],
+            "metadata": self.extra_info["metadata"],
+            "processing_steps": self.processing_steps,
+            "subject_info": self.signal.data[0].info["subject_info"],
+        }
+
+    def get_results(self, dimensions: Union[list[str], None] = None) -> NDArray:
+        """Extracts and returns results.
+
+        PARAMETERS
+        ----------
+        dimensions : list[str] | None;  default None
+        -   The dimensions of the results that will be returned.
+        -   If 'None', the current dimensions are used.
+
+        RETURNS
+        -------
+        results : numpy array
+        -   The results.
+        """
+
+        if dimensions is None:
+            dimensions = self.results_dims
+
+        if self._windows_averaged:
+            results = self.results[0].get_data()
+        else:
+            results = []
+            for mne_obj in self.results:
+                results.append(mne_obj.get_data())
+            results = np.asarray(results)
+
+        results = rearrange_axes(
+            obj=results, old_order=self.results_dims, new_order=dimensions
+        )
+
+        return deepcopy(results)
