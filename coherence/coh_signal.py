@@ -215,9 +215,17 @@ class Signal:
             print("Reordering the channels in the following order:")
             [print(name) for name in ch_names]
 
-    def get_coordinates(self) -> list[list[Union[int, float]]]:
+    def get_coordinates(
+        self, picks: Union[str, list, slice, None] = None
+    ) -> list[list[Union[int, float]]]:
         """Extracts coordinates of the channels from the mne.io.Raw or
         mne.Epochs objects.
+
+        PARAMETERS
+        ----------
+        picks : str | list | slice | None; default None
+        -   Selects which channels' coordinates should be returned.
+        -   If 'None', returns coordinates for all good channels.
 
         RETURNS
         -------
@@ -226,7 +234,7 @@ class Signal:
             x, y, and z coordinates of each channel.
         """
 
-        return self.data[0]._get_channel_positions().copy().tolist()
+        return self.data[0]._get_channel_positions(picks=picks).copy().tolist()
 
     def _discard_missing_coordinates(
         self, ch_names: list[str], ch_coords: list[list[Union[int, float]]]
@@ -952,9 +960,7 @@ class Signal:
                 if input_type == "ch_coords":
                     new_value = np.mean(
                         [
-                            self.get_coordinates()[
-                                self.data[0].ch_names.index(channel)
-                            ]
+                            self.get_coordinates(channel)[0]
                             for channel in ch_names_old[i]
                         ],
                         axis=0,
@@ -1976,6 +1982,8 @@ class Signal:
                 shuffled_data[window_i] = shuffled_data[window_i][
                     0
                 ].add_channels(shuffled_data[window_i][1:])
+            else:
+                shuffled_data[window_i] = shuffled_data[window_i][0]
 
         ch_reref_types = (
             ordered_list_from_dict(channels, self.extra_info["ch_reref_types"])
