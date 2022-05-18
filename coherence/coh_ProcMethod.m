@@ -35,8 +35,8 @@ classdef (Abstract) coh_ProcMethod
         function obj = coh_ProcMethod(signal, verbose)
             % Initialises the object.
             arguments
-                signal (1,:) struct
-                verbose (1,1) bool = true
+                signal struct
+                verbose logical = true
             end
             obj.signal = signal;
             obj.verbose = verbose;

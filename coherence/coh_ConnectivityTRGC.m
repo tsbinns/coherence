@@ -21,6 +21,9 @@ classdef coh_ConnectivityTRGC < coh_ProcMethod
     % results_as_struct
     % - Converts the results and additional information to a struct, and returns
     %   this.
+    %
+    % get_results
+    % - Extracts and returns results.
 
     properties
         Property1
