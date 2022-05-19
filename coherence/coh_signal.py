@@ -28,7 +28,11 @@ from coh_handle_entries import (
     ordered_list_from_dict,
     rearrange_axes,
 )
-from coh_handle_files import check_ftype_present, identify_ftype
+from coh_handle_files import (
+    check_annotations_empty,
+    check_ftype_present,
+    identify_ftype,
+)
 from coh_handle_objects import create_extra_info, create_mne_data_object
 from coh_saving import check_before_overwrite, save_as_json, save_as_pkl
 
@@ -445,7 +449,7 @@ class Signal:
         )
         self.data[0].load_data()
         self._initialise_additional_info()
-        self._fix_coords()
+        # self._fix_coords()
 
         self._data_loaded = True
         if self._verbose:
@@ -610,12 +614,12 @@ class Signal:
                 f"{path_annots}."
             )
 
-        try:
-            self.data[0].set_annotations(mne.read_annotations(path_annots))
-            annotations_present = True
-        except ValueError:
+        if check_annotations_empty(path_annots):
             print("There are no events to read from the annotations file.")
             annotations_present = False
+        else:
+            self.data[0].set_annotations(mne.read_annotations(path_annots))
+            annotations_present = True
 
         if annotations_present:
             self._remove_bad_segments()
@@ -666,7 +670,7 @@ class Signal:
 
         self._drop_extra_info(ch_names)
         for i, data in enumerate(self.data):
-            data.drop_channels(ch_names)
+            self.data[i] = data.drop_channels(ch_names)
             self.data[i].ch_regions = self.extra_info["ch_regions"]
             self.data[i].ch_hemispheres = self.extra_info["ch_hemispheres"]
 
