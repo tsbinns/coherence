@@ -11,7 +11,11 @@ import coh_signal
 import mne
 from matplotlib import pyplot as plt
 from coh_exceptions import UnsupportedFileExtensionError
-from coh_handle_files import check_ftype_present, identify_ftype
+from coh_handle_files import (
+    check_annotations_empty,
+    check_ftype_present,
+    identify_ftype,
+)
 from coh_saving import check_before_overwrite
 
 
@@ -122,12 +126,15 @@ class SignalViewer:
 
         fpath = self._sort_fpath(fpath=fpath)
 
-        self.signal.data.set_annotations(mne.read_annotations(fpath))
+        if check_annotations_empty(fpath):
+            print("There are no events to read from the annotations file.")
+        else:
+            self.signal.data[0].set_annotations(mne.read_annotations(fpath))
 
         if self._verbose:
             print(
-                f"Loading {len(self.signal.data.annotations)} annotations from "
-                f"the filepath:\n'{fpath}'"
+                f"Loading {len(self.signal.data[0].annotations)} annotations "
+                f"from the filepath:\n'{fpath}'"
             )
 
     def _sort_annotations(self) -> None:
@@ -135,19 +142,19 @@ class SignalViewer:
         annotation that spans from the start of the 'END' annotation to the end
         of the recording."""
 
-        end_time = self.signal.data.times[-1]
-        for i, label in enumerate(self.signal.data.annotations.description):
+        end_time = self.signal.data[0].times[-1]
+        for i, label in enumerate(self.signal.data[0].annotations.description):
             if label == "END":
-                self.signal.data.annotations.duration[i] = (
-                    end_time - self.signal.data.annotations.onset[i]
+                self.signal.data[0].annotations.duration[i] = (
+                    end_time - self.signal.data[0].annotations.onset[i]
                 )
-                self.signal.data.annotations.description[i] = "BAD_"
+                self.signal.data[0].annotations.description[i] = "BAD_"
 
     def plot(self) -> None:
         """Plots the raw signals along with the loaded annotations, if
         applicable."""
 
-        self.signal.data.plot(scalings="auto", show=False)
+        self.signal.data[0].plot(scalings="auto", show=False)
         plt.tight_layout()
         plt.show(block=True)
 
@@ -178,10 +185,10 @@ class SignalViewer:
             write = True
 
         if write:
-            self.signal.data.annotations.save(fname=fpath, overwrite=True)
+            self.signal.data[0].annotations.save(fname=fpath, overwrite=True)
 
             if self._verbose:
                 print(
-                    f"Saving {len(self.signal.data.annotations)} annotation(s) "
+                    f"Saving {len(self.signal.data[0].annotations)} annotation(s) "
                     f"to:\n'{fpath}'"
                 )
