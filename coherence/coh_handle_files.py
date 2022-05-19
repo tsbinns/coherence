@@ -26,6 +26,7 @@ import json
 import pickle
 from typing import Any, Optional, Union
 import numpy as np
+import pandas as pd
 import mne_bids
 from coh_exceptions import (
     MissingFileExtensionError,
@@ -558,3 +559,28 @@ def load_file(
         print(f"Loading the contents of the filepath:\n'{fpath}'.")
 
     return contents
+
+
+def check_annotations_empty(fpath: str) -> bool:
+    """Load annotations in an MNE format from a csv file and checks whether any
+    annotations are present
+    
+    PARAMETERS
+    ----------
+    fpath : str
+    -   The filepath to a csv file to load the annotations from.
+    
+    RETURNS
+    -------
+    empty : bool
+    -   Whether or not the annotations in the file are empty.
+    """
+
+    annotations = pd.read_csv(fpath, keep_default_na=False)
+    if annotations.empty:
+        empty = True
+    else:
+        empty = False
+
+    return empty
+    
