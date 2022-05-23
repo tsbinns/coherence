@@ -2,16 +2,23 @@
 
 METHODS
 -------
+multivariate_connectivity
+-   Method for directing to different multivariate connectivity methods.
+
 multivariate_interaction_measure
 -   Computes the multivariate interaction measure between two groups of signals.
 
 max_imaginary_coherence
 -   Computes the maximised imaginary coherence between two groups of signals.
+
+multivariate_connectivity_compute_E
+-   Computes 'E' as the imaginary part of the transformed connectivity matrix
+    'D' derived from the original connectivity matrix 'C' between the signals in
+    groups A and B.
 """
 
 from numpy.typing import NDArray
 import numpy as np
-from scipy.io import loadmat
 from scipy.linalg import fractional_matrix_power
 
 
@@ -269,11 +276,3 @@ def multivariate_connectivity_compute_E(
     E = np.imag(D[0:n_group_a, n_group_a:])
 
     return E
-
-
-"""
-signal = loadmat("C:\\Users\\User\\GitHub\\coherence\\coherence\\test_data.mat")
-signal = np.asarray(signal["COH"])
-mim = multivariate_interaction_measure(data=signal, n_group_a=6, n_group_b=8)
-mic = max_imaginary_coherence(data=signal, n_group_a=6, n_group_b=8)
-"""
