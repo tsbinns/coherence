@@ -96,6 +96,7 @@ class ConnectivityCoherence(ProcMethod):
         self._average_timepoints = None
         self._block_size = None
         self._n_jobs = None
+        self._progress_bar = None
 
         # Initialises aspects of the object that indicate which methods have
         # been called (starting as 'False'), which can later be updated.
@@ -584,6 +585,12 @@ class ConnectivityCoherence(ProcMethod):
     def _get_results(self) -> None:
         """Performs the connectivity analysis."""
 
+        if self._verbose:
+            self._progress_bar = ProgressBar(
+                n_steps=len(self.signal.data) * len(self._indices),
+                title="Computing connectivity",
+            )
+
         connectivity = []
         for i, data in enumerate(self.signal.data):
             if self._verbose:
@@ -625,7 +632,12 @@ class ConnectivityCoherence(ProcMethod):
                     method=connectivity[i].method,
                     n_epochs_used=connectivity[i].n_epochs_used,
                 )
+            if self._progress_bar is not None:
+                self._progress_bar.update_progress()
         self.results = connectivity
+
+        if self._progress_bar is not None:
+            self._progress_bar.close()
 
         self._sort_dimensions()
         self._generate_extra_info()
@@ -1013,6 +1025,7 @@ class ConnectivityMultivariate(ProcMethod):
         self._block_size = None
         self._n_jobs = None
         self._separated_names = None
+        self._progress_bar = None
 
     def _sort_inputs(self) -> None:
         """Checks the inputs to the object to ensure that they match the
@@ -1195,16 +1208,7 @@ class ConnectivityMultivariate(ProcMethod):
 
         self._sort_processing_inputs()
 
-        if self._verbose:
-            self._progress_bar = ProgressBar(
-                n_steps=len(self.signal.data) * len(self._indices) * 2,
-                title="Computing connectivity",
-            )
-
         self._get_results()
-
-        if self._verbose:
-            self._progress_bar.close()
 
         self._processed = True
         self.processing_steps["connectivity_multivariate"] = {
@@ -1347,6 +1351,12 @@ class ConnectivityMultivariate(ProcMethod):
     def _get_results(self) -> None:
         """Performs the connectivity analysis."""
 
+        if self._verbose:
+            self._progress_bar = ProgressBar(
+                n_steps=len(self.signal.data) * len(self._indices) * 2,
+                title="Computing connectivity",
+            )
+        
         connectivity = []
         for win_i, win_data in enumerate(self.signal.data):
             if self._verbose:
@@ -1357,6 +1367,9 @@ class ConnectivityMultivariate(ProcMethod):
             coherency = self._get_cohy(win_data)
             connectivity.append(self._get_multivariate_results(coherency))
         self.results = connectivity
+
+        if self._progress_bar is not None:
+            self._progress_bar.close()
 
         self._sort_dimensions()
         self._generate_extra_info()
@@ -1418,7 +1431,7 @@ class ConnectivityMultivariate(ProcMethod):
                     n_epochs_used=results.n_epochs_used,
                 )
             coherency.append(results)
-            if self._verbose:
+            if self._progress_bar is not None:
                 self._progress_bar.update_progress()
 
         return coherency
@@ -1458,7 +1471,7 @@ class ConnectivityMultivariate(ProcMethod):
                 n_group_b=len(self._targets[con_i]),
             )
             connectivity.append(results)
-            if self._verbose:
+            if self._progress_bar is not None:
                 self._progress_bar.update_progress()
 
         return self._multivariate_to_mne(
