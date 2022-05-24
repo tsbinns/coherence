@@ -7,12 +7,14 @@ SignalViewer
     annotations, as well as add new annotations.
 """
 
+import numpy as np
 import coh_signal
 import mne
 from matplotlib import pyplot as plt
 from coh_exceptions import UnsupportedFileExtensionError
 from coh_handle_files import (
-    check_annotations_empty,
+    check_annots_empty,
+    check_annots_orig_time,
     check_ftype_present,
     identify_ftype,
 )
@@ -126,10 +128,11 @@ class SignalViewer:
 
         fpath = self._sort_fpath(fpath=fpath)
 
-        if check_annotations_empty(fpath):
+        if check_annots_empty(fpath):
             print("There are no events to read from the annotations file.")
         else:
-            self.signal.data[0].set_annotations(mne.read_annotations(fpath))
+            annotations = check_annots_orig_time(mne.read_annotations(fpath))
+            self.signal.data[0].set_annotations(annotations)
 
         if self._verbose:
             print(
@@ -142,13 +145,34 @@ class SignalViewer:
         annotation that spans from the start of the 'END' annotation to the end
         of the recording."""
 
+        start_time = self.signal.data[0].times[0]
         end_time = self.signal.data[0].times[-1]
         for i, label in enumerate(self.signal.data[0].annotations.description):
-            if label == "END":
+            if label == "START":
+                self.signal.data[0].annotations.duration[i] = (
+                    self.signal.data[0].annotations.onset[i] - start_time
+                )
+                self.signal.data[0].annotations.onset[i] = start_time
+                self.signal.data[0].annotations.description[i] = "BAD_"
+                if self._verbose:
+                    duration = self.signal.data[0].annotations.duration[i]
+                    print(
+                        "'START' annotation converted to a 'BAD_' annotation "
+                        "covering the first "
+                        f"{np.round(duration, 2)} seconds of the recording.\n"
+                    )
+            elif label == "END":
                 self.signal.data[0].annotations.duration[i] = (
                     end_time - self.signal.data[0].annotations.onset[i]
                 )
                 self.signal.data[0].annotations.description[i] = "BAD_"
+                if self._verbose:
+                    duration = self.signal.data[0].annotations.duration[i]
+                    print(
+                        "'END' annotation converted to a 'BAD_' annotation in "
+                        f"the {np.round(duration, 2)} seconds prior to the end "
+                        "of the recording.\n"
+                    )
 
     def plot(self) -> None:
         """Plots the raw signals along with the loaded annotations, if
