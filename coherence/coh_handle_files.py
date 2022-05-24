@@ -27,6 +27,7 @@ import pickle
 from typing import Any, Optional, Union
 import numpy as np
 import pandas as pd
+import mne
 import mne_bids
 from coh_exceptions import (
     MissingFileExtensionError,
@@ -561,26 +562,53 @@ def load_file(
     return contents
 
 
-def check_annotations_empty(fpath: str) -> bool:
+def check_annots_empty(fpath: str) -> bool:
     """Load annotations in an MNE format from a csv file and checks whether any
     annotations are present
-    
+
     PARAMETERS
     ----------
     fpath : str
     -   The filepath to a csv file to load the annotations from.
-    
+
     RETURNS
     -------
     empty : bool
     -   Whether or not the annotations in the file are empty.
     """
 
-    annotations = pd.read_csv(fpath, keep_default_na=False)
-    if annotations.empty:
+    annots = pd.read_csv(fpath, keep_default_na=False)
+    if annots.empty:
         empty = True
     else:
         empty = False
 
     return empty
-    
+
+
+def check_annots_orig_time(annots: mne.Annotations) -> mne.Annotations:
+    """Checks whether a meaningful origin time (i.e. not 1970-01-01) is present
+    in the MNE Annotations object, setting it to 'None' if this is not the case.
+
+    PARAMETERS
+    ----------
+    annots : MNE Annotations
+    -   The annotations to check.
+
+    RETURNS
+    -------
+    annots : MNE Annotations
+    -   The annotations, with non-meaningful origin time corrected, if
+    applicable.
+    """
+
+    orig_time = annots.orig_time
+    if orig_time.day == 1 and orig_time.month == 1 and orig_time.year == 1970:
+        annots = mne.Annotations(
+            onset=annots.onset,
+            duration=annots.duration,
+            description=annots.description,
+            orig_time=None,
+        )
+
+    return annots
