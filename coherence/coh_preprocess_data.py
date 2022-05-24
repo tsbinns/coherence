@@ -269,17 +269,6 @@ def preprocessing_for_annotations(
     raw_fpath = generate_raw_fpath(
         folderpath_data, dataset, subject, session, task, acquisition, run
     )
-    annotations_fpath = generate_sessionwise_fpath(
-        specific_analysis_folder,
-        dataset,
-        subject,
-        session,
-        task,
-        acquisition,
-        run,
-        "annotations",
-        ".csv",
-    )
 
     ## Loads the analysis settings
     analysis_settings = load_file(fpath=analysis_settings_fpath)
@@ -288,8 +277,6 @@ def preprocessing_for_annotations(
     ### Data Pre-processing
     signal = Signal()
     signal.raw_from_fpath(raw_fpath)
-    if analysis_settings["load_annotations"]:
-        signal.load_annotations(annotations_fpath)
     signal.pick_channels(data_settings["ch_names"])
     if data_settings["ch_coords"] is not None:
         signal.set_coordinates(

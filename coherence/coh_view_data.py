@@ -21,6 +21,7 @@ def annotate_data(
     task: str,
     acquisition: str,
     run: str,
+    load_annotations: bool = True,
 ) -> None:
     """
     PARAMETERS
@@ -48,6 +49,10 @@ def annotate_data(
 
     run : str
     -   The name of the run for which the data will be plotted.
+
+    load_annotations : bool; default True
+    -   Whether or not to load pre-existing annotations, if present, when
+        viewing the signals.
     """
 
     ### Analysis setup
@@ -67,7 +72,13 @@ def annotate_data(
     ### Data plotting
     ## Plots the data for annotating
     signal_viewer = SignalViewer(signal=signal)
-    if exists(annotations_fpath):
-        signal_viewer.load_annotations(fpath=annotations_fpath)
+    if load_annotations:
+        if exists(annotations_fpath):
+            signal_viewer.load_annotations(fpath=annotations_fpath)
+        else:
+            print(
+                "No pre-existing annotations to load from the filepath:\n"
+                f"{annotations_fpath}"
+            )
     signal_viewer.plot()
     signal_viewer.save_annotations(fpath=annotations_fpath)
