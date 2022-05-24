@@ -29,7 +29,7 @@ from coh_handle_entries import (
     rearrange_axes,
 )
 from coh_handle_files import (
-    check_annotations_empty,
+    check_annots_empty,
     check_ftype_present,
     identify_ftype,
 )
