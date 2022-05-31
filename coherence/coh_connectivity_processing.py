@@ -5,7 +5,7 @@ from coh_handle_files import (
     generate_sessionwise_fpath,
     load_file,
 )
-from coh_connectivity import ConnectivityMultivariate
+from coh_connectivity import ConnectivityCoherence, ConnectivityMultivariate
 import coh_signal
 
 
