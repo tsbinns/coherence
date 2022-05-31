@@ -35,15 +35,15 @@ class ProgressBar:
         self, n_steps: int, title: str, handle_n_exceeded: str = "warning"
     ) -> None:
 
-        self._n_steps = n_steps
-        self._title = title
-        self._handle_n_exceeded = handle_n_exceeded
+        self.n_steps = n_steps
+        self.title = title
+        self.handle_n_exceeded = handle_n_exceeded
 
         self._step_n = 0
-        self._step_increment = 100 / n_steps
-        self._window = None
-        self._percent_label = None
-        self._bar = None
+        self.step_increment = 100 / n_steps
+        self.window = None
+        self.percent_label = None
+        self.bar = None
 
         self._sort_inputs()
         self._create_bar()
@@ -59,10 +59,10 @@ class ProgressBar:
         """
 
         supported_handles = ["warning", "error"]
-        if self._handle_n_exceeded not in supported_handles:
+        if self.handle_n_exceeded not in supported_handles:
             raise NotImplementedError(
                 "Error: The method for hanlding instances of the total number "
-                f"of steps being exceeded '{self._handle_n_exceeded}' is not "
+                f"of steps being exceeded '{self.handle_n_exceeded}' is not "
                 f"supported. Supported inputs are {supported_handles}."
             )
 
@@ -70,19 +70,19 @@ class ProgressBar:
         """Creates the tkinter root object and progress bar window with the
         requested title."""
 
-        self._root = tkinter.Tk()
-        self._root.wm_attributes("-topmost", True)
+        self.root = tkinter.Tk()
+        self.root.wm_attributes("-topmost", True)
 
-        self._bar = ttk.Progressbar(self._root, length=250)
-        self._bar.pack(padx=10, pady=10)
-        self._percent_label = tkinter.StringVar()
-        self._percent_label.set(self._progress)
-        ttk.Label(self._root, textvariable=self._percent_label).pack()
+        self.bar = ttk.Progressbar(self.root, length=250)
+        self.bar.pack(padx=10, pady=10)
+        self.percent_label = tkinter.StringVar()
+        self.percent_label.set(self.progress)
+        ttk.Label(self.root, textvariable=self.percent_label).pack()
 
-        self._root.update()
+        self.root.update()
 
     @property
-    def _progress(self) -> str:
+    def progress(self) -> str:
         """Getter for returning the percentage completion of the progress bar as
         a formatted string with the title.
 
@@ -93,10 +93,17 @@ class ProgressBar:
             string with the structure: title; percentage.
         """
 
-        return f"{self._title}\n{str(int(self._bar['value']))}% complete"
+        return f"{self.title}\n{str(int(self.bar['value']))}% complete"
 
-    @_step_n.setter
-    def _step_n(self, value) -> None:
+    @property
+    def step_n(self) -> int:
+        """Getter for returning the number of steps completed in the process
+        being followed."""
+
+        return self._step_n
+
+    @step_n.setter
+    def step_n(self, value) -> None:
         """Setter for the number of steps completed in the process being
         followed.
 
@@ -108,8 +115,8 @@ class ProgressBar:
             'handle_n_exceeded' was set to "error".
         """
 
-        if value >= self._n_steps:
-            if self._handle_n_exceeded == "warning":
+        if value >= self.n_steps:
+            if self.handle_n_exceeded == "warning":
                 print(
                     "Warning: The maximum number of steps in the progress bar "
                     "has been exceeded.\n"
@@ -126,12 +133,12 @@ class ProgressBar:
         """Increments the step number of the process by one and updates the
         progress bar value and label appropriately."""
 
-        self._step_n += 1
-        self._bar["value"] += self._step_increment
-        self._percent_label.set(self._progress)
-        self._root.update()
+        self.step_n += 1
+        self.bar["value"] += self.step_increment
+        self.percent_label.set(self.progress)
+        self.root.update()
 
     def close(self) -> None:
         """Destroys the tkinter root object the progress bar is linked to."""
 
-        self._root.destroy()
+        self.root.destroy()
