@@ -88,8 +88,6 @@ def multivariate_interaction_measure(
 ) -> NDArray:
     """Computes the multivariate interaction measure between two groups of
     signals.
-    -   Follows the approach set out in Ewald et al., 2012, Neuroimage. DOI:
-        10.1016/j.neuroimage.2011.11.084
 
     data : numpy array
     -   Coherency values between all possible connections of two groups of
@@ -118,6 +116,14 @@ def multivariate_interaction_measure(
     -   Raised if the data is not a three-dimensional array.
     -   Raised if the first two dimensions of 'data' is not a square matrix with
         lengths equal to the combined number of signals in groups A and B.
+
+    NOTES
+    -----
+    -   Follows the approach set out in Ewald et al., 2012, Neuroimage. DOI:
+        10.1016/j.neuroimage.2011.11.084.
+    -   All equations were written in MATLAB by Franziska Pellegrini working in
+        the group of Stefan Haufe, which were then translated into Python by
+        Thomas Samuel Binns working in the group of Wolf-Julian Neumann.
     """
 
     if len(np.shape(data)) != 3:
@@ -155,8 +161,6 @@ def max_imaginary_coherence(
     data: NDArray, n_group_a: int, n_group_b: int
 ) -> NDArray:
     """Computes the maximised imaginary coherence between two groups of signals.
-    -   Follows the approach set out in Ewald et al., 2012, Neuroimage. DOI:
-        10.1016/j.neuroimage.2011.11.084
 
     data : numpy array
     -   Coherency values between all possible connections of two groups of
@@ -185,6 +189,14 @@ def max_imaginary_coherence(
     -   Raised if the data is not a three-dimensional array.
     -   Raised if the first two dimensions of 'data' is not a square matrix with
         lengths equal to the combined number of signals in groups A and B.
+
+    NOTES
+    -----
+    -   Follows the approach set out in Ewald et al., 2012, Neuroimage. DOI:
+        10.1016/j.neuroimage.2011.11.084.
+    -   All equations were written in MATLAB by Franziska Pellegrini working in
+        the group of Stefan Haufe, which were then translated into Python by
+        Thomas Samuel Binns working in the group of Wolf-Julian Neumann.
     """
 
     if len(np.shape(data)) != 3:
@@ -236,8 +248,6 @@ def multivariate_connectivity_compute_E(
     groups A and B.
     -   Designed for use with the methods 'max_imaginary_coherence' and
         'multivariate_interaction_measure'.
-    -   Follows the approach set out in Ewald et al., 2012, Neuroimage. DOI:
-        10.1016/j.neuroimage.2011.11.084
 
     data : numpy array
     -   Coherency values between all possible connections of two groups of
@@ -255,6 +265,14 @@ def multivariate_connectivity_compute_E(
     E : numpy array
     -   The imaginary part of the transformed connectivity matrix 'D' between
         signals in groups A and B.
+
+    NOTES
+    -----
+    -   Follows the approach set out in Ewald et al., 2012, Neuroimage. DOI:
+        10.1016/j.neuroimage.2011.11.084.
+    -   All equations were written in MATLAB by Franziska Pellegrini working in
+        the group of Stefan Haufe, which were then translated into Python by
+        Thomas Samuel Binns working in the group of Wolf-Julian Neumann.
     """
 
     # Equation 2
