@@ -13,6 +13,12 @@ ConectivityMultivariate : subclass of the abstract base class 'ProcMethod'
 from copy import deepcopy
 from typing import Optional, Union
 from mne import Epochs, Projection
+from mne.time_frequency import (
+    CrossSpectralDensity,
+    csd_fourier,
+    csd_multitaper,
+    csd_morlet,
+)
 from mne_connectivity import (
     spectral_connectivity_epochs,
     SpectralConnectivity,
@@ -97,18 +103,6 @@ class ConnectivityCoherence(ProcConnectivity):
         # Initialises aspects of the object that indicate which methods have
         # been called (starting as 'False'), which can later be updated.
         self._timepoints_averaged = False
-
-    def _sort_processing_inputs(self) -> None:
-        """Converts the connectivity seeds and targets into channel indices for
-        the connectivity analysis, and generates epoch-shuffled data, if
-        requested."""
-
-        super()._sort_indices()
-
-        if self._cwt_freqs is not None:
-            self._cwt_freqs = np.arange(
-                start=self._cwt_freqs[0], stop=self._cwt_freqs[1] + 1
-            )
 
     def _average_windows_results(self) -> None:
         """Averages the connectivity results across windows.
@@ -449,7 +443,7 @@ class ConnectivityCoherence(ProcConnectivity):
         self._block_size = block_size
         self._n_jobs = n_jobs
 
-        self._sort_processing_inputs()
+        super()._sort_indices()
 
         self._get_results()
 
@@ -831,7 +825,7 @@ class ConnectivityMultivariate(ProcConnectivity):
         self._block_size = block_size
         self._n_jobs = n_jobs
 
-        self._sort_processing_inputs()
+        self._sort_indices()
 
         self._get_results()
 
@@ -854,18 +848,6 @@ class ConnectivityMultivariate(ProcConnectivity):
             "cwt_n_cycles": cwt_n_cycles,
             "average_windows": average_windows,
         }
-
-    def _sort_processing_inputs(self) -> None:
-        """Converts the connectivity seeds and targets into channel indices for
-        the connectivity analysis, and generates epoch-shuffled data, if
-        requested."""
-
-        self._sort_indices()
-
-        if self._cwt_freqs is not None:
-            self._cwt_freqs = np.arange(
-                start=self._cwt_freqs[0], stop=self._cwt_freqs[1] + 1
-            )
 
     def _sort_indices(self) -> None:
         """Sorts the inputs for generating MNE-readable indices for calculating
@@ -1891,3 +1873,138 @@ class ConnectivityGrangerCausality(ProcConnectivity):
         self._projs = projs
         self._average_windows = average_windows
         self._n_jobs = n_jobs
+
+        self._sort_processing_inputs()
+
+        self._get_results()
+
+    def _sort_processing_inputs(self) -> None:
+        """Checks that inputs for processing the data are appropriate."""
+
+        supported_cs_methods = ["fourier", "multitaper", "cwt_morlet"]
+        if self._cs_method not in supported_cs_methods:
+            raise NotImplementedError(
+                "Error when performing Granger causality analysis:\nThe method "
+                f"for computing the cross-spectral density '{self._cs_method}' "
+                "is not recognised. Supported inputs are "
+                f"{supported_cs_methods}."
+            )
+
+        super()._sort_indices()
+
+    def _get_results(self) -> None:
+        """Performs the connectivity analysis."""
+
+        if self._verbose:
+            self._progress_bar = ProgressBar(
+                n_steps=len(self.signal.data) * len(self._indices) * 3,
+                title="Computing connectivity",
+            )
+
+        self._compute_cs()
+
+        connectivity = []
+        for i, data in enumerate(self.signal.data):
+            if self._verbose:
+                print(
+                    f"Computing connectivity for window {i+1} of "
+                    f"{len(self.signal.data)}.\n"
+                )
+            connectivity.append(
+                spectral_connectivity_epochs(
+                    data=data,
+                    method=self._method,
+                    indices=self._indices,
+                    sfreq=data.info["sfreq"],
+                    mode=self._mode,
+                    fmin=self._fmin,
+                    fmax=self._fmax,
+                    fskip=self._fskip,
+                    faverage=self._faverage,
+                    tmin=self._tmin,
+                    tmax=self._tmax,
+                    mt_bandwidth=self._mt_bandwidth,
+                    mt_adaptive=self._mt_adaptive,
+                    mt_low_bias=self._mt_low_bias,
+                    cwt_freqs=self._cwt_freqs,
+                    cwt_n_cycles=self._cwt_n_cycles,
+                    block_size=self._block_size,
+                    n_jobs=self._n_jobs,
+                    verbose=self._verbose,
+                )
+            )
+            if self._progress_bar is not None:
+                self._progress_bar.update_progress()
+        self.results = connectivity
+
+        if self._progress_bar is not None:
+            self._progress_bar.close()
+
+        self._sort_dimensions()
+        super()._generate_extra_info()
+
+    def _compute_cspd(self) -> list[CrossSpectralDensity]:
+        """Computes the cross-spectral power density of the data.
+
+        RETURNS
+        -------
+        cross_spectra : list[MNE CrossSpectralDensity]
+        -   The cross spectra for each window of the data.
+        """
+
+        cross_spectra = []
+        for i, data in enumerate(self.signal.data):
+            if self._verbose:
+                print(
+                    "Computing the cross-spectral density for window "
+                    f"{i+1} of {len(self.signal.data)}.\n"
+                )
+            if self._cs_method == "fourier":
+                cross_spectra.append(
+                    csd_fourier(
+                        epochs=data,
+                        fmin=self._fmt_fmin,
+                        fmax=self._fmt_fmax,
+                        tmin=self._tmin,
+                        tmax=self._tmax,
+                        picks=self._picks,
+                        n_fft=self._fmt_n_fft,
+                        projs=self._projs,
+                        n_jobs=self._n_jobs,
+                        verbose=self._verbose,
+                    )
+                )
+            elif self._cs_method == "multitaper":
+                cross_spectra.append(
+                    csd_multitaper(
+                        epochs=data,
+                        fmin=self._fmt_fmin,
+                        fmax=self._fmt_fmax,
+                        tmin=self._tmin,
+                        tmax=self._tmax,
+                        picks=self._picks,
+                        n_fft=self._fmt_n_fft,
+                        bandwidth=self._mt_bandwidth,
+                        adaptive=self._mt_adaptive,
+                        low_bias=self._mt_low_bias,
+                        projs=self._projs,
+                        n_jobs=self._n_jobs,
+                        verbose=self._verbose,
+                    )
+                )
+            elif self._cs_method == "cwt_morlet":
+                cross_spectra.append(
+                    csd_morlet(
+                        epochs=data,
+                        frequencies=self._cwt_freqs,
+                        tmin=self._tmin,
+                        tmax=self._tmax,
+                        picks=self._picks,
+                        n_cycles=self._cwt_n_cycles,
+                        use_fft=self._cwt_use_fft,
+                        decim=self._cwt_decim,
+                        projs=self._projs,
+                        n_jobs=self._n_jobs,
+                        verbose=self._verbose,
+                    )
+                )
