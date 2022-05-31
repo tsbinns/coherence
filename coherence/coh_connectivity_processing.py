@@ -1,5 +1,6 @@
 """Generates connectivity results from preprocessed data."""
 
+import numpy as np
 from coh_handle_files import (
     generate_analysiswise_fpath,
     generate_sessionwise_fpath,
@@ -80,6 +81,11 @@ def coherence_processing(
 
     ### Data processing
     ## Coherence analysis
+    if analysis_settings["cwt_freqs"] is not None:
+        cwt_freqs = np.arange(
+            analysis_settings["cwt_freqs"][0],
+            analysis_settings["cwt_freqs"][1] + 1,
+        )
     for method in analysis_settings["methods"]:
         coherence = ConnectivityCoherence(signal)
         coherence.process(
@@ -96,7 +102,7 @@ def coherence_processing(
             mt_bandwidth=analysis_settings["mt_bandwidth"],
             mt_adaptive=analysis_settings["mt_adaptive"],
             mt_low_bias=analysis_settings["mt_low_bias"],
-            cwt_freqs=analysis_settings["cwt_freqs"],
+            cwt_freqs=cwt_freqs,
             cwt_n_cycles=analysis_settings["cwt_n_cycles"],
             average_windows=analysis_settings["average_windows"],
             average_timepoints=analysis_settings["average_timepoints"],
@@ -190,11 +196,16 @@ def multivariate_processing(
 
     ### Data processing
     ## Multivariate connectivity analysis
-    for method in analysis_settings["methods"]:
+    if analysis_settings["cwt_freqs"] is not None:
+        cwt_freqs = np.arange(
+            analysis_settings["cwt_freqs"][0],
+            analysis_settings["cwt_freqs"][1] + 1,
+        )
+    for con_method in analysis_settings["con_methods"]:
         multivariate = ConnectivityMultivariate(signal)
         multivariate.process(
-            method=method,
-            mode=analysis_settings["mode"],
+            con_method=con_method,
+            cohy_method=analysis_settings["cohy_method"],
             seeds=data_settings["seeds"],
             targets=data_settings["targets"],
             fmin=analysis_settings["fmin"],
@@ -206,7 +217,7 @@ def multivariate_processing(
             mt_bandwidth=analysis_settings["mt_bandwidth"],
             mt_adaptive=analysis_settings["mt_adaptive"],
             mt_low_bias=analysis_settings["mt_low_bias"],
-            cwt_freqs=analysis_settings["cwt_freqs"],
+            cwt_freqs=cwt_freqs,
             cwt_n_cycles=analysis_settings["cwt_n_cycles"],
             average_windows=analysis_settings["average_windows"],
             block_size=analysis_settings["block_size"],
@@ -221,7 +232,7 @@ def multivariate_processing(
                 task,
                 acquisition,
                 run,
-                f"connectivity-{analysis}_{method}",
+                f"connectivity-{analysis}_{con_method}",
                 ".json",
             )
             multivariate.save_results(multivariate_fpath)
