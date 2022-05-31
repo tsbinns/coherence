@@ -12,9 +12,8 @@ ConectivityMultivariate : subclass of the abstract base class 'ProcMethod'
 
 from copy import deepcopy
 from typing import Optional, Union
-from mne import Epochs
+from mne import Epochs, Projection
 from mne_connectivity import (
-    seed_target_indices,
     spectral_connectivity_epochs,
     SpectralConnectivity,
     SpectroTemporalConnectivity,
@@ -33,13 +32,13 @@ from coh_handle_entries import (
     separate_vals_string,
     unique,
 )
-from coh_processing_methods import ProcMethod
+from coh_processing_methods import ProcConnectivity
 from coh_progress_bar import ProgressBar
 import coh_signal
 from coh_saving import save_object, save_dict
 
 
-class ConnectivityCoherence(ProcMethod):
+class ConnectivityCoherence(ProcConnectivity):
     """Calculates the coherence (standard or imaginary) between signals.
 
     PARAMETERS
@@ -72,14 +71,11 @@ class ConnectivityCoherence(ProcMethod):
         super().__init__(signal, verbose)
 
         # Initialises inputs of the object.
-        self._sort_inputs()
+        super()._sort_inputs()
 
         # Initialises aspects of the object that will be filled with information
         # as the data is processed.
         self._method = None
-        self._seeds = None
-        self._targets = None
-        self._indices = None
         self._mode = None
         self._fmin = None
         self._fmax = None
@@ -102,75 +98,12 @@ class ConnectivityCoherence(ProcMethod):
         # been called (starting as 'False'), which can later be updated.
         self._timepoints_averaged = False
 
-    def _sort_inputs(self) -> None:
-        """Checks the inputs to the object to ensure that they match the
-        requirements for processing and assigns inputs.
-
-        RAISES
-        ------
-        ValueError
-        -   Raised if the dimensions of the data in the Signal object is not
-            supported.
-        """
-
-        supported_data_dims = ["windows", "epochs", "channels", "timepoints"]
-        if self.signal.data_dimensions != supported_data_dims:
-            raise ValueError(
-                "Error when trying to perform coherence analysis on the "
-                "data:\nData in the Signal object has the dimensions "
-                f"{self.signal.data_dimensions}, but only data with dimensions "
-                f"{supported_data_dims} is supported."
-            )
-
-        super()._sort_inputs()
-
-    def _generate_indices(self) -> None:
-        """Generates MNE-readable indices for calculating connectivity between
-        signals."""
-
-        self._indices = seed_target_indices(
-            seeds=[
-                i
-                for i, name in enumerate(self.signal.data[0].ch_names)
-                if name in self._seeds
-            ],
-            targets=[
-                i
-                for i, name in enumerate(self.signal.data[0].ch_names)
-                if name in self._targets
-            ],
-        )
-
-    def _sort_indices(self) -> None:
-        """Sorts the inputs for generating MNE-readable indices for calculating
-        connectivity between signals."""
-
-        groups = ["_seeds", "_targets"]
-        ch_types = self.signal.data[0].get_channel_types()
-        for group in groups:
-            channels = getattr(self, group)
-            if channels is None:
-                channels = deepcopy(self.signal.data[0].ch_names)
-            elif isinstance(channels, str):
-                if channels[:5] == "type_":
-                    desired_type = channels[5:]
-                    channels = [
-                        name
-                        for i, name in enumerate(self.signal.data[0].ch_names)
-                        if ch_types[i] == desired_type
-                    ]
-                else:
-                    channels = [channels]
-            setattr(self, group, channels)
-
-        self._generate_indices()
-
     def _sort_processing_inputs(self) -> None:
         """Converts the connectivity seeds and targets into channel indices for
         the connectivity analysis, and generates epoch-shuffled data, if
         requested."""
 
-        self._sort_indices()
+        super()._sort_indices()
 
         if self._cwt_freqs is not None:
             self._cwt_freqs = np.arange(
@@ -295,293 +228,6 @@ class ConnectivityCoherence(ProcMethod):
         if self._average_timepoints:
             self._average_timepoints_results()
 
-    def _generate_node_ch_names(self) -> list[list[str]]:
-        """Converts the indices of channels in the connectivity results to their
-        channel names.
-
-        RETURNS
-        -------
-        node_names : list[list[str]]
-        -   List containing two sublists consisting of the channel names of the
-            seeds and targets, respectively, for each node in the connectivity
-            results.
-        """
-
-        node_names = [[], []]
-
-        for group_i, indices in enumerate(self.results[0].indices):
-            for index in indices:
-                node_names[group_i].append(self.results[0].names[index])
-
-        return node_names
-
-    def _generate_node_ch_types(
-        self, node_ch_names: list[list[str]]
-    ) -> list[list[str]]:
-        """Gets the types of channels in the connectivity results.
-
-        PARAMETERS
-        ----------
-        node_ch_names : list[list[str]]
-        -   List containing two sublists consisting of the channel names of the
-            seeds and targets, respectively, for each node in the connectivity
-            results.
-
-        RETURNS
-        -------
-        node_ch_types : list[list[str]]
-        -   List containing two sublists consisting of the channel types of the
-            seeds and targets, respectively, for each node in the connectivity
-            results.
-        """
-
-        node_ch_types = [[], []]
-        ch_types = {}
-        for name in self.results[0].names:
-            ch_types[name] = self.signal.data[0].get_channel_types(picks=name)[
-                0
-            ]
-
-        for group_i in range(2):
-            node_ch_types[group_i] = ordered_list_from_dict(
-                list_order=node_ch_names[group_i], dict_to_order=ch_types
-            )
-
-        return node_ch_types
-
-    def _generate_node_ch_reref_types(
-        self, node_ch_names: list[list[str]]
-    ) -> list[list[str]]:
-        """Gets the rereferencing types of channels in the connectivity results.
-
-        PARAMETERS
-        ----------
-        node_ch_names : list[list[str]]
-        -   List containing two sublists consisting of the channel names of the
-            seeds and targets, respectively, for each node in the connectivity
-            results.
-
-        RETURNS
-        -------
-        node_reref_types : list[list[str]]
-        -   List containing two sublists consisting of the channel types of the
-            seeds and targets, respectively, for each node in the connectivity
-            results.
-        """
-
-        node_reref_types = [[], []]
-
-        for group_i in range(2):
-            node_reref_types[group_i] = ordered_list_from_dict(
-                list_order=node_ch_names[group_i],
-                dict_to_order=self.extra_info["ch_reref_types"],
-            )
-
-        return node_reref_types
-
-    def _generate_node_ch_coords(
-        self, node_ch_names: list[list[str]]
-    ) -> list[list[str]]:
-        """Gets the coordinates of channels in the connectivity results.
-
-        PARAMETERS
-        ----------
-        node_ch_names : list[list[str]]
-        -   List containing two sublists consisting of the channel names of the
-            seeds and targets, respectively, for each node in the connectivity
-            results.
-
-        RETURNS
-        -------
-        node_ch_coords : list[list[str]]
-        -   List containing two sublists consisting of the channel coordinates
-            of the seeds and targets, respectively, for each node in the
-            connectivity results.
-        """
-
-        node_ch_coords = [[], []]
-        ch_coords = {
-            name: self.signal.get_coordinates(name)[0]
-            for name in self.results[0].names
-        }
-
-        for group_i in range(2):
-            node_ch_coords[group_i] = ordered_list_from_dict(
-                list_order=node_ch_names[group_i], dict_to_order=ch_coords
-            )
-
-        return node_ch_coords
-
-    def _generate_node_ch_regions(
-        self, node_ch_names: list[list[str]]
-    ) -> list[list[str]]:
-        """Gets the regions of channels in the connectivity results.
-
-        PARAMETERS
-        ----------
-        node_ch_names : list[list[str]]
-        -   List containing two sublists consisting of the channel names of the
-            seeds and targets, respectively, for each node in the connectivity
-            results.
-
-        RETURNS
-        -------
-        node_ch_regions : list[list[str]]
-        -   List containing two sublists consisting of the channel regions of
-            the seeds and targets, respectively, for each node in the
-            connectivity results.
-        """
-
-        node_ch_regions = [[], []]
-
-        for group_i in range(2):
-            node_ch_regions[group_i] = ordered_list_from_dict(
-                list_order=node_ch_names[group_i],
-                dict_to_order=self.extra_info["ch_regions"],
-            )
-
-        return node_ch_regions
-
-    def _generate_node_ch_hemispheres(
-        self, node_ch_names: list[list[str]]
-    ) -> list[list[str]]:
-        """Gets the hemispheres of channels in the connectivity results.
-
-        PARAMETERS
-        ----------
-        node_ch_names : list[list[str]]
-        -   List containing two sublists consisting of the channel names of the
-            seeds and targets, respectively, for each node in the connectivity
-            results.
-
-        RETURNS
-        -------
-        node_ch_hemispheres : list[list[str]]
-        -   List containing two sublists consisting of the hemispheres of the
-            seeds and targets, respectively, for each node in the connectivity
-            results.
-        """
-
-        node_ch_hemispheres = [[], []]
-
-        for group_i in range(2):
-            node_ch_hemispheres[group_i] = ordered_list_from_dict(
-                list_order=node_ch_names[group_i],
-                dict_to_order=self.extra_info["ch_hemispheres"],
-            )
-
-        return node_ch_hemispheres
-
-    def _generate_node_lateralisation(
-        self, node_ch_hemispheres: list[list[str]]
-    ) -> list[str]:
-        """Gets the lateralisation of the channels in the connectivity node.
-        -   Can either be "contralateral" if the seed and target are from
-            different hemispheres, or "ipsilateral" if the seed and target are
-            from the same hemisphere.
-
-        PARAMETERS
-        ----------
-        node_ch_hemispheres : list[list[str]]
-        -   Hemispheres of the seed and target channels of each connectivity
-            node.
-        -   Indication of the hemispheres should be binary in nature, e.g. "L"
-            and "R", or "Left" and "Right", not "L" and "Left" and "R" and
-            "Right".
-
-        RETURNS
-        -------
-        node_lateralisation : list[str]
-        -   Lateralisation ("contralateral" or "ipsilateral") of each
-            connectivity node.
-        """
-
-        node_lateralisation = []
-
-        for node_i in range(len(node_ch_hemispheres[0])):
-            if node_ch_hemispheres[0][node_i] != node_ch_hemispheres[1][node_i]:
-                node_lateralisation.append("contralateral")
-            else:
-                node_lateralisation.append("ipsilateral")
-
-        return node_lateralisation
-
-    def _generate_node_ch_epoch_orders(
-        self, node_ch_names: list[list[str]]
-    ) -> list[list[str]]:
-        """Gets the epoch orders of channels in the connectivity results.
-
-        PARAMETERS
-        ----------
-        node_ch_names : list[list[str]]
-        -   List containing two sublists consisting of the channel names of the
-            seeds and targets, respectively, for each node in the connectivity
-            results.
-
-        RETURNS
-        -------
-        node_epoch_orders : list[str]
-        -   List containing the epoch orders of the seeds and targets for each
-            node in the connectivity results. If either the seed or target has
-            a 'shuffled' epoch order, the epoch order of the node is 'shuffled',
-            otherwise it is 'original'.
-        """
-
-        seed_epoch_orders = ordered_list_from_dict(
-            list_order=node_ch_names[0],
-            dict_to_order=self.extra_info["ch_epoch_orders"],
-        )
-        target_epoch_orders = ordered_list_from_dict(
-            list_order=node_ch_names[1],
-            dict_to_order=self.extra_info["ch_epoch_orders"],
-        )
-
-        node_epoch_orders = []
-        for seed_order, target_order in zip(
-            seed_epoch_orders, target_epoch_orders
-        ):
-            if seed_order == "original" and target_order == "original":
-                node_epoch_orders.append("original")
-            else:
-                node_epoch_orders.append("shuffled")
-
-        return node_epoch_orders
-
-    def _generate_extra_info(self) -> None:
-        """Generates additional information related to the connectivity
-        analysis."""
-
-        self.extra_info["node_ch_names"] = self._generate_node_ch_names()
-        self.extra_info["node_ch_types"] = self._generate_node_ch_types(
-            node_ch_names=self.extra_info["node_ch_names"]
-        )
-        self.extra_info[
-            "node_ch_reref_types"
-        ] = self._generate_node_ch_reref_types(
-            node_ch_names=self.extra_info["node_ch_names"]
-        )
-        self.extra_info["node_ch_coords"] = self._generate_node_ch_coords(
-            node_ch_names=self.extra_info["node_ch_names"]
-        )
-        self.extra_info["node_ch_regions"] = self._generate_node_ch_regions(
-            node_ch_names=self.extra_info["node_ch_names"]
-        )
-        self.extra_info[
-            "node_ch_hemispheres"
-        ] = self._generate_node_ch_hemispheres(
-            node_ch_names=self.extra_info["node_ch_names"]
-        )
-        self.extra_info[
-            "node_lateralisation"
-        ] = self._generate_node_lateralisation(
-            node_ch_hemispheres=self.extra_info["node_ch_hemispheres"]
-        )
-        self.extra_info[
-            "node_ch_epoch_orders"
-        ] = self._generate_node_ch_epoch_orders(
-            node_ch_names=self.extra_info["node_ch_names"]
-        )
-
     def _get_results(self) -> None:
         """Performs the connectivity analysis."""
 
@@ -640,7 +286,7 @@ class ConnectivityCoherence(ProcMethod):
             self._progress_bar.close()
 
         self._sort_dimensions()
-        self._generate_extra_info()
+        super()._generate_extra_info()
 
     def process(
         self,
@@ -967,7 +613,7 @@ class ConnectivityCoherence(ProcMethod):
         return deepcopy(results)
 
 
-class ConnectivityMultivariate(ProcMethod):
+class ConnectivityMultivariate(ProcConnectivity):
     """Calculates the multivariate connectivity (multivariate interaction
     measure, MIM, or maximised imaginary coherence, MIC) between signals.
 
@@ -1001,11 +647,12 @@ class ConnectivityMultivariate(ProcMethod):
         super().__init__(signal, verbose)
 
         # Initialises inputs of the object.
-        self._sort_inputs()
+        super()._sort_inputs()
 
         # Initialises aspects of the object that will be filled with information
         # as the data is processed.
-        self._method = None
+        self._con_method = None
+        self._cohy_method = None
         self._seeds = None
         self._targets = None
         self._indices = None
@@ -1027,34 +674,12 @@ class ConnectivityMultivariate(ProcMethod):
         self._separated_names = None
         self._progress_bar = None
 
-    def _sort_inputs(self) -> None:
-        """Checks the inputs to the object to ensure that they match the
-        requirements for processing and assigns inputs.
-
-        RAISES
-        ------
-        ValueError
-        -   Raised if the dimensions of the data in the Signal object is not
-            supported.
-        """
-
-        supported_data_dims = ["windows", "epochs", "channels", "timepoints"]
-        if self.signal.data_dimensions != supported_data_dims:
-            raise ValueError(
-                "Error when trying to perform coherence analysis on the "
-                "data:\nData in the Signal object has the dimensions "
-                f"{self.signal.data_dimensions}, but only data with dimensions "
-                f"{supported_data_dims} is supported."
-            )
-
-        super()._sort_inputs()
-
     def process(
         self,
-        method: str,
-        mode: str,
-        seeds: Optional[Union[str, list[str]]] = None,
-        targets: Optional[Union[str, list[str]]] = None,
+        con_method: str,
+        cohy_method: str,
+        seeds: Union[str, list[str], None] = None,
+        targets: Union[str, list[str], None] = None,
         fmin: Optional[Union[float, tuple]] = None,
         fmax: Optional[Union[float, tuple]] = float("inf"),
         fskip: int = 0,
@@ -1077,12 +702,12 @@ class ConnectivityMultivariate(ProcMethod):
 
         PARAMETERS
         ----------
-        method : str
+        con_method : str
         -   The multivariate connectivity metric to compute.
         -   Supported inputs are: 'mim' - multivariate interaction measure; and
             'mic' - maximised imaginary coherence.
 
-        mode : str
+        cohy_method : str
         -   The mode for calculating coherency.
         -   Supported inputs are: 'multitaper'; 'fourier'; and 'cwt_morlet'.
 
@@ -1187,8 +812,8 @@ class ConnectivityMultivariate(ProcMethod):
                 "perform other analyses on the data."
             )
 
-        self._method = method
-        self._mode = mode
+        self._con_method = con_method
+        self._cohy_method = cohy_method
         self._seeds = seeds
         self._targets = targets
         self._fmin = fmin
@@ -1212,8 +837,8 @@ class ConnectivityMultivariate(ProcMethod):
 
         self._processed = True
         self.processing_steps["connectivity_multivariate"] = {
-            "method": method,
-            "mode": mode,
+            "con_method": con_method,
+            "cohy_method": cohy_method,
             "seeds": seeds,
             "targets": targets,
             "fmin": fmin,
@@ -1265,9 +890,9 @@ class ConnectivityMultivariate(ProcMethod):
         if expand_groups:
             self._expand_seeds_targets()
 
-        self._generate_indices()
+        super()._generate_indices()
 
-    def _seeds_targets_from_type(self, ch_type: str) -> list[str]:
+    def _seeds_targets_from_type(self, ch_type: str) -> list[list[str]]:
         """Gets channel names to use for connectivity seeds or targets for a
         particular channel type, grouping channels based on their rereferencing
         and epoch order types.
@@ -1279,7 +904,7 @@ class ConnectivityMultivariate(ProcMethod):
 
         RETURNS
         -------
-        channels : list[str]
+        channels : list[list[[str]]
         -   Names of channels grouped according to their rereferencing and epoch
             order types.
         """
@@ -1332,22 +957,6 @@ class ConnectivityMultivariate(ProcMethod):
         self._seeds = seeds
         self._targets = targets
 
-    def _generate_indices(self) -> None:
-        """Generates MNE-readable indices for calculating connectivity between
-        signals."""
-
-        self._indices = []
-        for seeds, targets in zip(self._seeds, self._targets):
-            ch_names = [*seeds, *targets]
-            ch_idcs = [
-                ch_i
-                for ch_i, name in enumerate(self.signal.data[0].ch_names)
-                if name in ch_names
-            ]
-            self._indices.append(
-                seed_target_indices(seeds=ch_idcs, targets=ch_idcs)
-            )
-
     def _get_results(self) -> None:
         """Performs the connectivity analysis."""
 
@@ -1356,7 +965,7 @@ class ConnectivityMultivariate(ProcMethod):
                 n_steps=len(self.signal.data) * len(self._indices) * 2,
                 title="Computing connectivity",
             )
-        
+
         connectivity = []
         for win_i, win_data in enumerate(self.signal.data):
             if self._verbose:
@@ -1404,7 +1013,7 @@ class ConnectivityMultivariate(ProcMethod):
                 method="cohy",
                 indices=indices,
                 sfreq=data.info["sfreq"],
-                mode=self._mode,
+                mode=self._cohy_method,
                 fmin=self._fmin,
                 fmax=self._fmax,
                 fskip=self._fskip,
@@ -1460,13 +1069,13 @@ class ConnectivityMultivariate(ProcMethod):
         for con_i, coherency in enumerate(data):
             if self._verbose:
                 print(
-                    f"Computing '{self._method}' for seed-target group {con_i} "
-                    f"of {len(self._indices)}\n."
+                    f"Computing '{self._con_method}' for seed-target group "
+                    f"{con_i} of {len(self._indices)}\n."
                 )
             cohy_matrix = self._get_cohy_matrix(coherency)
             results = multivariate_connectivity(
                 data=cohy_matrix,
-                method=self._method,
+                method=self._con_method,
                 n_group_a=len(self._seeds[con_i]),
                 n_group_b=len(self._targets[con_i]),
             )
@@ -1543,7 +1152,7 @@ class ConnectivityMultivariate(ProcMethod):
             n_nodes=len(self._seeds),
             names=names,
             indices=indices,
-            method=self._method,
+            method=self._con_method,
             n_epochs_used=n_epochs_used,
         )
 
@@ -1629,7 +1238,7 @@ class ConnectivityMultivariate(ProcMethod):
         """Generates additional information related to the connectivity
         analysis."""
 
-        self.extra_info["node_ch_names"] = self._generate_node_ch_names()
+        super()._generate_node_ch_names()
         self.extra_info["node_ch_types"] = self._generate_node_ch_types()
         self.extra_info[
             "node_ch_reref_types"
@@ -1649,16 +1258,12 @@ class ConnectivityMultivariate(ProcMethod):
             "node_ch_epoch_orders"
         ] = self._generate_node_ch_epoch_orders()
 
-    def _generate_node_ch_names(self) -> list[list[str]]:
+    def _generate_node_ch_names(self) -> None:
         """Converts the indices of channels in the connectivity results to their
         channel names.
-
-        RETURNS
-        -------
-        node_names : list[list[str]]
-        -   List containing two sublists consisting of the channel names of the
-            seeds and targets, respectively, for each node in the connectivity
-            results.
+        -   Names are a list containing two sublists consisting of the channel
+            names of the seeds and targets, respectively, for each node in the
+            connectivity results.
         """
 
         self._separated_names = []
@@ -1666,13 +1271,7 @@ class ConnectivityMultivariate(ProcMethod):
             self._separated_names.append(
                 separate_vals_string(combined_names, " & ")
             )
-
-        node_names = [[], []]
-        for group_i, indices in enumerate(self.results[0].indices):
-            for index in indices:
-                node_names[group_i].append(self.results[0].names[index])
-
-        return node_names
+        super()._generate_node_ch_names()
 
     def _generate_node_ch_types(self) -> list[list[str]]:
         """Gets the types of channels in the connectivity results.
@@ -2006,8 +1605,8 @@ class ConnectivityMultivariate(ProcMethod):
         results = self.get_results(dimensions=dimensions)
 
         return {
-            f"connectivity-{self._method}": results.tolist(),
-            f"connectivity-{self._method}_dimensions": dimensions,
+            f"connectivity-{self._con_method}": results.tolist(),
+            f"connectivity-{self._con_method}_dimensions": dimensions,
             "freqs": self.results[0].freqs,
             "seed_names": self.extra_info["node_ch_names"][0],
             "seed_types": self.extra_info["node_ch_types"][0],
@@ -2060,3 +1659,235 @@ class ConnectivityMultivariate(ProcMethod):
         )
 
         return deepcopy(results)
+
+
+class ConnectivityGrangerCausality(ProcConnectivity):
+    """Calculates Granger causality measures of connectivity between signals.
+
+    PARAMETERS
+    ----------
+    signal : coh_signal.Signal
+    -   The preprocessed data to analyse.
+
+    verbose : bool; default True
+    -   Whether or not to print information about the information processing.
+
+    METHODS
+    -------
+    process
+    -   Performs granger causality analysis.
+
+    save_object
+    -   Saves the object as a .pkl file.
+
+    save_results
+    -   Saves the results and additional information as a file.
+
+    results_as_dict
+    -   Returns the results and additional information as a dictionary.
+
+    get_results
+    -   Extracts and returns results.
+    """
+
+    def __init__(self, signal: coh_signal.Signal, verbose: bool = True) -> None:
+        super().__init__(signal, verbose)
+
+        # Initialises inputs of the object.
+        super()._sort_inputs()
+
+        # Initialises aspects of the object that will be filled with information
+        # as the data is processed.
+        self._gc_method = None
+        self._cs_method = None
+        self._seeds = None
+        self._targets = None
+        self._n_lags = None
+        self._cwt_freqs = None
+        self._fmt_fmin = None
+        self._fmt_fmax = None
+        self._tmin = None
+        self._tmax = None
+        self._picks = None
+        self._cwt_n_cycles = None
+        self._cwt_use_fft = None
+        self._fmt_n_fft = None
+        self._mt_bandwidth = None
+        self._mt_adaptive = None
+        self._mt_low_bias = None
+        self._cwt_decim = None
+        self._projs = None
+        self._average_windows = None
+        self._n_jobs = None
+
+    def process(
+        self,
+        gc_method: str,
+        cs_method: str,
+        seeds: Union[str, list[str], None] = None,
+        targets: Union[str, list[str], None] = None,
+        n_lags: int = 20,
+        tmin: Union[int, float, None] = None,
+        tmax: Union[int, float, None] = None,
+        picks: Union[str, list, slice, None] = None,
+        projs: Union[list[Projection], None] = None,
+        average_windows: bool = True,
+        n_jobs: int = 1,
+        cwt_freqs: Union[list[Union[int, float]], None] = None,
+        cwt_n_cycles: Union[int, float, list[Union[int, float]]] = 7,
+        cwt_use_fft: bool = True,
+        cwt_decim: Union[int, slice] = 1,
+        mt_bandwidth: Union[int, float, None] = None,
+        mt_adaptive: bool = False,
+        mt_low_bias: bool = True,
+        fmt_fmin: Union[int, float] = 0,
+        fmt_fmax: Union[int, float] = float("inf"),
+        fmt_n_fft: Union[int, None] = None,
+    ):
+        """Performs the Granger casuality analysis on the data.
+
+        PARAMETERS
+        ----------
+        gc_method : str
+        -   The Granger causality metric to compute.
+        -   Supported inputs are: "gc" - standard Granger causality; and "trgc"
+            - time-reversed Granger causality.
+
+        cs_method : str
+        -   The method for computing the cross-spectra of the data.
+        -   Supported inputs are: "multitaper"; "fourier"; and "cwt_morlet".
+
+        seeds : str | list[str] | None; default None
+        -   The channels to use as seeds for the connectivity analysis.
+            Connectivity is calculated from each seed to each target.
+        -   If a string, can either be a single channel name, or a single
+            channel type. In the latter case, the channel type should be
+            preceded by 'type_', e.g. 'type_ecog'. In this case, channels belonging
+            to each type with different epoch orders and rereferencing types will be
+            handled separately.
+        -   If a list of strings, each entry of the list should be a channel
+            name.
+        -   If None, all channels will be used as seeds.
+
+        targets : str | list[str] | None; default None
+        -   The channels to use as targets for the connectivity analysis.
+            Connectivity is calculated from each seed to each target.
+        -   If a string, can either be a single channel name, or a single
+            channel type. In the latter case, the channel type should be
+            preceded by 'type_', e.g. 'type_ecog'. In this case, channels belonging
+            to each type with different epoch orders and rereferencing types will be
+            handled separately.
+        -   If a list of strings, each entry of the list should be a channel
+            name.
+        -   If None, all channels will be used as targets.
+
+        n_lags : int; default 20
+        -   The number of lags to use when computing autocovariance. Currently,
+            only positive-valued integers are supported.
+
+        tmin : float | None; default None
+        -   Time to start the connectivity estimation.
+        -   If None, the data is used from the beginning.
+
+        tmax : float | None; default None
+        -   Time to end the connectivity estimation.
+        -   If None, the data is used until the end.
+
+        picks : str | list | slice | None; default None
+        -   Channels to include in the analysis.
+        -   Slices and lists of integers are interpreted as channel indices.
+        -   Lists of strings can consist of channel names or types.
+        -   If "all", all channels - including bad channels - are included.
+        -   If 'None', all good channels are included.
+
+        projs : list[MNE Projection] | None; default None
+        -   List of projectors to store in the MNE CSD object.
+        -   If 'None', the projectors defined in the Signal object's epoched
+            data is used.
+
+        average_windows : bool; default False
+        -   Whether or not to average connectivity results across windows.
+
+        n_jobs : int; default 1
+        -   The number of epochs to calculate connectivity for in parallel.
+
+        cwt_freqs : list[int | float] | None; default None
+        -   The frequencies of interest, in Hz.
+        -   Only used if 'cs_method' is "cwt_morlet", in which case 'freqs' cannot
+            be 'None'.
+
+        cwt_n_cycles: int | float | array[int | float]; default 7
+        -   The number of cycles to use when calculating connectivity.
+        -   If an single integer or float, this number of cycles is for each
+            frequency.
+        -   If an array, the entries correspond to the number of cycles to use
+            for each frequency being analysed.
+        -   Only used if 'cs_method' is "cwt_morlet".
+
+        cwt_use_fft : bool; default True
+        -   Whether or not FFT-based convolution is used to compute the wavelet
+            transform.
+        -   Only used if 'cs_method' is "cwt_morlet".
+
+        cwt_decim : int | slice; default 1
+        -   Decimation factor to use during time-frequency decomposition to
+            reduce memory usage. If 1, no decimation is performed.
+
+        mt_bandwidth : float | None; default None
+        -   The bandwidth, in Hz, of the multitaper windowing function.
+        -   Only used if 'cs_method' is "multitaper".
+
+        mt_adaptive : bool; default False
+        -   Whether or not to use adaptive weights to comine the tapered spectra
+            into power spectra.
+        -   Only used if 'cs_method' is "multitaper".
+
+        mt_low_bias : bool: default True
+        -   Whether or not to only use tapers with > 90% spectral concentration
+            within bandwidth.
+        -   Only used if 'cs_method' is "multitaper".
+
+        fmt_fmin : int | float; default 0
+        -   The lower frequency of interest.
+        -   If a float, this frequency is used.
+        -   If a tuple, multiple bands are defined, with each entry being the
+            lower frequency for that band. E.g. (8., 20.) would give two bands
+            using 8 Hz and 20 Hz, respectively, as their lower frequencies.
+        -   Only used if 'cs_method' is "fourier" or "multitaper".
+
+        fmt_fmax : int | float; default infinity
+        -   The higher frequency of interest.
+        -   If a float, this frequency is used.
+        -   If a tuple, multiple bands are defined, with each entry being the
+            higher frequency for that band. E.g. (8., 20.) would give two bands
+            using 8 Hz and 20 Hz, respectively, as their higher frequencies.
+        -   If infinity, no higher frequency is used.
+        -   Only used if 'cs_method' is "fourier" or "multitaper".
+
+        fmt_n_fft : int | None; default None
+        -   Length of the FFT.
+        -   If 'None', the number of samples between 'tmin' and 'tmax' is used.
+        -   Only used if 'cs_method' is "fourier" or "multitaper".
+        """
+
+        self._gc_method = gc_method
+        self._cs_method = cs_method
+        self._seeds = seeds
+        self._targets = targets
+        self._n_lags = n_lags
+        self._cwt_freqs = cwt_freqs
+        self._fmt_fmin = fmt_fmin
+        self._fmt_fmax = fmt_fmax
+        self._tmin = tmin
+        self._tmax = tmax
+        self._picks = picks
+        self._cwt_n_cycles = cwt_n_cycles
+        self._cwt_use_fft = cwt_use_fft
+        self._fmt_n_fft = fmt_n_fft
+        self._mt_bandwidth = mt_bandwidth
+        self._mt_adaptive = mt_adaptive
+        self._mt_low_bias = mt_low_bias
+        self._cwt_decim = cwt_decim
+        self._projs = projs
+        self._average_windows = average_windows
+        self._n_jobs = n_jobs
