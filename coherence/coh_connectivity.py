@@ -1643,7 +1643,7 @@ class ConnectivityMultivariate(ProcConnectivity):
         return deepcopy(results)
 
 
-class ConnectivityGrangerCausality(ProcConnectivity):
+class ConnectivityGranger(ProcConnectivity):
     """Calculates Granger causality measures of connectivity between signals.
 
     PARAMETERS
@@ -1698,9 +1698,9 @@ class ConnectivityGrangerCausality(ProcConnectivity):
         self._mt_adaptive = None
         self._mt_low_bias = None
         self._cwt_decim = None
-        self._projs = None
         self._average_windows = None
         self._n_jobs = None
+        self._progress_bar = None
 
     def process(
         self,
@@ -1711,8 +1711,6 @@ class ConnectivityGrangerCausality(ProcConnectivity):
         n_lags: int = 20,
         tmin: Union[int, float, None] = None,
         tmax: Union[int, float, None] = None,
-        picks: Union[str, list, slice, None] = None,
-        projs: Union[list[Projection], None] = None,
         average_windows: bool = True,
         n_jobs: int = 1,
         cwt_freqs: Union[list[Union[int, float]], None] = None,
@@ -1774,18 +1772,6 @@ class ConnectivityGrangerCausality(ProcConnectivity):
         tmax : float | None; default None
         -   Time to end the connectivity estimation.
         -   If None, the data is used until the end.
-
-        picks : str | list | slice | None; default None
-        -   Channels to include in the analysis.
-        -   Slices and lists of integers are interpreted as channel indices.
-        -   Lists of strings can consist of channel names or types.
-        -   If "all", all channels - including bad channels - are included.
-        -   If 'None', all good channels are included.
-
-        projs : list[MNE Projection] | None; default None
-        -   List of projectors to store in the MNE CSD object.
-        -   If 'None', the projectors defined in the Signal object's epoched
-            data is used.
 
         average_windows : bool; default False
         -   Whether or not to average connectivity results across windows.
@@ -1862,7 +1848,7 @@ class ConnectivityGrangerCausality(ProcConnectivity):
         self._fmt_fmax = fmt_fmax
         self._tmin = tmin
         self._tmax = tmax
-        self._picks = picks
+        self._picks = unique([*seeds, *targets])
         self._cwt_n_cycles = cwt_n_cycles
         self._cwt_use_fft = cwt_use_fft
         self._fmt_n_fft = fmt_n_fft
@@ -1870,7 +1856,6 @@ class ConnectivityGrangerCausality(ProcConnectivity):
         self._mt_adaptive = mt_adaptive
         self._mt_low_bias = mt_low_bias
         self._cwt_decim = cwt_decim
-        self._projs = projs
         self._average_windows = average_windows
         self._n_jobs = n_jobs
 
@@ -1892,6 +1877,8 @@ class ConnectivityGrangerCausality(ProcConnectivity):
 
         super()._sort_indices()
 
+        self._picks = unique([*self._seeds, *self._targets])
+
     def _get_results(self) -> None:
         """Performs the connectivity analysis."""
 
@@ -1901,55 +1888,19 @@ class ConnectivityGrangerCausality(ProcConnectivity):
                 title="Computing connectivity",
             )
 
-        self._compute_cs()
-
-        connectivity = []
-        for i, data in enumerate(self.signal.data):
-            if self._verbose:
-                print(
-                    f"Computing connectivity for window {i+1} of "
-                    f"{len(self.signal.data)}.\n"
-                )
-            connectivity.append(
-                spectral_connectivity_epochs(
-                    data=data,
-                    method=self._method,
-                    indices=self._indices,
-                    sfreq=data.info["sfreq"],
-                    mode=self._mode,
-                    fmin=self._fmin,
-                    fmax=self._fmax,
-                    fskip=self._fskip,
-                    faverage=self._faverage,
-                    tmin=self._tmin,
-                    tmax=self._tmax,
-                    mt_bandwidth=self._mt_bandwidth,
-                    mt_adaptive=self._mt_adaptive,
-                    mt_low_bias=self._mt_low_bias,
-                    cwt_freqs=self._cwt_freqs,
-                    cwt_n_cycles=self._cwt_n_cycles,
-                    block_size=self._block_size,
-                    n_jobs=self._n_jobs,
-                    verbose=self._verbose,
-                )
-            )
-            if self._progress_bar is not None:
-                self._progress_bar.update_progress()
-        self.results = connectivity
-
-        if self._progress_bar is not None:
-            self._progress_bar.close()
+        cross_spectra = self._compute_csd()
+        self.results = self._compute_gc()
 
         self._sort_dimensions()
         super()._generate_extra_info()
 
-    def _compute_cspd(self) -> list[CrossSpectralDensity]:
-        """Computes the cross-spectral power density of the data.
+    def _compute_csd(self) -> list[CrossSpectralDensity]:
+        """Computes the cross-spectral density of the data.
 
         RETURNS
         -------
         cross_spectra : list[MNE CrossSpectralDensity]
-        -   The cross spectra for each window of the data.
+        -   The cross-spectra for each window of the data.
         """
 
         cross_spectra = []
@@ -1969,7 +1920,7 @@ class ConnectivityGrangerCausality(ProcConnectivity):
                         tmax=self._tmax,
                         picks=self._picks,
                         n_fft=self._fmt_n_fft,
-                        projs=self._projs,
+                        projs=None,
                         n_jobs=self._n_jobs,
                         verbose=self._verbose,
                     )
@@ -1987,7 +1938,7 @@ class ConnectivityGrangerCausality(ProcConnectivity):
                         bandwidth=self._mt_bandwidth,
                         adaptive=self._mt_adaptive,
                         low_bias=self._mt_low_bias,
-                        projs=self._projs,
+                        projs=None,
                         n_jobs=self._n_jobs,
                         verbose=self._verbose,
                     )
@@ -2003,8 +1954,48 @@ class ConnectivityGrangerCausality(ProcConnectivity):
                         n_cycles=self._cwt_n_cycles,
                         use_fft=self._cwt_use_fft,
                         decim=self._cwt_decim,
-                        projs=self._projs,
+                        projs=None,
                         n_jobs=self._n_jobs,
                         verbose=self._verbose,
                     )
                 )
+            if self._progress_bar is not None:
+                self._progress_bar.update_progress()
+
+        return cross_spectra
+
+    def _compute_gc(
+        self, cross_spectra: list[CrossSpectralDensity]
+    ) -> list[SpectralConnectivity]:
+        """Computes Granger casuality between signals from the cross-spectral
+        density.
+
+        PARAMETERS
+        ----------
+        cross_spectra : list[MNE CrossSpectralDensity]
+        -   The cross-spectra between signals for each window.
+
+        RETURNS
+        -------
+        granger_causality : list[SpectralConnectivity]
+        -   The Granger causality between signals for each window.
+        """
+
+        ### CSD => autocov
+
+        ### autocov => full-forward VAR model
+
+        ### full-forward VAR model => state-space VAR models
+
+        ### state-space VAR models => GC
+
+    def save_object(self) -> None:
+        """Saves the object as a .pkl file."""
+
+    def save_results(self) -> None:
+        """Converts the results and additional information to a dictionary and
+        saves them as a file."""
+
+    def results_as_dict(self) -> None:
+        """Organises the results and additional information into a
+        dictionary."""
