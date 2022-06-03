@@ -152,7 +152,7 @@ def multivariate_interaction_measure(
         )
 
         # Equation 14
-        mim[freq_i] = np.trace(np.matmul(E, E.T))
+        mim[freq_i] = np.trace(np.matmul(E, np.conj(E).T))
 
     return mim
 
@@ -225,14 +225,14 @@ def max_imaginary_coherence(
         )
 
         # Weights for signals in the groups
-        w_a, V_a = np.linalg.eig(np.matmul(E, E.T))
-        w_b, V_b = np.linalg.eig(np.matmul(E.T, E))
+        w_a, V_a = np.linalg.eig(np.matmul(E, np.conj(E).T))
+        w_b, V_b = np.linalg.eig(np.matmul(np.conj(E).T, E))
         alpha = V_a[:, w_a.argmax()]
         beta = V_b[:, w_b.argmax()]
 
         # Equation 7
         mic[freq_i] = np.abs(
-            np.matmul(alpha.T, np.matmul(E, beta))
+            np.matmul(np.conj(alpha).T, np.matmul(E, beta))
             / np.linalg.norm(alpha)
             * np.linalg.norm(beta)
         )

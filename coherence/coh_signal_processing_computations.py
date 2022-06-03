@@ -11,6 +11,7 @@ from typing import Union
 import numpy as np
 from numpy.typing import NDArray
 from scipy.io import loadmat
+from coh_matlab_functions import mrdivide, reshape
 
 
 def csd_to_autocovariance(
@@ -46,8 +47,8 @@ def csd_to_autocovariance(
 
     NOTES
     -----
-    -   Translated into Python from the MATLAB MVGC toolbox function
-        "cpsd_to_autocov" by Thomas Samuel Binns of Wolf-Julian Neumann's group.
+    -   Translated into Python from the MATLAB MVGC toolbox v1.0 function
+        'cpsd_to_autocov' by Thomas Samuel Binns (@tsbinns).
     """
 
     csd_shape = np.shape(csd)
@@ -80,7 +81,7 @@ def csd_to_autocovariance(
         data=circular_shifted_csd, n_points=freq_res * 2
     )
 
-    lags_ifft_shifted_csd = np.reshape(
+    lags_ifft_shifted_csd = reshape(
         ifft_shifted_csd[:, :, : n_lags + 1],
         (csd_shape[0] ** 2, n_lags + 1),
     )
@@ -89,7 +90,7 @@ def csd_to_autocovariance(
     sign_matrix = np.tile(np.asarray(signs), (csd_shape[0] ** 2, 1))
 
     return np.real(
-        np.reshape(
+        reshape(
             sign_matrix * lags_ifft_shifted_csd,
             (csd_shape[0], csd_shape[0], n_lags + 1),
         )
@@ -98,15 +99,15 @@ def csd_to_autocovariance(
 
 def autocovariance_to_full_var(
     autocov: NDArray, enforce_posdef_residuals_cov: bool = False
-) -> None:
-    """Computes the full-forward vector autoregressive model from an
-    autocovariance sequence.
+) -> tuple[NDArray, NDArray]:
+    """Computes the full-forward vector autoregressive (VAR) model from an
+    autocovariance sequence using Whittle's recursion.
 
     PARAMETERS
     ----------
     autocov : numpy array
     -   An autocovariance sequence with dimensions [n_signals x n_signals x
-        n_lags].
+        n_lags + 1].
 
     enforce_posdef_residuals_cov : bool; default False
     -   Whether or not to make sure that the residuals' covariance matrix is
@@ -122,6 +123,13 @@ def autocovariance_to_full_var(
 
     RETURNS
     -------
+    var_coeffs : numpy array
+    -   The coefficients of the full forward VAR model with dimensions
+        [n_signals x n_signals x n_lags].
+
+    residuals_cov : numpy array
+    -   The residuals of the covariance matrix with dimensions [n_signals x
+        n_signals].
 
     RAISES
     ------
@@ -134,28 +142,25 @@ def autocovariance_to_full_var(
 
     NOTES
     -----
+    -   For Whittle's recursion algorithm, see: Whittle P., 1963. Biometrika,
+        doi: 10.1093/biomet/50.1-2.129.
+    -   Additionally checks that the coefficients are all 'good', i.e. that all
+        values are neither 'NaN' nor 'Inf'.
+    -   Translated into Python from MATLAB code provided by Stefan Haufe's
+        research group by Thomas Samuel Binns (@tsbinns).
     """
 
-    csd_shape = np.shape(csd)
-    if len(csd_shape) != 3:
-        raise ValueError(
-            "The cross-spectral density must have three dimensions, but "
-            f"has {len(csd_shape)}."
-        )
-    if csd_shape[0] != csd_shape[1]:
-        raise ValueError(
-            "The cross-spectral density must have the same first two "
-            f"dimensions, but these are {csd_shape[0]} and {csd_shape[1]}, "
-            "respectively."
-        )
+    var_coeffs, residuals_cov = whittle_lwr_recursion(
+        G=autocov, enforce_coeffs_good=True
+    )
 
-    n_lags = np.shape(autocov)[2]
     if enforce_posdef_residuals_cov:
         try:
             np.linalg.cholesky(residuals_cov)
         except np.linalg.linalg.LinAlgError as np_error:
+            n_lags = np.shape(autocov)[2]
             if n_lags - 1 > 0:
-                _, residuals_cov = autocov_to_full_var(
+                _, residuals_cov = autocovariance_to_full_var(
                     autocov=autocov[:, :, : n_lags - 1],
                     enforce_posdef_residuals_cov=True,
                 )
@@ -165,6 +170,121 @@ def autocovariance_to_full_var(
                     "matrix is being enforced, however no positive-definite "
                     "matrix can be found."
                 ) from np_error
+
+    return var_coeffs, residuals_cov
+
+
+def whittle_lwr_recursion(
+    G: NDArray, enforce_coeffs_good: bool = True
+) -> NDArray:
+    """Calculates regression coefficients and the residuals' covariance matrix
+    from an autocovariance sequence by solving the Yule-Walker equations using
+    Whittle's recursive Levinson, Wiggins, Robinson (LWR) algorithm.
+
+    PARAMETERS
+    ----------
+    G : numpy array
+    -   The autocovariance sequence.
+
+    enforce_coeffs_good : bool; default True
+    -   Checks that the coefficients of the VAR model are all 'good', i.e. that
+        they are all neither 'NaN' or 'Inf', which can happen if the regressions
+        are rank-deficient or ill-conditioned.
+
+    RETURNS
+    -------
+    var_coeffs : numpy array
+    -   The coefficients of the full forward VAR model with dimensions
+        [n_signals x n_signals x n_lags].
+
+    residuals_cov : numpy array
+    -   The residuals of the covariance matrix with dimensions [n_signals x
+        n_signals].
+
+    RAISES
+    ------
+    ValueError
+    -   Raised if 'G' does not have three dimensions.
+    -   Raised if the first two dimensions of 'G' do not have the same length.
+    -   Raised if 'enforce_coeffs_good' is 'True' and the VAR model coefficients
+        are not all neither 'NaN' or 'Inf'.
+
+    NOTES
+    -----
+    -   For Whittle's recursion algorithm, see: Whittle P., 1963. Biometrika,
+        doi: 10.1093/biomet/50.1-2.129.
+    -   Translated into Python from the MATLAB MVGC toolbox v1.0 function
+        'autocov_to_var' by Thomas Samuel Binns (@tsbinns).
+    """
+
+    G_shape = np.shape(G)
+    if len(G_shape) != 3:
+        raise ValueError(
+            "The autocovariance sequence must have three dimensions, but has "
+            f"{len(G_shape)}."
+        )
+    if G_shape[0] != G_shape[1]:
+        raise ValueError(
+            "The autocovariance sequence must have the same first two "
+            f"dimensions, but these are {G_shape[0]} and "
+            f"{G_shape[1]}, respectively."
+        )
+
+    ### Initialise recursion
+    n = G_shape[0]  # number of signals
+    q = G_shape[2] - 1  # number of lags
+    qn = n * q
+
+    G0 = G[:, :, 0]  # covariance
+    GF = (
+        reshape(G[:, :, 1:], (n, qn)).conj().T
+    )  # forward autocovariance sequence
+    GB = reshape(
+        np.flip(G[:, :, 1:], 2).transpose((0, 2, 1)), (qn, n)
+    )  # backward autocovariance sequence
+
+    AF = np.zeros((n, qn))  # forward coefficients
+    AB = np.zeros((n, qn))  # backward coefficients
+
+    k = 1  # model order
+    r = q - k
+    kf = np.arange(k * n)  # forward indices
+    kb = np.arange(r * n, qn)  # backward indices
+
+    AF[:, kf] = mrdivide(GB[kb, :], G0)
+    AB[:, kb] = mrdivide(GF[kf, :], G0)
+
+    ### Recursion
+    for k in np.arange(2, q + 1):
+        AAF = mrdivide(
+            GB[(r - 1) * n : r * n, :] - np.matmul(AF[:, kf], GB[kb, :]),
+            G0 - np.matmul(AB[:, kb], GB[kb, :]),
+        )  # DF/VB
+        AAB = mrdivide(
+            GF[(k - 1) * n : k * n, :] - np.matmul(AB[:, kb], GF[kf, :]),
+            G0 - np.matmul(AF[:, kf], GF[kf, :]),
+        )  # DB/VF
+
+        AF_previous = AF[:, kf]
+        AB_previous = AB[:, kb]
+
+        r = q - k
+        kf = np.arange(k * n)
+        kb = np.arange(r * n, qn)
+
+        AF[:, kf] = np.hstack((AF_previous - np.matmul(AAF, AB_previous), AAF))
+        AB[:, kb] = np.hstack((AAB, AB_previous - np.matmul(AAB, AF_previous)))
+
+    residuals_cov = G0 - np.matmul(AF, GF)
+    var_coeffs = reshape(AF, (n, n, q))
+
+    if enforce_coeffs_good:
+        if not np.isfinite(var_coeffs).all():
+            raise ValueError(
+                "The 'good' (i.e. non-NaN and non-infinite) nature of the "
+                "VAR model coefficients is being enforced, but the "
+                "coefficients are not all finite."
+            )
 
     return var_coeffs, residuals_cov
 
@@ -197,8 +317,8 @@ def block_ifft(data: NDArray, n_points: Union[int, None] = None) -> NDArray:
 
     NOTES
     -----
-    -   Translated into Python from the MATLAB MVGC toolbox function "bifft" by
-        by Thomas Samuel Binns of Wolf-Julian Neumann's group.
+    -   Translated into Python from the MATLAB MVGC toolbox v1.0 function
+        'bifft' by Thomas Samuel Binns (@tsbinns).
     """
 
     data_shape = np.shape(data)
@@ -211,14 +331,17 @@ def block_ifft(data: NDArray, n_points: Union[int, None] = None) -> NDArray:
             f"{len(data_shape)} dimensions."
         )
 
-    two_dim_data = np.reshape(
+    two_dim_data = reshape(
         data, (data_shape[0] * data_shape[1], data_shape[2])
     ).T
     ifft_data = np.fft.ifft(two_dim_data, n=n_points, axis=0).T
 
-    return np.reshape(ifft_data, (data_shape[0], data_shape[1], data_shape[2]))
+    return reshape(ifft_data, (data_shape[0], data_shape[1], data_shape[2]))
 
 
 csd = loadmat("coherence\\csd.mat")["CS"]
 autocov = csd_to_autocovariance(csd, 20)
+var_coeffs, residuals_cov = autocovariance_to_full_var(
+    autocov=autocov[:4, :4, :], enforce_posdef_residuals_cov=True
+)
 print("jeff")
