@@ -100,7 +100,7 @@ def csd_to_autocovariance(
 def autocovariance_to_full_var(
     autocov: NDArray, enforce_posdef_residuals_cov: bool = False
 ) -> tuple[NDArray, NDArray]:
-    """Computes the full-forward vector autoregressive (VAR) model from an
+    """Computes the full vector autoregressive (VAR) model from an
     autocovariance sequence using Whittle's recursion.
 
     PARAMETERS
@@ -128,7 +128,7 @@ def autocovariance_to_full_var(
         [n_signals x n_signals x n_lags].
 
     residuals_cov : numpy array
-    -   The residuals of the covariance matrix with dimensions [n_signals x
+    -   The residuals' covariance matrix with dimensions [n_signals x
         n_signals].
 
     RAISES
@@ -151,7 +151,7 @@ def autocovariance_to_full_var(
     """
 
     var_coeffs, residuals_cov = whittle_lwr_recursion(
-        G=autocov, enforce_coeffs_good=True
+        autocov=autocov, enforce_coeffs_good=True
     )
 
     if enforce_posdef_residuals_cov:
@@ -175,7 +175,7 @@ def autocovariance_to_full_var(
 
 
 def whittle_lwr_recursion(
-    G: NDArray, enforce_coeffs_good: bool = True
+    autocov: NDArray, enforce_coeffs_good: bool = True
 ) -> NDArray:
     """Calculates regression coefficients and the residuals' covariance matrix
     from an autocovariance sequence by solving the Yule-Walker equations using
@@ -183,8 +183,9 @@ def whittle_lwr_recursion(
 
     PARAMETERS
     ----------
-    G : numpy array
-    -   The autocovariance sequence.
+    autocov : numpy array
+    -   The autocovariance sequence with dimensions [n_signals x n_signals x
+        n_lags + 1].
 
     enforce_coeffs_good : bool; default True
     -   Checks that the coefficients of the VAR model are all 'good', i.e. that
@@ -198,7 +199,7 @@ def whittle_lwr_recursion(
         [n_signals x n_signals x n_lags].
 
     residuals_cov : numpy array
-    -   The residuals of the covariance matrix with dimensions [n_signals x
+    -   The residuals' covariance matrix with dimensions [n_signals x
         n_signals].
 
     RAISES
@@ -211,12 +212,13 @@ def whittle_lwr_recursion(
 
     NOTES
     -----
-    -   For Whittle's recursion algorithm, see: Whittle P., 1963. Biometrika,
-        doi: 10.1093/biomet/50.1-2.129.
+    -   For Whittle's recursion algorithm, see: Whittle P., 1963, Biometrika,
+        DOI: 10.1093/biomet/50.1-2.129.
     -   Translated into Python from the MATLAB MVGC toolbox v1.0 function
         'autocov_to_var' by Thomas Samuel Binns (@tsbinns).
     """
 
+    G = autocov
     G_shape = np.shape(G)
     if len(G_shape) != 3:
         raise ValueError(
@@ -289,6 +291,74 @@ def whittle_lwr_recursion(
     return var_coeffs, residuals_cov
 
 
+def var_to_ss_params(var_coeffs=var_coeffs, residuals_cov=residuals_cov):
+    """Computes innovations-form parameters for a state-space vector
+    autoregressive (VAR) model from a VAR model's coefficients and residuals'
+    covariance matrix using Aoki's method.
+
+    PARAMETERS
+    ----------
+    var_coeffs : numpy array
+    -   The coefficients of the full VAR model with dimensions [n_signals x
+        n_signals x n_lags].
+
+    residuals_cov : numpy array
+    -   The residuals' covariance matrix with dimensions [n_signals x
+        n_signals].
+
+    RETURNS
+    -------
+
+    NOTES
+    -----
+    -   Aoki's method for computing innovations-form parameters for a
+        state-space VAR model allows for zero-lag coefficients.
+    """
+
+    AF = var_coeffs
+    V = residuals_cov
+
+    AF_shape = AF.shape()
+    if len(AF_shape) != 3:
+        raise ValueError(
+            "The VAR model coefficients must have three dimensions, but has "
+            f"{len(AF_shape)}."
+        )
+    if AF_shape[0] != AF_shape[1]:
+        raise ValueError(
+            "The VAR model coefficients must have the same first two "
+            f"dimensions, but these are {AF_shape[0]} and "
+            f"{AF_shape[1]}, respectively."
+        )
+    V_shape = V.shape()
+    if len(V_shape) != 2:
+        raise ValueError(
+            "The VAR model's residual's covariance matrix must have two "
+            f"dimensions, but has {len(AF_shape)}."
+        )
+    if V_shape[0] != V_shape[1]:
+        raise ValueError(
+            "The VAR model's residual's covariance matrix must have the same "
+            f"first two dimensions, but these are {AF_shape[0]} and "
+            f"{AF_shape[1]}, respectively."
+        )
+
+    AF = reshape(AF, (4))
+    m = AF.shape()[0]  # number of signals
+    p = AF.shape()[1] // m  # number of autoregressive lags
+
+    Ip = np.eye(m * p)
+    A = np.vstack((AF, Ip[: (len(Ip) - m), :]))
+    K = np.vstack((np.eye(m), np.zeros((m * (p - 1)), m)))
+
+    O = discrete_lyapunov(A=A, Q=np.matmul(np.matmul(K, V), K).conj().T)
+    lambda_0 = (
+        np.matmul(np.matmul(AF, O), AF.conj().T) + V
+    )  # variance of the process
+
+    return A, AF, K, V, lambda_0
+
+
 def block_ifft(data: NDArray, n_points: Union[int, None] = None) -> NDArray:
     """Performs a 'block' inverse fast Fourier transform on the data, involving
     an n-point inverse Fourier transform.
@@ -339,9 +409,37 @@ def block_ifft(data: NDArray, n_points: Union[int, None] = None) -> NDArray:
     return reshape(ifft_data, (data_shape[0], data_shape[1], data_shape[2]))
 
 
+def discrete_lyapunov(A: NDArray, Q: NDArray) -> NDArray:
+    """Solves the discrete-time Lyapunov equation via Schur decomposition.
+
+    PARAMETERS
+    ----------
+    A : numpy array
+    -   A square matrix with a spectral radius of < 1.
+
+    Q : numpy array
+    -   A symmetric, positive-definite matrix.
+
+    RETURNS
+    -------
+    X : numpy array
+    -   The solution of the discrete-time Lyapunov equation.
+
+    NOTES
+    -----
+    -   The Lyapunov equation takes the form X = A*X*conj(A)'+Q
+    -   References: Kitagawa G., 1977, International Journal of Control, DOI:
+        10.1080/00207177708922266; Hammarling S.J., 1982, IMA Journal of
+        Numerical Analysis, DOI: 10.1093/imanum/2.3.303.
+    """
+
+    # IMPLEMENT!!!!!!!!
+
+
 csd = loadmat("coherence\\csd.mat")["CS"]
 autocov = csd_to_autocovariance(csd, 20)
 var_coeffs, residuals_cov = autocovariance_to_full_var(
     autocov=autocov[:4, :4, :], enforce_posdef_residuals_cov=True
 )
+full_var_to_ss_var(var_coeffs=var_coeffs, residuals_cov=residuals_cov)
 print("jeff")
