@@ -7,11 +7,14 @@ block_ifft
     n-point inverse Fourier transform.
 """
 
+from copy import copy
 from typing import Union
 import numpy as np
+import scipy
+from scipy.linalg import schur
 from numpy.typing import NDArray
 from scipy.io import loadmat
-from coh_matlab_functions import mrdivide, reshape
+from coh_matlab_functions import mrdivide, mldivide, reshape, kron
 
 
 def csd_to_autocovariance(
@@ -291,7 +294,7 @@ def whittle_lwr_recursion(
     return var_coeffs, residuals_cov
 
 
-def var_to_ss_params(var_coeffs=var_coeffs, residuals_cov=residuals_cov):
+def var_to_ss_params(var_coeffs: NDArray, residuals_cov: NDArray):
     """Computes innovations-form parameters for a state-space vector
     autoregressive (VAR) model from a VAR model's coefficients and residuals'
     covariance matrix using Aoki's method.
@@ -308,6 +311,14 @@ def var_to_ss_params(var_coeffs=var_coeffs, residuals_cov=residuals_cov):
 
     RETURNS
     -------
+    A : numpy array
+    -   ???
+
+    K : numpy array
+    -   ???
+
+    lambda_0 :
+    -   Variance of the process.
 
     NOTES
     -----
@@ -318,7 +329,7 @@ def var_to_ss_params(var_coeffs=var_coeffs, residuals_cov=residuals_cov):
     AF = var_coeffs
     V = residuals_cov
 
-    AF_shape = AF.shape()
+    AF_shape = AF.shape
     if len(AF_shape) != 3:
         raise ValueError(
             "The VAR model coefficients must have three dimensions, but has "
@@ -330,7 +341,7 @@ def var_to_ss_params(var_coeffs=var_coeffs, residuals_cov=residuals_cov):
             f"dimensions, but these are {AF_shape[0]} and "
             f"{AF_shape[1]}, respectively."
         )
-    V_shape = V.shape()
+    V_shape = V.shape
     if len(V_shape) != 2:
         raise ValueError(
             "The VAR model's residual's covariance matrix must have two "
@@ -343,20 +354,63 @@ def var_to_ss_params(var_coeffs=var_coeffs, residuals_cov=residuals_cov):
             f"{AF_shape[1]}, respectively."
         )
 
-    AF = reshape(AF, (4))
-    m = AF.shape()[0]  # number of signals
-    p = AF.shape()[1] // m  # number of autoregressive lags
+    AF = reshape(AF, (AF_shape[0], AF_shape[0] * AF_shape[2]))
+    m = AF.shape[0]  # number of signals
+    p = AF.shape[1] // m  # number of autoregressive lags
 
     Ip = np.eye(m * p)
     A = np.vstack((AF, Ip[: (len(Ip) - m), :]))
-    K = np.vstack((np.eye(m), np.zeros((m * (p - 1)), m)))
+    K = np.vstack((np.eye(m), np.zeros(((m * (p - 1)), m))))
 
-    O = discrete_lyapunov(A=A, Q=np.matmul(np.matmul(K, V), K).conj().T)
+    O = discrete_lyapunov(A=A, Q=-np.matmul(K, np.matmul(V, K.conj().T)))
     lambda_0 = (
         np.matmul(np.matmul(AF, O), AF.conj().T) + V
     )  # variance of the process
 
-    return A, AF, K, V, lambda_0
+    return A, K, lambda_0
+
+
+def ss_params_to_gc(
+    A: NDArray,
+    C: NDArray,
+    K: NDArray,
+    V: NDArray,
+    z: NDArray,
+    i1: list[int],
+    i2: list[int],
+) -> NDArray:
+    """Computes frequency-domain (conditional) Granger causality from
+    innovations-form parameters for a state-space vector autoregressive (VAR)
+    model.
+
+    PARAMETERS
+    ----------
+    A : numpy array
+    -   ???
+
+    C : numpy array
+    -   ???
+
+    K : numpy array
+    -   ???
+
+    V : numpy array
+    -   ???
+
+    z : numpy array
+    -   Vector of points on a unit circle in the complex plane.
+
+    seeds : list[int]
+    -   Seed indices.
+
+    targets : list[int]
+    -   Target indices.
+
+    RETURNS
+    -------
+    f : ???
+    -   Spectral Granger causality from the seeds to the targets.
+    """
 
 
 def block_ifft(data: NDArray, n_points: Union[int, None] = None) -> NDArray:
@@ -410,7 +464,8 @@ def block_ifft(data: NDArray, n_points: Union[int, None] = None) -> NDArray:
 
 
 def discrete_lyapunov(A: NDArray, Q: NDArray) -> NDArray:
-    """Solves the discrete-time Lyapunov equation via Schur decomposition.
+    """Solves the discrete-time Lyapunov equation via Schur decomposition with a
+    column-by-column solution.
 
     PARAMETERS
     ----------
@@ -433,7 +488,60 @@ def discrete_lyapunov(A: NDArray, Q: NDArray) -> NDArray:
         Numerical Analysis, DOI: 10.1093/imanum/2.3.303.
     """
 
-    # IMPLEMENT!!!!!!!!
+    n = A.shape[0]
+    if n != A.shape[1]:
+        raise ValueError(
+            f"The matrix A is not square (has dimensions {A.shape})."
+        )
+    if A.shape != Q.shape:
+        raise ValueError(
+            f"The dimensions of matrix Q ({Q.shape}) do not match the "
+            f"dimensions of matrix A ({A.shape})."
+        )
+
+    T, U = schur(A)
+    Q = np.matmul(np.matmul(-U.conj().T, Q), U)
+
+    # Solve the equation column-by-column
+    X = np.zeros((n, n))
+    j = n - 1
+    while j > 0:
+        j1 = j + 1
+
+        # Check Schur block size
+        if T[j, j - 1] != 0:
+            bsiz = 2
+            j = j - 1
+        else:
+            bsiz = 1
+        bsizn = bsiz * n
+
+        Ajj = kron(T[j:j1, j:j1], T) - np.eye(bsizn)
+        rhs = reshape(Q[:, j:j1], (bsizn, 1))
+
+        if j1 < n:
+            rhs = rhs + reshape(
+                np.matmul(
+                    T,
+                    np.matmul(
+                        X[:, (j1 + 1) : n], T[j:j1, (j1 + 1) : n].conj().T
+                    ),
+                ),
+                (bsizn, 1),
+            )
+
+        v = mldivide(-Ajj, rhs)
+        X[:, j] = v[:n].flatten()
+
+        if bsiz == 2:
+            X[:, j1 - 1] = v[n:bsizn].flatten()
+
+        j = j - 1
+
+    # Convert back to original coordinates
+    X = np.matmul(U, np.matmul(X, U.conj().T))
+
+    return X
 
 
 csd = loadmat("coherence\\csd.mat")["CS"]
@@ -441,5 +549,7 @@ autocov = csd_to_autocovariance(csd, 20)
 var_coeffs, residuals_cov = autocovariance_to_full_var(
     autocov=autocov[:4, :4, :], enforce_posdef_residuals_cov=True
 )
-full_var_to_ss_var(var_coeffs=var_coeffs, residuals_cov=residuals_cov)
+A, K, lamba_0 = var_to_ss_params(
+    var_coeffs=var_coeffs, residuals_cov=residuals_cov
+)
 print("jeff")
