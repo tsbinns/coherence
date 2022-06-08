@@ -1763,3 +1763,39 @@ def dict_to_df(obj: dict) -> pd.DataFrame:
     """
 
     return pd.DataFrame.from_dict(data=obj, orient="columns")
+
+
+def check_posdef(A: NDArray) -> bool:
+    """Checks whether a matrix is positive-definite.
+
+    PARAMETERS
+    ----------
+    A : numpy array
+    -   The matrix to check the positive-definite nature of.
+
+    RETURNS
+    -------
+    is_posdef : bool
+    -   Whether or not the matrix is positive-definite.
+
+    NOTES
+    -----
+    -   First checks if the matrix is symmetric, and then performs a Cholesky
+        decomposition.
+    -   If the matrix is not symmetric, the positive-definite nature is
+        determined to be false.
+    -   If the matrix is symmetric and the Cholesky decomposition fails, the
+        positive-definite nature is determined to be false, otherwise the matrix
+        is said to be positive-definite.
+    """
+
+    is_posdef = True
+    if np.allclose(A, A.T):  # For differences due to floating-point errors
+        try:
+            np.linalg.cholesky(A)
+        except np.linalg.LinAlgError:
+            is_posdef = False
+    else:
+        is_posdef = False
+
+    return is_posdef
