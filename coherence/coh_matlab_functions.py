@@ -6,10 +6,6 @@ mrdivide
 -   Performs a matrix right division, equivalent to the 'mrdivide' function or
     '/' operator in MATLAB.
 
-mldivide
--   Performs a matrix left division, equivalent to the 'mrdivide' function or \
-    operator in MATLAB.
-
 reshape
 -   Equivalent to the MATLAB 'reshape' function, whereby the elements from the
     first axis onwards are taken in some order for the reshaping (i.e. from axis
