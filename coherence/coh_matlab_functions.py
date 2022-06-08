@@ -47,27 +47,6 @@ def mrdivide(A: NDArray, B: NDArray) -> NDArray:
     return np.linalg.solve(B.conj().T, A.conj().T).conj().T
 
 
-def mldivide(A: NDArray, B: NDArray) -> NDArray:
-    """Performs a matrix left division, equivalent to the 'mldivide' function or
-    \ operator in MATLAB.
-
-    PARAMETERS
-    ----------
-    A : numpy array
-    -   An n x m matrix on the left side of the division.
-
-    B : numpy array
-    -   An n x m matrix on the right side of the division.
-
-    RETURNS
-    -------
-    numpy array
-    -   The result of the matrix left division.
-    """
-
-    return np.linalg.lstsq(A, B, rcond=None)[0]
-
-
 def reshape(array: NDArray, dims: Union[int, tuple[int]]) -> NDArray:
     """Equivalent to the MATLAB 'reshape' function, whereby the elements from
     the first axis onwards are taken in some order for the reshaping (i.e. from
