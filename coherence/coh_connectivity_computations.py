@@ -19,7 +19,9 @@ multivariate_connectivity_compute_E
 
 from numpy.typing import NDArray
 import numpy as np
-from scipy.linalg import fractional_matrix_power
+from coh_signal_processing_computations import (
+    multivariate_connectivity_compute_e,
+)
 
 
 def multivariate_connectivity(
@@ -121,9 +123,8 @@ def multivariate_interaction_measure(
     -----
     -   Follows the approach set out in Ewald et al., 2012, Neuroimage. DOI:
         10.1016/j.neuroimage.2011.11.084.
-    -   All equations were written in MATLAB by Franziska Pellegrini working in
-        the group of Stefan Haufe, which were then translated into Python by
-        Thomas Samuel Binns working in the group of Wolf-Julian Neumann.
+    -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
+        code provided by Franziska Pellegrini of Stefan Haufe's research group.
     """
 
     if len(np.shape(data)) != 3:
@@ -147,7 +148,7 @@ def multivariate_interaction_measure(
     mim = np.empty(n_freqs)
     for freq_i in range(n_freqs):
         # Equations 2-4
-        E = multivariate_connectivity_compute_E(
+        E = multivariate_connectivity_compute_e(
             data=data[:, :, freq_i], n_group_a=n_group_a
         )
 
@@ -194,9 +195,8 @@ def max_imaginary_coherence(
     -----
     -   Follows the approach set out in Ewald et al., 2012, Neuroimage. DOI:
         10.1016/j.neuroimage.2011.11.084.
-    -   All equations were written in MATLAB by Franziska Pellegrini working in
-        the group of Stefan Haufe, which were then translated into Python by
-        Thomas Samuel Binns working in the group of Wolf-Julian Neumann.
+    -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
+        code provided by Franziska Pellegrini of Stefan Haufe's research group.
     """
 
     if len(np.shape(data)) != 3:
@@ -238,59 +238,3 @@ def max_imaginary_coherence(
         )
 
     return mic
-
-
-def multivariate_connectivity_compute_E(
-    data: NDArray, n_group_a: int
-) -> NDArray:
-    """Computes 'E' as the imaginary part of the transformed connectivity matrix
-    'D' derived from the original connectivity matrix 'C' between the signals in
-    groups A and B.
-    -   Designed for use with the methods 'max_imaginary_coherence' and
-        'multivariate_interaction_measure'.
-
-    data : numpy array
-    -   Coherency values between all possible connections of two groups of
-        signals, A and B, for a single frequency. Has the dimensions [signals x
-        signals].
-
-    n_group_a : int
-    -   Number of signals in group A. Entries in both dimensions of 'data' from
-        '0 : n_group_a' are taken as the coherency values for signals in group
-        A. Entries from 'n_group_a : end' are taken as the coherency values for
-        signals in group B.
-
-    RETURNS
-    -------
-    E : numpy array
-    -   The imaginary part of the transformed connectivity matrix 'D' between
-        signals in groups A and B.
-
-    NOTES
-    -----
-    -   Follows the approach set out in Ewald et al., 2012, Neuroimage. DOI:
-        10.1016/j.neuroimage.2011.11.084.
-    -   All equations were written in MATLAB by Franziska Pellegrini working in
-        the group of Stefan Haufe, which were then translated into Python by
-        Thomas Samuel Binns working in the group of Wolf-Julian Neumann.
-    """
-
-    # Equation 2
-    C_aa = data[0:n_group_a, 0:n_group_a]
-    C_ab = data[0:n_group_a, n_group_a:]
-    C_bb = data[n_group_a:, n_group_a:]
-    C_ba = data[n_group_a:, 0:n_group_a]
-    C = np.vstack((np.hstack((C_aa, C_ab)), np.hstack((C_ba, C_bb))))
-
-    # Equation 3
-    T = np.zeros(np.shape(C))
-    T[0:n_group_a, 0:n_group_a] = fractional_matrix_power(np.real(C_aa), -0.5)
-    T[n_group_a:, n_group_a:] = fractional_matrix_power(np.real(C_bb), -0.5)
-
-    # Equation 4
-    D = np.matmul(T, np.matmul(C, T))
-
-    # 'E' as the imaginary part of 'D' between groups A and B
-    E = np.imag(D[0:n_group_a, n_group_a:])
-
-    return E

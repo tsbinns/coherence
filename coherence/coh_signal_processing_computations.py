@@ -366,46 +366,46 @@ def ss_params_to_gc(
     C: NDArray,
     K: NDArray,
     V: NDArray,
-    z: NDArray,
+    freqs: list[Union[int, float]],
     seeds: list[int],
     targets: list[int],
 ) -> NDArray:
-    """Computes frequency-domain (conditional) Granger causality from
-    innovations-form parameters for a state-space vector autoregressive (VAR)
-    model.
+    """Computes frequency-domain Granger causality from innovations-form
+    parameters for a state-space vector autoregressive (VAR) model.
 
     PARAMETERS
     ----------
     A : numpy array
-    -   Matrix of innovations-form state space VAR model parameters with
+    -   ??? Matrix of innovations-form state space VAR model parameters with
         dimensions [m x m].
 
     C : numpy array
-    -   Matrix of innovations-form state space VAR model parameters with
+    -   Coeffients innovations-form state space VAR model parameters with
         dimensions [n x m], where 'n' is the number of signals and 'm' the
         number of signals times the number of lags.
 
     K : numpy array
-    -   Matrix of innovations-form state space VAR model parameters with
+    -   ??? Matrix of innovations-form state space VAR model parameters with
         dimensions [m x n].
 
     V : numpy array
-    -   Matrix of innovations-form state space VAR model parameters with
+    -   Covariance matrix of the innovations-form state space VAR model with
         dimensions [n x n].
 
-    z : numpy array
-    -   Vector of points on a unit circle in the complex plane, with length p.
+    freqs : list[int | float]
+    -   Frequencies of connectivity being analysed.
 
     seeds : list[int]
-    -   Seed indices.
+    -   Seed indices. Cannot contain indices also in 'targets'.
 
     targets : list[int]
-    -   Target indices.
+    -   Target indices. Cannot contain indices also in 'seeds'.
 
     RETURNS
     -------
-    f : ???
-    -   Spectral Granger causality from the seeds to the targets.
+    gc_vals : numpy array
+    -   Spectral Granger causality from the seeds to the targets for each
+        frequency.
 
     NOTES
     -----
@@ -413,48 +413,27 @@ def ss_params_to_gc(
         code provided by Stefan Haufe's research group.
     """
 
-    if len(A.shape) != 2:
-        raise ValueError(
-            f"'A' must be a two-dimensional matrix, but has {len(A.shape)} "
-            "dimension(s)."
-        )
-    if len(C.shape) != 2:
-        raise ValueError(
-            f"'C' must be a two-dimensional matrix, but has {len(C.shape)} "
-            "dimension(s)."
-        )
-    if len(K.shape) != 2:
-        raise ValueError(
-            f"'K' must be a two-dimensional matrix, but has {len(K.shape)} "
-            "dimension(s)."
-        )
-    if len(V.shape) != 2:
-        raise ValueError(
-            f"'A' must be a two-dimensional matrix, but has {len(V.shape)} "
-            "dimension(s)."
-        )
-    if len(z.shape) != 1:
-        raise_err = True
-        if len(z.shape) == 2:
-            if z.shape[1] != 1:
-                raise_err = True
-            else:
-                raise_err = False
-        if raise_err:
-            raise ValueError("'z' must be a vector, but is a matrix.")
-    common_idcs = set.intersection(set(seeds), set(targets))
-    if common_idcs:
-        raise ValueError(
-            "There are common indices present in both the 'seeds' and "
-            "'targets', but this is not allowed.\n- Common indices: "
-            f"{common_idcs}"
-        )
-
+    gc_vals = np.zeros(len(freqs))
+    z = np.exp(-1j * np.pi * np.linspace(0, 1, len(freqs)))
     H = ss_params_to_tf(A, C, K, z)
     VSQRT = np.linalg.cholesky(V)
     PVSQRT = np.linalg.cholesky(partial_covariance(V, seeds, targets))
 
-    return "jeff"
+    for freq_i in range(len(freqs)):
+        HV = np.matmul(H[:, :, freq_i], VSQRT)
+        S = np.matmul(HV, HV.conj().T)
+        S11 = S[targets, targets]
+        HV12 = np.matmul(H[targets, seeds, freq_i], PVSQRT)
+        if len(targets) == 1:
+            gc_vals[freq_i] = np.log(np.real(S11)) - np.log(
+                np.real(S11 - np.matmul(HV12, HV12.conj().T))
+            )
+        else:
+            gc_vals[freq_i] = np.log(np.real(np.linalg.det(S11))) - np.log(
+                np.real(np.linalg.det(S11 - np.matmul(HV12, HV12.conj().T)))
+            )
+
+    return gc_vals
 
 
 def ss_params_to_tf(A: NDArray, C: NDArray, K: NDArray, z: NDArray) -> NDArray:
@@ -524,7 +503,7 @@ def ss_params_to_tf(A: NDArray, C: NDArray, K: NDArray, z: NDArray) -> NDArray:
     m = A.shape[0]
     I_n = np.eye(n)
     I_m = np.eye(m)
-    H = np.zeros((n, n, h))
+    H = np.zeros((n, n, h), dtype=complex)
 
     for k in range(h):
         H[:, :, k] = I_n + np.matmul(
@@ -561,6 +540,7 @@ def partial_covariance(
     RAISES
     ------
     ValueError
+    -   Raised if 'V' is not a two-dimensional matrix.
     -   Raised if 'V' is not a symmetric, positive-definite matrix.
     -   Raised if 'idcs_1' and 'idcs_2' contain common indices.
 
@@ -570,6 +550,11 @@ def partial_covariance(
         code provided by Stefan Haufe's research group.
     """
 
+    if len(V.shape) != 2:
+        raise ValueError(
+            f"'V' must be a two-dimensional matrix, but has {len(V.shape)} "
+            "dimension(s)."
+        )
     if not check_posdef(V):
         raise ValueError(
             "'V' must be a positive-definite, symmetric matrix, but it is not."
@@ -589,7 +574,7 @@ def partial_covariance(
             V[np.ix_(idcs_2, idcs_1)],
         )
 
-    return V[np.ix_(idcs_1, idcs_1)] - np.matmul(W.conj().T, W)
+    return V[np.ix_(idcs_1, idcs_1)] - np.outer(W.conj(), W)
 
 
 def block_ifft(data: NDArray, n_points: Union[int, None] = None) -> NDArray:
@@ -723,6 +708,65 @@ def discrete_lyapunov(A: NDArray, Q: NDArray) -> NDArray:
     return X
 
 
+def multivariate_connectivity_compute_e(
+    data: NDArray, n_group_a: int
+) -> NDArray:
+    """Computes 'E' as the imaginary part of the transformed connectivity matrix
+    'D' derived from the original connectivity matrix 'C' between the signals in
+    groups A and B.
+    -   Designed for use with the methods 'max_imaginary_coherence' and
+        'multivariate_interaction_measure'.
+
+    data : numpy array
+    -   Coherency values between all possible connections of two groups of
+        signals, A and B, for a single frequency. Has the dimensions [signals x
+        signals].
+
+    n_group_a : int
+    -   Number of signals in group A. Entries in both dimensions of 'data' from
+        '0 : n_group_a' are taken as the coherency values for signals in group
+        A. Entries from 'n_group_a : end' are taken as the coherency values for
+        signals in group B.
+
+    RETURNS
+    -------
+    E : numpy array
+    -   The imaginary part of the transformed connectivity matrix 'D' between
+        signals in groups A and B.
+
+    NOTES
+    -----
+    -   Follows the approach set out in Ewald et al., 2012, Neuroimage. DOI:
+        10.1016/j.neuroimage.2011.11.084.
+    -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
+        code provided by Franziska Pellegrini of Stefan Haufe's research group.
+    """
+
+    # Equation 2
+    C_aa = data[0:n_group_a, 0:n_group_a]
+    C_ab = data[0:n_group_a, n_group_a:]
+    C_bb = data[n_group_a:, n_group_a:]
+    C_ba = data[n_group_a:, 0:n_group_a]
+    C = np.vstack((np.hstack((C_aa, C_ab)), np.hstack((C_ba, C_bb))))
+
+    # Equation 3
+    T = np.zeros(np.shape(C))
+    T[0:n_group_a, 0:n_group_a] = spla.fractional_matrix_power(
+        np.real(C_aa), -0.5
+    )
+    T[n_group_a:, n_group_a:] = spla.fractional_matrix_power(
+        np.real(C_bb), -0.5
+    )
+
+    # Equation 4
+    D = np.matmul(T, np.matmul(C, T))
+
+    # 'E' as the imaginary part of 'D' between groups A and B
+    E = np.imag(D[0:n_group_a, n_group_a:])
+
+    return E
+
+
 csd = loadmat("coherence\\csd.mat")["CS"]
 freq_linspace = np.linspace(0, 1, csd.shape[2])
 autocov = csd_to_autocovariance(csd, 20)
@@ -733,15 +777,15 @@ AF = reshape(
     var_coeffs, (var_coeffs.shape[0], var_coeffs.shape[0] * var_coeffs.shape[2])
 )
 A, K, lambda_0 = var_to_ss_params(
-    var_coeffs=AF,
-    residuals_cov=residuals_cov,
+    AF=AF,
+    V=residuals_cov,
 )
 granger_causality = ss_params_to_gc(
     A=A,
     C=AF,
     K=K,
     V=residuals_cov,
-    z=np.exp(-1j * np.pi * freq_linspace),
+    freqs=np.exp(-1j * np.pi * freq_linspace),
     seeds=[0, 1, 2],
     targets=[3],
 )
