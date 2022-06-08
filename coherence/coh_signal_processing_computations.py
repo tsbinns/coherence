@@ -7,14 +7,13 @@ block_ifft
     n-point inverse Fourier transform.
 """
 
-from copy import copy
 from typing import Union
 import numpy as np
-import scipy
-from scipy.linalg import schur
+from scipy import linalg as spla
 from numpy.typing import NDArray
 from scipy.io import loadmat
-from coh_matlab_functions import mrdivide, mldivide, reshape, kron
+from coh_handle_entries import check_posdef
+from coh_matlab_functions import mrdivide, reshape, kron
 
 
 def csd_to_autocovariance(
@@ -149,8 +148,8 @@ def autocovariance_to_full_var(
         doi: 10.1093/biomet/50.1-2.129.
     -   Additionally checks that the coefficients are all 'good', i.e. that all
         values are neither 'NaN' nor 'Inf'.
-    -   Translated into Python from MATLAB code provided by Stefan Haufe's
-        research group by Thomas Samuel Binns (@tsbinns).
+    -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
+        code provided by Stefan Haufe's research group.
     """
 
     var_coeffs, residuals_cov = whittle_lwr_recursion(
@@ -294,18 +293,18 @@ def whittle_lwr_recursion(
     return var_coeffs, residuals_cov
 
 
-def var_to_ss_params(var_coeffs: NDArray, residuals_cov: NDArray):
+def var_to_ss_params(AF: NDArray, V: NDArray):
     """Computes innovations-form parameters for a state-space vector
     autoregressive (VAR) model from a VAR model's coefficients and residuals'
     covariance matrix using Aoki's method.
 
     PARAMETERS
     ----------
-    var_coeffs : numpy array
+    AF : numpy array
     -   The coefficients of the full VAR model with dimensions [n_signals x
-        n_signals x n_lags].
+        n_signals*n_lags].
 
-    residuals_cov : numpy array
+    V : numpy array
     -   The residuals' covariance matrix with dimensions [n_signals x
         n_signals].
 
@@ -324,37 +323,29 @@ def var_to_ss_params(var_coeffs: NDArray, residuals_cov: NDArray):
     -----
     -   Aoki's method for computing innovations-form parameters for a
         state-space VAR model allows for zero-lag coefficients.
+    -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
+        code provided by Stefan Haufe's research group.
     """
 
-    AF = var_coeffs
-    V = residuals_cov
-
     AF_shape = AF.shape
-    if len(AF_shape) != 3:
+    if len(AF_shape) != 2:
         raise ValueError(
-            "The VAR model coefficients must have three dimensions, but has "
+            "The VAR model coefficients must have two dimensions, but has "
             f"{len(AF_shape)}."
-        )
-    if AF_shape[0] != AF_shape[1]:
-        raise ValueError(
-            "The VAR model coefficients must have the same first two "
-            f"dimensions, but these are {AF_shape[0]} and "
-            f"{AF_shape[1]}, respectively."
         )
     V_shape = V.shape
     if len(V_shape) != 2:
         raise ValueError(
             "The VAR model's residual's covariance matrix must have two "
-            f"dimensions, but has {len(AF_shape)}."
+            f"dimensions, but has {len(V_shape)}."
         )
     if V_shape[0] != V_shape[1]:
         raise ValueError(
             "The VAR model's residual's covariance matrix must have the same "
-            f"first two dimensions, but these are {AF_shape[0]} and "
-            f"{AF_shape[1]}, respectively."
+            f"first two dimensions, but these are {V_shape[0]} and "
+            f"{V_shape[1]}, respectively."
         )
 
-    AF = reshape(AF, (AF_shape[0], AF_shape[0] * AF_shape[2]))
     m = AF.shape[0]  # number of signals
     p = AF.shape[1] // m  # number of autoregressive lags
 
@@ -364,7 +355,7 @@ def var_to_ss_params(var_coeffs: NDArray, residuals_cov: NDArray):
 
     O = discrete_lyapunov(A=A, Q=-np.matmul(K, np.matmul(V, K.conj().T)))
     lambda_0 = (
-        np.matmul(np.matmul(AF, O), AF.conj().T) + V
+        np.matmul(AF, np.matmul(O, AF.conj().T)) + V
     )  # variance of the process
 
     return A, K, lambda_0
@@ -376,8 +367,8 @@ def ss_params_to_gc(
     K: NDArray,
     V: NDArray,
     z: NDArray,
-    i1: list[int],
-    i2: list[int],
+    seeds: list[int],
+    targets: list[int],
 ) -> NDArray:
     """Computes frequency-domain (conditional) Granger causality from
     innovations-form parameters for a state-space vector autoregressive (VAR)
@@ -386,19 +377,24 @@ def ss_params_to_gc(
     PARAMETERS
     ----------
     A : numpy array
-    -   ???
+    -   Matrix of innovations-form state space VAR model parameters with
+        dimensions [m x m].
 
     C : numpy array
-    -   ???
+    -   Matrix of innovations-form state space VAR model parameters with
+        dimensions [n x m], where 'n' is the number of signals and 'm' the
+        number of signals times the number of lags.
 
     K : numpy array
-    -   ???
+    -   Matrix of innovations-form state space VAR model parameters with
+        dimensions [m x n].
 
     V : numpy array
-    -   ???
+    -   Matrix of innovations-form state space VAR model parameters with
+        dimensions [n x n].
 
     z : numpy array
-    -   Vector of points on a unit circle in the complex plane.
+    -   Vector of points on a unit circle in the complex plane, with length p.
 
     seeds : list[int]
     -   Seed indices.
@@ -410,7 +406,190 @@ def ss_params_to_gc(
     -------
     f : ???
     -   Spectral Granger causality from the seeds to the targets.
+
+    NOTES
+    -----
+    -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
+        code provided by Stefan Haufe's research group.
     """
+
+    if len(A.shape) != 2:
+        raise ValueError(
+            f"'A' must be a two-dimensional matrix, but has {len(A.shape)} "
+            "dimension(s)."
+        )
+    if len(C.shape) != 2:
+        raise ValueError(
+            f"'C' must be a two-dimensional matrix, but has {len(C.shape)} "
+            "dimension(s)."
+        )
+    if len(K.shape) != 2:
+        raise ValueError(
+            f"'K' must be a two-dimensional matrix, but has {len(K.shape)} "
+            "dimension(s)."
+        )
+    if len(V.shape) != 2:
+        raise ValueError(
+            f"'A' must be a two-dimensional matrix, but has {len(V.shape)} "
+            "dimension(s)."
+        )
+    if len(z.shape) != 1:
+        raise_err = True
+        if len(z.shape) == 2:
+            if z.shape[1] != 1:
+                raise_err = True
+            else:
+                raise_err = False
+        if raise_err:
+            raise ValueError("'z' must be a vector, but is a matrix.")
+    common_idcs = set.intersection(set(seeds), set(targets))
+    if common_idcs:
+        raise ValueError(
+            "There are common indices present in both the 'seeds' and "
+            "'targets', but this is not allowed.\n- Common indices: "
+            f"{common_idcs}"
+        )
+
+    H = ss_params_to_tf(A, C, K, z)
+    VSQRT = np.linalg.cholesky(V)
+    PVSQRT = np.linalg.cholesky(partial_covariance(V, seeds, targets))
+
+    return "jeff"
+
+
+def ss_params_to_tf(A: NDArray, C: NDArray, K: NDArray, z: NDArray) -> NDArray:
+    """Computes a transfer function (moving-average representation) for
+    innovations-form state-space VAR model parameters.
+
+    PARAMETERS
+    ----------
+    A : numpy array
+    -   Matrix of innovations-form state space VAR model parameters with
+        dimensions [m x m].
+
+    C : numpy array
+    -   Matrix of innovations-form state space VAR model parameters with
+        dimensions [n x m].
+
+    K : numpy array
+    -   Matrix of innovations-form state space VAR model parameters with
+        dimensions [m x n].
+
+    z : numpy array
+    -   Vector of points on a unit circle in the complex plane, with length p.
+
+    RETURNS
+    -------
+    H : numpy array
+    -   The transfer function with dimensions [n x n x p]
+
+    RAISES
+    ------
+    ValueError
+    -   If 'A', 'C', or 'K' are not two-dimensional matrices.
+    -   If 'z' is not a vector.
+
+    NOTES
+    -----
+    -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
+        code provided by Stefan Haufe's research group.
+    """
+
+    if len(A.shape) != 2:
+        raise ValueError(
+            f"'A' must be a two-dimensional matrix, but has {len(A.shape)} "
+            "dimension(s)."
+        )
+    if len(C.shape) != 2:
+        raise ValueError(
+            f"'C' must be a two-dimensional matrix, but has {len(C.shape)} "
+            "dimension(s)."
+        )
+    if len(K.shape) != 2:
+        raise ValueError(
+            f"'K' must be a two-dimensional matrix, but has {len(K.shape)} "
+            "dimension(s)."
+        )
+    if len(z.shape) != 1:
+        raise_err = True
+        if len(z.shape) == 2:
+            raise_err = False
+            if z.shape[1] != 1:
+                raise_err = True
+        if raise_err:
+            raise ValueError("'z' must be a vector, but is a matrix.")
+
+    h = len(z)
+    n = C.shape[0]
+    m = A.shape[0]
+    I_n = np.eye(n)
+    I_m = np.eye(m)
+    H = np.zeros((n, n, h))
+
+    for k in range(h):
+        H[:, :, k] = I_n + np.matmul(
+            C, spla.lu_solve(spla.lu_factor(z[k] * I_m - A), K)
+        )
+
+    return H
+
+
+def partial_covariance(
+    V: NDArray, idcs_1: list[int], idcs_2: list[int]
+) -> NDArray:
+    """Computes the partial covariance for use in spectral Granger causality
+    calculations.
+
+    PARAMETERS
+    ----------
+    V : numpy array
+    -   A positive-definite, symmetric covariance matrix.
+
+    idcs_1 : list[int]
+    -   First set of indices to use for the partial covariance. Cannot contain
+        any values in 'idcs_2'.
+
+    idcs_2 : list[int]
+    -   Second set of indices to use for the partial covariance. Cannot contain
+        any values in 'idcs_1'.
+
+    RETURNS
+    -------
+    numpy array
+    -   The partial covariance matrix.
+
+    RAISES
+    ------
+    ValueError
+    -   Raised if 'V' is not a symmetric, positive-definite matrix.
+    -   Raised if 'idcs_1' and 'idcs_2' contain common indices.
+
+    NOTES
+    -----
+    -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
+        code provided by Stefan Haufe's research group.
+    """
+
+    if not check_posdef(V):
+        raise ValueError(
+            "'V' must be a positive-definite, symmetric matrix, but it is not."
+        )
+    common_idcs = set.intersection(set(idcs_1), set(idcs_2))
+    if common_idcs:
+        raise ValueError(
+            "There are common indices present in both sets of indices, but "
+            f"this is not allowed.\n- Common indices: {common_idcs}"
+        )
+
+    if len(idcs_2) == 1:
+        W = (1 / np.sqrt(V[idcs_2, idcs_2])) * V[idcs_2, idcs_1]
+    else:
+        W = np.linalg.solve(
+            np.linalg.cholesky(V[np.ix_(idcs_2, idcs_2)]),
+            V[np.ix_(idcs_2, idcs_1)],
+        )
+
+    return V[np.ix_(idcs_1, idcs_1)] - np.matmul(W.conj().T, W)
 
 
 def block_ifft(data: NDArray, n_points: Union[int, None] = None) -> NDArray:
@@ -486,6 +665,8 @@ def discrete_lyapunov(A: NDArray, Q: NDArray) -> NDArray:
     -   References: Kitagawa G., 1977, International Journal of Control, DOI:
         10.1080/00207177708922266; Hammarling S.J., 1982, IMA Journal of
         Numerical Analysis, DOI: 10.1093/imanum/2.3.303.
+    -   Translated into Python from the MATLAB MVGC toolbox v1.0 functions
+        'dlyap' and 'lyapslv' by Thomas Samuel Binns (@tsbinns).
     """
 
     n = A.shape[0]
@@ -499,7 +680,7 @@ def discrete_lyapunov(A: NDArray, Q: NDArray) -> NDArray:
             f"dimensions of matrix A ({A.shape})."
         )
 
-    T, U = schur(A)
+    T, U = spla.schur(A)
     Q = np.matmul(np.matmul(-U.conj().T, Q), U)
 
     # Solve the equation column-by-column
@@ -523,14 +704,12 @@ def discrete_lyapunov(A: NDArray, Q: NDArray) -> NDArray:
             rhs = rhs + reshape(
                 np.matmul(
                     T,
-                    np.matmul(
-                        X[:, (j1 + 1) : n], T[j:j1, (j1 + 1) : n].conj().T
-                    ),
+                    np.matmul(X[:, j1:n], T[j:j1, j1:n].conj().T),
                 ),
                 (bsizn, 1),
             )
 
-        v = mldivide(-Ajj, rhs)
+        v = spla.lu_solve(spla.lu_factor(-Ajj), rhs)
         X[:, j] = v[:n].flatten()
 
         if bsiz == 2:
@@ -545,11 +724,25 @@ def discrete_lyapunov(A: NDArray, Q: NDArray) -> NDArray:
 
 
 csd = loadmat("coherence\\csd.mat")["CS"]
+freq_linspace = np.linspace(0, 1, csd.shape[2])
 autocov = csd_to_autocovariance(csd, 20)
 var_coeffs, residuals_cov = autocovariance_to_full_var(
     autocov=autocov[:4, :4, :], enforce_posdef_residuals_cov=True
 )
-A, K, lamba_0 = var_to_ss_params(
-    var_coeffs=var_coeffs, residuals_cov=residuals_cov
+AF = reshape(
+    var_coeffs, (var_coeffs.shape[0], var_coeffs.shape[0] * var_coeffs.shape[2])
+)
+A, K, lambda_0 = var_to_ss_params(
+    var_coeffs=AF,
+    residuals_cov=residuals_cov,
+)
+granger_causality = ss_params_to_gc(
+    A=A,
+    C=AF,
+    K=K,
+    V=residuals_cov,
+    z=np.exp(-1j * np.pi * freq_linspace),
+    seeds=[0, 1, 2],
+    targets=[3],
 )
 print("jeff")
