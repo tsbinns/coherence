@@ -11,7 +11,6 @@ from typing import Union
 import numpy as np
 from scipy import linalg as spla
 from numpy.typing import NDArray
-from scipy.io import loadmat
 from coh_handle_entries import check_posdef
 from coh_matlab_functions import mrdivide, reshape, kron
 
@@ -52,8 +51,7 @@ def csd_to_autocovariance(
     -   Translated into Python from the MATLAB MVGC toolbox v1.0 function
         'cpsd_to_autocov' by Thomas Samuel Binns (@tsbinns).
     """
-
-    csd_shape = np.shape(csd)
+    csd_shape = csd.shape
     if len(csd_shape) != 3:
         raise ValueError(
             "The cross-spectral density must have three dimensions, but "
@@ -100,14 +98,14 @@ def csd_to_autocovariance(
 
 
 def autocovariance_to_full_var(
-    autocov: NDArray, enforce_posdef_residuals_cov: bool = False
+    G: NDArray, enforce_posdef_residuals_cov: bool = False
 ) -> tuple[NDArray, NDArray]:
     """Computes the full vector autoregressive (VAR) model from an
     autocovariance sequence using Whittle's recursion.
 
     PARAMETERS
     ----------
-    autocov : numpy array
+    G : numpy array
     -   An autocovariance sequence with dimensions [n_signals x n_signals x
         n_lags + 1].
 
@@ -125,11 +123,11 @@ def autocovariance_to_full_var(
 
     RETURNS
     -------
-    var_coeffs : numpy array
+    AF : numpy array
     -   The coefficients of the full forward VAR model with dimensions
         [n_signals x n_signals x n_lags].
 
-    residuals_cov : numpy array
+    V : numpy array
     -   The residuals' covariance matrix with dimensions [n_signals x
         n_signals].
 
@@ -151,19 +149,16 @@ def autocovariance_to_full_var(
     -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
         code provided by Stefan Haufe's research group.
     """
-
-    var_coeffs, residuals_cov = whittle_lwr_recursion(
-        autocov=autocov, enforce_coeffs_good=True
-    )
+    AF, V = whittle_lwr_recursion(G=G, enforce_coeffs_good=True)
 
     if enforce_posdef_residuals_cov:
         try:
-            np.linalg.cholesky(residuals_cov)
+            np.linalg.cholesky(V)
         except np.linalg.linalg.LinAlgError as np_error:
-            n_lags = np.shape(autocov)[2]
+            n_lags = G.shape[2]
             if n_lags - 1 > 0:
-                _, residuals_cov = autocovariance_to_full_var(
-                    autocov=autocov[:, :, : n_lags - 1],
+                _, V = autocovariance_to_full_var(
+                    G=G[:, :, : n_lags - 1],
                     enforce_posdef_residuals_cov=True,
                 )
             else:
@@ -173,11 +168,11 @@ def autocovariance_to_full_var(
                     "matrix can be found."
                 ) from np_error
 
-    return var_coeffs, residuals_cov
+    return AF, V
 
 
 def whittle_lwr_recursion(
-    autocov: NDArray, enforce_coeffs_good: bool = True
+    G: NDArray, enforce_coeffs_good: bool = True
 ) -> NDArray:
     """Calculates regression coefficients and the residuals' covariance matrix
     from an autocovariance sequence by solving the Yule-Walker equations using
@@ -185,7 +180,7 @@ def whittle_lwr_recursion(
 
     PARAMETERS
     ----------
-    autocov : numpy array
+    G : numpy array
     -   The autocovariance sequence with dimensions [n_signals x n_signals x
         n_lags + 1].
 
@@ -219,9 +214,7 @@ def whittle_lwr_recursion(
     -   Translated into Python from the MATLAB MVGC toolbox v1.0 function
         'autocov_to_var' by Thomas Samuel Binns (@tsbinns).
     """
-
-    G = autocov
-    G_shape = np.shape(G)
+    G_shape = G.shape
     if len(G_shape) != 3:
         raise ValueError(
             "The autocovariance sequence must have three dimensions, but has "
@@ -279,18 +272,18 @@ def whittle_lwr_recursion(
         AF[:, kf] = np.hstack((AF_previous - np.matmul(AAF, AB_previous), AAF))
         AB[:, kb] = np.hstack((AAB, AB_previous - np.matmul(AAB, AF_previous)))
 
-    residuals_cov = G0 - np.matmul(AF, GF)
-    var_coeffs = reshape(AF, (n, n, q))
+    V = G0 - np.matmul(AF, GF)
+    AF = reshape(AF, (n, n, q))
 
     if enforce_coeffs_good:
-        if not np.isfinite(var_coeffs).all():
+        if not np.isfinite(AF).all():
             raise ValueError(
                 "The 'good' (i.e. non-NaN and non-infinite) nature of the "
                 "VAR model coefficients is being enforced, but the "
                 "coefficients are not all finite."
             )
 
-    return var_coeffs, residuals_cov
+    return AF, V
 
 
 def var_to_ss_params(AF: NDArray, V: NDArray):
@@ -316,9 +309,6 @@ def var_to_ss_params(AF: NDArray, V: NDArray):
     K : numpy array
     -   ???
 
-    lambda_0 :
-    -   Variance of the process.
-
     NOTES
     -----
     -   Aoki's method for computing innovations-form parameters for a
@@ -326,7 +316,6 @@ def var_to_ss_params(AF: NDArray, V: NDArray):
     -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
         code provided by Stefan Haufe's research group.
     """
-
     AF_shape = AF.shape
     if len(AF_shape) != 2:
         raise ValueError(
@@ -353,12 +342,12 @@ def var_to_ss_params(AF: NDArray, V: NDArray):
     A = np.vstack((AF, Ip[: (len(Ip) - m), :]))
     K = np.vstack((np.eye(m), np.zeros(((m * (p - 1)), m))))
 
-    O = discrete_lyapunov(A=A, Q=-np.matmul(K, np.matmul(V, K.conj().T)))
-    lambda_0 = (
-        np.matmul(AF, np.matmul(O, AF.conj().T)) + V
-    )  # variance of the process
+    # O = discrete_lyapunov(A=A, Q=-np.matmul(K, np.matmul(V, K.conj().T)))
+    # lambda_0 = (
+    #    np.matmul(AF, np.matmul(O, AF.conj().T)) + V
+    # )  # variance of the process
 
-    return A, K, lambda_0
+    return A, K
 
 
 def ss_params_to_gc(
@@ -412,7 +401,6 @@ def ss_params_to_gc(
     -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
         code provided by Stefan Haufe's research group.
     """
-
     gc_vals = np.zeros(len(freqs))
     z = np.exp(-1j * np.pi * np.linspace(0, 1, len(freqs)))
     H = ss_params_to_tf(A, C, K, z)
@@ -422,16 +410,20 @@ def ss_params_to_gc(
     for freq_i in range(len(freqs)):
         HV = np.matmul(H[:, :, freq_i], VSQRT)
         S = np.matmul(HV, HV.conj().T)
-        S11 = S[targets, targets]
-        HV12 = np.matmul(H[targets, seeds, freq_i], PVSQRT)
-        if len(targets) == 1:
-            gc_vals[freq_i] = np.log(np.real(S11)) - np.log(
-                np.real(S11 - np.matmul(HV12, HV12.conj().T))
-            )
+        S11 = S[np.ix_(targets, targets)]
+        if len(PVSQRT) == 1:
+            HV12 = H[targets, seeds, freq_i] * PVSQRT
+            HV12_by_HV12 = np.outer(HV12, HV12.conj().T)
         else:
-            gc_vals[freq_i] = np.log(np.real(np.linalg.det(S11))) - np.log(
-                np.real(np.linalg.det(S11 - np.matmul(HV12, HV12.conj().T)))
-            )
+            HV12 = np.matmul(H[targets, seeds, freq_i], PVSQRT)
+            HV12_by_HV12 = np.matmul(HV12, HV12.conj().T)
+        if len(targets) == 1:
+            det_S11 = np.real(S11)
+            det_S11_HV12 = np.real(S11 - HV12_by_HV12)
+        else:
+            det_S11 = np.real(np.linalg.det(S11))
+            det_S11_HV12 = np.real(np.linalg.det(S11 - HV12_by_HV12))
+        gc_vals[freq_i] = np.log(det_S11) - np.log(det_S11_HV12)
 
     return gc_vals
 
@@ -473,7 +465,6 @@ def ss_params_to_tf(A: NDArray, C: NDArray, K: NDArray, z: NDArray) -> NDArray:
     -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
         code provided by Stefan Haufe's research group.
     """
-
     if len(A.shape) != 2:
         raise ValueError(
             f"'A' must be a two-dimensional matrix, but has {len(A.shape)} "
@@ -549,7 +540,6 @@ def partial_covariance(
     -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
         code provided by Stefan Haufe's research group.
     """
-
     if len(V.shape) != 2:
         raise ValueError(
             f"'V' must be a two-dimensional matrix, but has {len(V.shape)} "
@@ -568,13 +558,15 @@ def partial_covariance(
 
     if len(idcs_2) == 1:
         W = (1 / np.sqrt(V[idcs_2, idcs_2])) * V[idcs_2, idcs_1]
+        W_by_W = np.outer(W.conj(), W)
     else:
         W = np.linalg.solve(
             np.linalg.cholesky(V[np.ix_(idcs_2, idcs_2)]),
             V[np.ix_(idcs_2, idcs_1)],
         )
+        W_by_W = W.conj().T.dot(W)
 
-    return V[np.ix_(idcs_1, idcs_1)] - np.outer(W.conj(), W)
+    return V[np.ix_(idcs_1, idcs_1)] - W_by_W
 
 
 def block_ifft(data: NDArray, n_points: Union[int, None] = None) -> NDArray:
@@ -608,8 +600,7 @@ def block_ifft(data: NDArray, n_points: Union[int, None] = None) -> NDArray:
     -   Translated into Python from the MATLAB MVGC toolbox v1.0 function
         'bifft' by Thomas Samuel Binns (@tsbinns).
     """
-
-    data_shape = np.shape(data)
+    data_shape = data.shape
     if n_points is None:
         n_points = data_shape[2]
 
@@ -653,7 +644,6 @@ def discrete_lyapunov(A: NDArray, Q: NDArray) -> NDArray:
     -   Translated into Python from the MATLAB MVGC toolbox v1.0 functions
         'dlyap' and 'lyapslv' by Thomas Samuel Binns (@tsbinns).
     """
-
     n = A.shape[0]
     if n != A.shape[1]:
         raise ValueError(
@@ -741,7 +731,6 @@ def multivariate_connectivity_compute_e(
     -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
         code provided by Franziska Pellegrini of Stefan Haufe's research group.
     """
-
     # Equation 2
     C_aa = data[0:n_group_a, 0:n_group_a]
     C_ab = data[0:n_group_a, n_group_a:]
@@ -750,7 +739,7 @@ def multivariate_connectivity_compute_e(
     C = np.vstack((np.hstack((C_aa, C_ab)), np.hstack((C_ba, C_bb))))
 
     # Equation 3
-    T = np.zeros(np.shape(C))
+    T = np.zeros(C.shape)
     T[0:n_group_a, 0:n_group_a] = spla.fractional_matrix_power(
         np.real(C_aa), -0.5
     )
@@ -765,28 +754,3 @@ def multivariate_connectivity_compute_e(
     E = np.imag(D[0:n_group_a, n_group_a:])
 
     return E
-
-
-csd = loadmat("coherence\\csd.mat")["CS"]
-freq_linspace = np.linspace(0, 1, csd.shape[2])
-autocov = csd_to_autocovariance(csd, 20)
-var_coeffs, residuals_cov = autocovariance_to_full_var(
-    autocov=autocov[:4, :4, :], enforce_posdef_residuals_cov=True
-)
-AF = reshape(
-    var_coeffs, (var_coeffs.shape[0], var_coeffs.shape[0] * var_coeffs.shape[2])
-)
-A, K, lambda_0 = var_to_ss_params(
-    AF=AF,
-    V=residuals_cov,
-)
-granger_causality = ss_params_to_gc(
-    A=A,
-    C=AF,
-    K=K,
-    V=residuals_cov,
-    freqs=np.exp(-1j * np.pi * freq_linspace),
-    seeds=[0, 1, 2],
-    targets=[3],
-)
-print("jeff")
