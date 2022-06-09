@@ -36,7 +36,7 @@ def csd_to_autocovariance(
     -------
     numpy array
     -   The computed autocovariance sequence with dimensions [n_signals x
-        n_signals x n_lags plus one]
+        n_signals x (n_lags + 1)]
 
     RAISES
     ------
@@ -182,7 +182,7 @@ def whittle_lwr_recursion(
     ----------
     G : numpy array
     -   The autocovariance sequence with dimensions [n_signals x n_signals x
-        n_lags + 1].
+        (n_lags + 1)].
 
     enforce_coeffs_good : bool; default True
     -   Checks that the coefficients of the VAR model are all 'good', i.e. that
@@ -415,7 +415,7 @@ def ss_params_to_gc(
             HV12 = H[targets, seeds, freq_i] * PVSQRT
             HV12_by_HV12 = np.outer(HV12, HV12.conj().T)
         else:
-            HV12 = np.matmul(H[targets, seeds, freq_i], PVSQRT)
+            HV12 = np.matmul(H[np.ix_(targets, seeds)][:, :, freq_i], PVSQRT)
             HV12_by_HV12 = np.matmul(HV12, HV12.conj().T)
         if len(targets) == 1:
             det_S11 = np.real(S11)
