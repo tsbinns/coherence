@@ -418,14 +418,12 @@ def gc_computation(
             tr_method = "gc"
         elif method == "net_trgc":
             tr_method = "net_gc"
-        gc_vals -= (
-            gc_computation(
-                autocov=np.transpose(autocov, (1, 0, 2)),
-                freqs=freqs,
-                method=tr_method,
-                seeds=seeds,
-                targets=targets,
-            )
+        gc_vals -= gc_computation(
+            autocov=np.transpose(autocov, (1, 0, 2)),
+            freqs=freqs,
+            method=tr_method,
+            seeds=seeds,
+            targets=targets,
         )
 
     return gc_vals
@@ -435,9 +433,9 @@ csd = loadmat("coherence\\csd.mat")["CS"]
 gc_vals = granger_causality(
     csd=csd,
     freqs=np.arange(csd.shape[2]),
-    method="net_trgc",
-    seeds=[[0, 1, 2] for n in range(4)],
-    targets=[[3], [4], [5], [6]],
+    method="trgc",
+    seeds=[[0], [1], [2]],
+    targets=[[3, 4, 5, 6] for n in range(3)],
     n_lags=20,
 )
 print("jeff")
