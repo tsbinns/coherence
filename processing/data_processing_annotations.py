@@ -21,11 +21,11 @@ FOLDERPATH_PREPROCESSING = (
 )
 DATASET = "BIDS_Berlin_ECOG_LFP"
 ANALYSIS = "for_annotations"
-SUBJECT = "002"
-SESSION = "EcogLfpMedOff03"
+SUBJECT = "009"
+SESSION = "EcogLfpMedOn02"
 TASK = "Rest"
-ACQUISITION = "StimOff"
-RUN = "4"
+ACQUISITION = "StimOffDopa65"
+RUN = "1"
 
 
 if __name__ == "__main__":
