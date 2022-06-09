@@ -42,6 +42,7 @@ from coh_processing_methods import ProcConnectivity
 from coh_progress_bar import ProgressBar
 import coh_signal
 from coh_saving import save_object, save_dict
+from coherence.coh_connectivity_computations import granger_causality
 
 
 class ConnectivityCoherence(ProcConnectivity):
@@ -1889,7 +1890,7 @@ class ConnectivityGranger(ProcConnectivity):
             )
 
         cross_spectra = self._compute_csd()
-        self.results = self._compute_gc()
+        self.results = self._compute_gc(cross_spectra=cross_spectra)
 
         self._sort_dimensions()
         super()._generate_extra_info()
@@ -1977,17 +1978,29 @@ class ConnectivityGranger(ProcConnectivity):
 
         RETURNS
         -------
-        granger_causality : list[SpectralConnectivity]
+        results : list[SpectralConnectivity]
         -   The Granger causality between signals for each window.
         """
 
-        ### CSD => autocov
+        results = []
+        for i, csd in enumerate(cross_spectra):
+            if self._verbose:
+                print(
+                    f"Computing Granger causality for window {i+1} of "
+                    f"{len(self.signal.data)}.\n"
+                )
+            result = granger_causality(
+                csd=csd,
+                freqs=csd[i],
+                method=self._gc_method,
+                seeds=self._indices[0],
+                targets=self._indices[1],
+                n_lags=self._n_lags,
+            )
+            if self._progress_bar is not None:
+                self._progress_bar.update_progress()
 
-        ### autocov => full-forward VAR model
-
-        ### full-forward VAR model => state-space VAR models
-
-        ### state-space VAR models => GC
+        return results
 
     def save_object(self) -> None:
         """Saves the object as a .pkl file."""
