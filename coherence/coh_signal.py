@@ -614,7 +614,7 @@ class Signal:
                 f"{path_annots}."
             )
 
-        if check_annotations_empty(path_annots):
+        if check_annots_empty(path_annots):
             print("There are no events to read from the annotations file.")
             annotations_present = False
         else:
