@@ -8,8 +8,17 @@ ProcMethod
 
 from abc import ABC, abstractmethod
 from copy import deepcopy
+from numpy.typing import NDArray
+import numpy as np
+import pandas as pd
 from mne_connectivity import seed_target_indices
-from coh_handle_entries import ordered_list_from_dict
+from coh_handle_entries import (
+    combine_vals_list,
+    get_eligible_idcs_lists,
+    get_group_names_idcs,
+    ordered_list_from_dict,
+    unique,
+)
 import coh_signal
 
 
@@ -134,7 +143,7 @@ class ProcMethod(ABC):
 
 
 class ProcConnectivity(ProcMethod):
-    """Class for processing connectivity results.
+    """Class for processing connectivity results. A subclass of 'ProcMethod'.
 
     METHODS
     -------
@@ -161,6 +170,7 @@ class ProcConnectivity(ProcMethod):
         self._indices = None
         self._seeds = None
         self._targets = None
+        self._node_ch_names = None
 
     @abstractmethod
     def process(self) -> None:
@@ -192,6 +202,134 @@ class ProcConnectivity(ProcMethod):
 
         super()._sort_inputs()
 
+    def _sort_seeds_targets(self) -> None:
+        """Sorts the names of the seeds and targets for the connectivity
+        analysis, and generates the corresponding channel indices.
+
+        If the seeds and/or targets are dictionaries, the names of the seeds and
+        targets will be automatically generated based on the information in the
+        dictionaries, and then expanded, such that connectivity is calculated
+        between every seed and every target.
+
+        If the seeds and targets are both lists, the channel names in these
+        lists are taken as the seeds and targets and no expansion is performed.
+        """
+
+        groups = ["_seeds", "_targets"]
+        features = self._features_to_df()
+        groups_vals = [getattr(self, group) for group in groups]
+        expand_seeds_targets = False
+        for group_i, group in enumerate(groups):
+            group_vals = groups_vals[group_i]
+            if isinstance(group_vals, dict):
+                expand_seeds_targets = True
+                eligible_idcs = get_eligible_idcs_lists(
+                    features, group_vals["eligible_entries"]
+                )
+                group_idcs = get_group_names_idcs(
+                    features,
+                    group_vals["grouping"],
+                    eligible_idcs=eligible_idcs,
+                    replacement_idcs=eligible_idcs,
+                )
+                new_names = []
+                for idcs in group_idcs.values():
+                    new_names.append(
+                        [self.signal.data[0].ch_names[idx] for idx in idcs]
+                    )
+                setattr(self, group, new_names)
+
+        if expand_seeds_targets:
+            self._expand_seeds_targets()
+
+        if len(self._seeds) != len(self._targets):
+            raise ValueError(
+                "Seeds and targets must contain the same number of entries, "
+                f"but do not ({len(self._seeds)} and {len(self._targets)}, "
+                "respectively)."
+            )
+
+        self._node_ch_names, self._indices = self._get_names_indices_mne()
+
+    def _features_to_df(self) -> pd.DataFrame:
+        """Collates features of channels (e.g. names, types, regions, etc...)
+        into a pandas DataFrame so that which channels belong to which groups
+        can be easily checked.
+
+        RETURNS
+        -------
+        pandas DataFrame
+        -   DataFrame containing the features of each channel.
+        """
+        ch_names = self.signal.data[0].ch_names
+        features = {
+            "ch_names": ch_names,
+            "ch_types": self.signal.data[0].get_channel_types(picks=ch_names),
+            "ch_regions": ordered_list_from_dict(
+                ch_names, self.extra_info["ch_regions"]
+            ),
+            "ch_hemispheres": ordered_list_from_dict(
+                ch_names, self.extra_info["ch_hemispheres"]
+            ),
+            "ch_reref_types": ordered_list_from_dict(
+                ch_names, self.extra_info["ch_reref_types"]
+            ),
+            "ch_epoch_orders": ordered_list_from_dict(
+                ch_names, self.extra_info["ch_epoch_orders"]
+            ),
+        }
+
+        return pd.DataFrame(features)
+
+    def _expand_seeds_targets(self) -> None:
+        """Expands the channels in the seed and target groups such that
+        connectivity is computed bwteen each seed and each target group.
+        -   Should be used when seeds and/or targets have been automatically
+            generated based on channel types."""
+
+        seeds = []
+        targets = []
+        for seed in self._seeds:
+            for target in self._targets:
+                seeds.append(seed)
+                targets.append(target)
+
+        self._seeds = seeds
+        self._targets = targets
+
+    def _get_names_indices_mne(self) -> tuple[NDArray, NDArray]:
+        """Gets the names and indices of seed and targets in the connectivity
+        analysis for use in an MNE connectivity object.
+
+        As MNE connectivity objects only support seed-target pair names and
+        indices between two channels, the names of channels in each group of
+        seeds and targets are combined together, and the indices then derived
+        from these combined names.
+
+        RETURNS
+        -------
+        unique_names : numpy array
+        -   Names of the channels combined for each group.
+
+        indices : numpy array
+        -   Array with two entries containing the seed and target indices,
+            respectively, of the connectivity results based on the combined
+            channel names in 'unique_names'.
+        """
+
+        seed_names = []
+        target_names = []
+        for seeds, targets in zip(self._seeds, self._targets):
+            seed_names.append(combine_vals_list(seeds))
+            target_names.append(combine_vals_list(targets))
+        unique_names = [*unique(seed_names), *unique(target_names)]
+        indices = [[], []]
+        for seeds, targets in zip(seed_names, target_names):
+            indices[0].append(unique_names.index(seeds))
+            indices[1].append(unique_names.index(targets))
+
+        return np.asarray(unique_names), np.asarray(indices)
+
     def _generate_indices(self) -> None:
         """Generates MNE-readable indices for calculating connectivity between
         signals."""
@@ -208,30 +346,6 @@ class ProcConnectivity(ProcMethod):
                 if name in self._targets
             ],
         )
-
-    def _sort_indices(self) -> None:
-        """Sorts the inputs for generating MNE-readable indices for calculating
-        connectivity between signals."""
-
-        groups = ["_seeds", "_targets"]
-        ch_types = self.signal.data[0].get_channel_types()
-        for group in groups:
-            channels = getattr(self, group)
-            if channels is None:
-                channels = deepcopy(self.signal.data[0].ch_names)
-            elif isinstance(channels, str):
-                if channels[:5] == "type_":
-                    desired_type = channels[5:]
-                    channels = [
-                        name
-                        for i, name in enumerate(self.signal.data[0].ch_names)
-                        if ch_types[i] == desired_type
-                    ]
-                else:
-                    channels = [channels]
-            setattr(self, group, channels)
-
-        self._generate_indices()
 
     def _generate_extra_info(self) -> None:
         """Generates additional information related to the connectivity
