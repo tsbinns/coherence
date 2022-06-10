@@ -462,9 +462,10 @@ def get_eligible_idcs_lists(
         idcs = np.arange(length).tolist()
 
     for key, value in to_check.items():
-        idcs = get_eligible_idcs_list(
-            vals=value, eligible_vals=eligible_vals[key], idcs=idcs
-        )
+        if key in eligible_vals.keys():
+            idcs = get_eligible_idcs_list(
+                vals=value, eligible_vals=eligible_vals[key], idcs=idcs
+            )
 
     return idcs
 

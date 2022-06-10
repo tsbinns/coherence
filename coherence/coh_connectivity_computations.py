@@ -429,6 +429,7 @@ def gc_computation(
     return gc_vals
 
 
+"""
 csd = loadmat("coherence\\csd.mat")["CS"]
 gc_vals = granger_causality(
     csd=csd,
@@ -439,3 +440,4 @@ gc_vals = granger_causality(
     n_lags=20,
 )
 print("jeff")
+"""
