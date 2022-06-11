@@ -328,8 +328,9 @@ def check_lengths_list_equals_n(
 
 
 def unique(values: list) -> list:
-    """Finds the unique values in a list.
-    -   Equivalent to calling numpy's 'unique' with 'return_index' set to 'True'
+    """Finds the unique values in a list in the original order in which the
+    entries occur in the the original list.
+    -   Similar to calling numpy's 'unique' with 'return_index' set to 'True'
         and then reordering the result of numpy's 'unique' to restore the order
         in which the unique values occured in the original list.
 
@@ -343,9 +344,10 @@ def unique(values: list) -> list:
     unique_values : list
     -   The unique entries in 'values'.
     """
-
-    idcs = np.unique(values, return_index=True)[1]
-    unique_values = [values[idx] for idx in sorted(idcs)]
+    unique_values = []
+    for entry in values:
+        if entry not in unique_values:
+            unique_values.append(entry)
 
     return unique_values
 
