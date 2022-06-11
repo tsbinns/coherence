@@ -168,8 +168,10 @@ class ProcConnectivity(ProcMethod):
         # Initialises aspects of the ProcMethod object that will be filled with
         # information as the data is processed.
         self._indices = None
-        self._seeds = None
-        self._targets = None
+        self._seeds_list = None
+        self._targets_list = None
+        self._seeds_str = None
+        self._targets_str = None
         self._node_ch_names = None
 
     @abstractmethod
@@ -232,24 +234,31 @@ class ProcConnectivity(ProcMethod):
                     eligible_idcs=eligible_idcs,
                     replacement_idcs=eligible_idcs,
                 )
-                new_names = []
+                names_list = []
+                names_str = []
                 for idcs in group_idcs.values():
-                    new_names.append(
+                    names_list.append(
                         [self.signal.data[0].ch_names[idx] for idx in idcs]
                     )
-                setattr(self, group, new_names)
+                    names_str.append(
+                        combine_vals_list(
+                            [self.signal.data[0].ch_names[idx] for idx in idcs]
+                        )
+                    )
+                setattr(self, f"{group}_list", names_list)
+                setattr(self, f"{group}_str", names_str)
 
         if expand_seeds_targets:
             self._expand_seeds_targets()
 
-        if len(self._seeds) != len(self._targets):
+        if len(self._seeds_list) != len(self._targets_list):
             raise ValueError(
                 "Seeds and targets must contain the same number of entries, "
-                f"but do not ({len(self._seeds)} and {len(self._targets)}, "
-                "respectively)."
+                f"but do not ({len(self._seeds_list)} and "
+                f"{len(self._targets_list)}, respectively)."
             )
 
-        self._node_ch_names, self._indices = self._get_names_indices_mne()
+        self._get_names_indices_mne()
 
     def _features_to_df(self) -> pd.DataFrame:
         """Collates features of channels (e.g. names, types, regions, etc...)
@@ -287,17 +296,23 @@ class ProcConnectivity(ProcMethod):
         -   Should be used when seeds and/or targets have been automatically
             generated based on channel types."""
 
-        seeds = []
-        targets = []
-        for seed in self._seeds:
-            for target in self._targets:
-                seeds.append(seed)
-                targets.append(target)
+        seeds_list = []
+        targets_list = []
+        seeds_str = []
+        targets_str = []
+        for seed in self._seeds_list:
+            for target in self._targets_list:
+                seeds_list.append(seed)
+                targets_list.append(target)
+                seeds_str.append(combine_vals_list(seed))
+                targets_str.append(combine_vals_list(target))
 
-        self._seeds = seeds
-        self._targets = targets
+        self._seeds_list = seeds_list
+        self._targets_list = targets_list
+        self._seeds_str = seeds_str
+        self._targets_str = targets_str
 
-    def _get_names_indices_mne(self) -> tuple[NDArray, NDArray]:
+    def _get_names_indices_mne(self) -> None:
         """Gets the names and indices of seed and targets in the connectivity
         analysis for use in an MNE connectivity object.
 
@@ -305,30 +320,25 @@ class ProcConnectivity(ProcMethod):
         indices between two channels, the names of channels in each group of
         seeds and targets are combined together, and the indices then derived
         from these combined names.
-
-        RETURNS
-        -------
-        unique_names : numpy array
-        -   Names of the channels combined for each group.
-
-        indices : numpy array
-        -   Array with two entries containing the seed and target indices,
-            respectively, of the connectivity results based on the combined
-            channel names in 'unique_names'.
         """
-
-        seed_names = []
-        target_names = []
-        for seeds, targets in zip(self._seeds, self._targets):
-            seed_names.append(combine_vals_list(seeds))
-            target_names.append(combine_vals_list(targets))
-        unique_names = [*unique(seed_names), *unique(target_names)]
+        seed_names_str = []
+        target_names_str = []
+        for seeds, targets in zip(self._seeds_list, self._targets_list):
+            seed_names_str.append(combine_vals_list(seeds))
+            target_names_str.append(combine_vals_list(targets))
+        unique_names_str = [*unique(seed_names_str), *unique(target_names_str)]
+        unique_names_list = [
+            *unique(self._seeds_list),
+            *unique(self._targets_list),
+        ]
         indices = [[], []]
-        for seeds, targets in zip(seed_names, target_names):
-            indices[0].append(unique_names.index(seeds))
-            indices[1].append(unique_names.index(targets))
+        for seeds, targets in zip(seed_names_str, target_names_str):
+            indices[0].append(unique_names_str.index(seeds))
+            indices[1].append(unique_names_str.index(targets))
 
-        return np.asarray(unique_names), np.asarray(indices)
+        self._comb_names_str = unique_names_str
+        self._comb_names_list = unique_names_list
+        self._indices = np.asarray(indices)
 
     def _generate_indices(self) -> None:
         """Generates MNE-readable indices for calculating connectivity between
@@ -338,12 +348,12 @@ class ProcConnectivity(ProcMethod):
             seeds=[
                 i
                 for i, name in enumerate(self.signal.data[0].ch_names)
-                if name in self._seeds
+                if name in self._seeds_list
             ],
             targets=[
                 i
                 for i, name in enumerate(self.signal.data[0].ch_names)
-                if name in self._targets
+                if name in self._targets_list
             ],
         )
 

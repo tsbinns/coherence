@@ -780,7 +780,7 @@ class ConnectivityMultivariate(ProcConnectivity):
             within bandwidth.
         -   Only used if 'mode' is 'multitaper'.
 
-        cwt_freqs: list[int | float] | array[int | float] | None
+        cwt_freqs: numpy array[int | float] | None
         -   The frequencies of interest to calculate connectivity for.
         -   Only used if 'mode' is 'cwt_morlet'. In this case, 'cwt_freqs'
             cannot be None.
@@ -836,8 +836,8 @@ class ConnectivityMultivariate(ProcConnectivity):
         self.processing_steps["connectivity_multivariate"] = {
             "con_method": con_method,
             "cohy_method": cohy_method,
-            "seeds": self._seeds,
-            "targets": self._targets,
+            "seeds": self._seeds_str,
+            "targets": self._targets_str,
             "fmin": fmin,
             "fmax": fmax,
             "fskip": fskip,
@@ -847,7 +847,7 @@ class ConnectivityMultivariate(ProcConnectivity):
             "mt_bandwidth": mt_bandwidth,
             "mt_adaptive": mt_adaptive,
             "mt_low_bias": mt_low_bias,
-            "cwt_freqs": cwt_freqs,
+            "cwt_freqs": cwt_freqs.tolist(),
             "cwt_n_cycles": cwt_n_cycles,
             "average_windows": average_windows,
         }
@@ -855,21 +855,37 @@ class ConnectivityMultivariate(ProcConnectivity):
     def _sort_seeds_targets(self) -> None:
         """Sorts seeds and targets for the connectivity analysis."""
         super()._sort_seeds_targets()
+        self._sort_cohy_indices()
 
-        self._cohy_indices = []
-        for seeds, targets in zip(self._seeds, self._targets):
+        self._cohy_matrix_indices = []
+        for seeds, targets in zip(self._seeds_list, self._targets_list):
             ch_names = [*seeds, *targets]
             ch_idcs = [
                 self.signal.data[0].ch_names.index(name) for name in ch_names
             ]
-            self._cohy_indices.append(seed_target_indices(ch_idcs, ch_idcs))
+            self._cohy_matrix_indices.append(
+                seed_target_indices(ch_idcs, ch_idcs)
+            )
+
+    def _sort_cohy_indices(self) -> None:
+        """Gets the indices of the seeds and targets for each connectivity node
+        that will be taken from the coherency matrix."""
+        self._cohy_matrix_indices = []
+        for seeds, targets in zip(self._seeds_list, self._targets_list):
+            ch_names = [*seeds, *targets]
+            ch_idcs = [
+                self.signal.data[0].ch_names.index(name) for name in ch_names
+            ]
+            self._cohy_matrix_indices.append(
+                seed_target_indices(ch_idcs, ch_idcs)
+            )
 
     def _get_results(self) -> None:
         """Performs the connectivity analysis."""
 
         if self._verbose:
             self._progress_bar = ProgressBar(
-                n_steps=len(self.signal.data) * len(self._indices) * 2,
+                n_steps=(len(self._indices[0]) + 1) * len(self.signal.data),
                 title="Computing connectivity",
             )
 
@@ -945,6 +961,8 @@ class ConnectivityMultivariate(ProcConnectivity):
                 method=coherency.method,
                 n_epochs_used=coherency.n_epochs_used,
             )
+        if self._progress_bar is not None:
+            self._progress_bar.update_progress()
 
         return coherency
 
@@ -965,18 +983,18 @@ class ConnectivityMultivariate(ProcConnectivity):
         """
 
         connectivity = []
-        for con_i, indices in enumerate(self._cohy_indices):
+        for con_i, indices in enumerate(self._cohy_matrix_indices):
             if self._verbose:
                 print(
                     f"Computing '{self._con_method}' for seed-target group "
-                    f"{con_i} of {len(self._indices)}\n."
+                    f"{con_i+1} of {len(self._indices[0])}.\n"
                 )
             cohy_matrix = self._get_cohy_matrix(data, indices)
             results = multivariate_connectivity(
                 data=cohy_matrix,
                 method=self._con_method,
-                n_group_a=len(self._seeds[con_i]),
-                n_group_b=len(self._targets[con_i]),
+                n_group_a=len(self._seeds_list[con_i]),
+                n_group_b=len(self._targets_list[con_i]),
             )
             connectivity.append(results)
             if self._progress_bar is not None:
@@ -984,8 +1002,8 @@ class ConnectivityMultivariate(ProcConnectivity):
 
         return self._multivariate_to_mne(
             data=np.asarray(connectivity),
-            freqs=data[0].freqs,
-            n_epochs_used=data[0].n_epochs_used,
+            freqs=data.freqs,
+            n_epochs_used=data.n_epochs_used,
         )
 
     def _get_cohy_matrix(
@@ -1012,8 +1030,8 @@ class ConnectivityMultivariate(ProcConnectivity):
             possible connections between the seed-target pairs in the first two
             dimensions, and frequencies in the third dimension.
         """
-        con_idcs = []
-        con_idx = 0
+        node_idcs = []
+        node_idx = 0
         for seed_idx_data, target_idx_data in zip(
             data.indices[0], data.indices[1]
         ):
@@ -1024,8 +1042,8 @@ class ConnectivityMultivariate(ProcConnectivity):
                     seed_idx_data == seed_idx_indices
                     and target_idx_data == target_idx_indices
                 ):
-                    con_idcs.append(con_idx)
-            con_idx += 1
+                    node_idcs.append(node_idx)
+            node_idx += 1
 
         data_vals = data.get_data()
         n_nodes = int(np.sqrt(len(indices[0])))
@@ -1033,7 +1051,7 @@ class ConnectivityMultivariate(ProcConnectivity):
         data_matrix = np.empty((n_nodes, n_nodes, n_freqs), dtype="complex128")
         for freq_i in range(n_freqs):
             data_matrix[:, :, freq_i] = np.reshape(
-                data_vals[con_idcs, freq_i], (n_nodes, n_nodes)
+                data_vals[node_idcs, freq_i], (n_nodes, n_nodes)
             )
 
         return data_matrix
@@ -1064,7 +1082,7 @@ class ConnectivityMultivariate(ProcConnectivity):
         return SpectralConnectivity(
             data=data,
             freqs=freqs,
-            n_nodes=len(self._seeds),
+            n_nodes=len(self._seeds_list),
             names=self._node_ch_names,
             indices=self._indices,
             method=self._con_method,
@@ -1119,8 +1137,6 @@ class ConnectivityMultivariate(ProcConnectivity):
     def _generate_extra_info(self) -> None:
         """Generates additional information related to the connectivity
         analysis."""
-
-        super()._generate_node_ch_names()
         self.extra_info["node_ch_types"] = self._generate_node_ch_types()
         self.extra_info[
             "node_ch_reref_types"
@@ -1140,21 +1156,6 @@ class ConnectivityMultivariate(ProcConnectivity):
             "node_ch_epoch_orders"
         ] = self._generate_node_ch_epoch_orders()
 
-    def _generate_node_ch_names(self) -> None:
-        """Converts the indices of channels in the connectivity results to their
-        channel names.
-        -   Names are a list containing two sublists consisting of the channel
-            names of the seeds and targets, respectively, for each node in the
-            connectivity results.
-        """
-
-        self._separated_names = []
-        for combined_names in self.results[0].names:
-            self._separated_names.append(
-                separate_vals_string(combined_names, " & ")
-            )
-        super()._generate_node_ch_names()
-
     def _generate_node_ch_types(self) -> list[list[str]]:
         """Gets the types of channels in the connectivity results.
 
@@ -1171,20 +1172,18 @@ class ConnectivityMultivariate(ProcConnectivity):
         """
 
         ch_types = {}
-        for node_i, combined_names in enumerate(self.results[0].names):
-            ch_types[combined_names] = []
-            for name in self._separated_names[node_i]:
-                ch_types[combined_names].append(
-                    self.signal.data[0].get_channel_types(picks=name)[0]
+        for ch_i, combined_name in enumerate(self._comb_names_str):
+            types = []
+            for single_name in self._comb_names_list[ch_i]:
+                types.append(
+                    self.signal.data[0].get_channel_types(picks=single_name)[0]
                 )
-            unique_types = unique(ch_types[combined_names])
-            if len(unique_types) > 1:
-                unique_types = [combine_vals_list(unique_types)]
-            ch_types[combined_names] = unique_types[0]
+            ch_types[combined_name] = combine_vals_list(unique(types))
 
         node_ch_types = [[], []]
-        for group_i in range(2):
-            for name in self.extra_info["node_ch_names"][group_i]:
+        groups = ["_seeds_str", "_targets_str"]
+        for group_i, group in enumerate(groups):
+            for name in getattr(self, group):
                 node_ch_types[group_i].append(ch_types[name])
 
         return node_ch_types
@@ -1205,19 +1204,18 @@ class ConnectivityMultivariate(ProcConnectivity):
         """
 
         ch_reref_types = {}
-        for node_i, combined_names in enumerate(self.results[0].names):
-            ch_reref_types[combined_names] = ordered_list_from_dict(
-                list_order=self._separated_names[node_i],
+        for ch_i, combined_name in enumerate(self._comb_names_str):
+            reref_types = ordered_list_from_dict(
+                list_order=self._comb_names_list[ch_i],
                 dict_to_order=self.extra_info["ch_reref_types"],
             )
-            unique_types = unique(ch_reref_types[combined_names])
-            if len(unique_types) > 1:
-                unique_types = [combine_vals_list(unique_types)]
-            ch_reref_types[combined_names] = unique_types[0]
+            unique_types = unique(reref_types)
+            ch_reref_types[combined_name] = combine_vals_list(unique_types)
 
         node_reref_types = [[], []]
-        for group_i in range(2):
-            for name in self.extra_info["node_ch_names"][group_i]:
+        groups = ["_seeds_str", "_targets_str"]
+        for group_i, group in enumerate(groups):
+            for name in getattr(self, group):
                 node_reref_types[group_i].append(ch_reref_types[name])
 
         return node_reref_types
@@ -1233,17 +1231,22 @@ class ConnectivityMultivariate(ProcConnectivity):
             connectivity results, with each entry within the sublists being the
             coordinates for each channel in the node group.
         """
-
         ch_coords = {}
-        for node_i, combined_names in enumerate(self.results[0].names):
-            ch_coords[combined_names] = [
-                self.signal.get_coordinates(name)[0]
-                for name in self._separated_names[node_i]
-            ]
+        for ch_i, combined_name in enumerate(self._comb_names_str):
+            ch_coords[combined_name] = list(
+                np.mean(
+                    [
+                        self.signal.get_coordinates(single_name)[0]
+                        for single_name in self._comb_names_list[ch_i]
+                    ],
+                    axis=0,
+                )
+            )
 
         node_ch_coords = [[], []]
-        for group_i in range(2):
-            for name in self.extra_info["node_ch_names"][group_i]:
+        groups = ["_seeds_str", "_targets_str"]
+        for group_i, group in enumerate(groups):
+            for name in getattr(self, group):
                 node_ch_coords[group_i].append(ch_coords[name])
 
         return node_ch_coords
@@ -1262,21 +1265,18 @@ class ConnectivityMultivariate(ProcConnectivity):
             regions are taken and joined into a single string by the " & "
             characters.
         """
-
         ch_regions = {}
-        for node_i, combined_names in enumerate(self.results[0].names):
-            ch_regions[combined_names] = ordered_list_from_dict(
-                list_order=self._separated_names[node_i],
+        for node_i, combined_name in enumerate(self._comb_names_str):
+            regions = ordered_list_from_dict(
+                list_order=self._comb_names_list[node_i],
                 dict_to_order=self.extra_info["ch_regions"],
             )
-            unique_types = unique(ch_regions[combined_names])
-            if len(unique_types) > 1:
-                unique_types = [combine_vals_list(unique_types)]
-            ch_regions[combined_names] = unique_types[0]
+            ch_regions[combined_name] = combine_vals_list(unique(regions))
 
         node_ch_regions = [[], []]
-        for group_i in range(2):
-            for name in self.extra_info["node_ch_names"][group_i]:
+        groups = ["_seeds_str", "_targets_str"]
+        for group_i, group in enumerate(groups):
+            for name in getattr(self, group):
                 node_ch_regions[group_i].append(ch_regions[name])
 
         return node_ch_regions
@@ -1302,30 +1302,29 @@ class ConnectivityMultivariate(ProcConnectivity):
             in the seeds/targets of each node were derived from the same
             hemisphere.
         """
-
         ch_hemispheres = {}
-        single_hemispheres = {name: True for name in self.results[0].names}
-        for node_i, combined_names in enumerate(self.results[0].names):
-            ch_hemispheres[combined_names] = ordered_list_from_dict(
-                list_order=self._separated_names[node_i],
+        single_hemispheres = {name: True for name in self._comb_names_str}
+        for ch_i, combined_name in enumerate(self._comb_names_str):
+            hemispheres = ordered_list_from_dict(
+                list_order=self._comb_names_list[ch_i],
                 dict_to_order=self.extra_info["ch_hemispheres"],
             )
-            unique_types = unique(ch_hemispheres[combined_names])
+            unique_types = unique(hemispheres)
             if len(unique_types) > 1:
-                unique_types = [combine_vals_list(unique_types)]
-                single_hemispheres[combined_names] = False
-            ch_hemispheres[combined_names] = unique_types[0]
+                single_hemispheres[combined_name] = False
+            ch_hemispheres[combined_name] = combine_vals_list(unique_types)
 
         node_ch_hemispheres = [[], []]
         node_single_hemispheres = [[], []]
-        for group_i in range(2):
-            for name in self.extra_info["node_ch_names"][group_i]:
+        groups = ["_seeds_str", "_targets_str"]
+        for group_i, group in enumerate(groups):
+            for name in getattr(self, group):
                 node_ch_hemispheres[group_i].append(ch_hemispheres[name])
                 node_single_hemispheres[group_i].append(
                     single_hemispheres[name]
                 )
 
-        return node_ch_hemispheres, np.asarray(node_single_hemispheres)
+        return node_ch_hemispheres, node_single_hemispheres
 
     def _generate_node_lateralisation(
         self, node_single_hemispheres: list[list[bool]]
@@ -1377,25 +1376,21 @@ class ConnectivityMultivariate(ProcConnectivity):
             a "shuffled" epoch order, the epoch order of the node is "shuffled",
             otherwise it is "original".
         """
-
         ch_epoch_orders = {}
-        for node_i, combined_names in enumerate(self.results[0].names):
-            ch_epoch_orders[combined_names] = ordered_list_from_dict(
-                list_order=self._separated_names[node_i],
+        for ch_i, combined_name in enumerate(self._comb_names_str):
+            epoch_orders = ordered_list_from_dict(
+                list_order=self._comb_names_list[ch_i],
                 dict_to_order=self.extra_info["ch_epoch_orders"],
             )
-            unique_types = unique(ch_epoch_orders[combined_names])
-            if len(unique_types) > 1:
-                unique_types = [combine_vals_list(unique_types)]
-            ch_epoch_orders[combined_names] = unique_types[0]
+            ch_epoch_orders[combined_name] = combine_vals_list(
+                unique(epoch_orders)
+            )
 
         node_epoch_orders = []
-        for node_i in range(len(self.extra_info["node_ch_names"][0])):
-            seed_names = self.extra_info["node_ch_names"][0][node_i]
-            target_names = self.extra_info["node_ch_names"][1][node_i]
+        for seed_name, target_name in zip(self._seeds_str, self._targets_str):
             if (
-                ch_epoch_orders[seed_names] == "original"
-                and ch_epoch_orders[target_names] == "original"
+                ch_epoch_orders[seed_name] == "original"
+                and ch_epoch_orders[target_name] == "original"
             ):
                 order = "original"
             else:
@@ -1490,13 +1485,13 @@ class ConnectivityMultivariate(ProcConnectivity):
             f"connectivity-{self._con_method}": results.tolist(),
             f"connectivity-{self._con_method}_dimensions": dimensions,
             "freqs": self.results[0].freqs,
-            "seed_names": self.extra_info["node_ch_names"][0],
+            "seed_names": self._seeds_str,
             "seed_types": self.extra_info["node_ch_types"][0],
             "seed_coords": self.extra_info["node_ch_coords"][0],
             "seed_regions": self.extra_info["node_ch_regions"][0],
             "seed_hemispheres": self.extra_info["node_ch_hemispheres"][0],
             "seed_reref_types": self.extra_info["node_ch_reref_types"][0],
-            "target_names": self.extra_info["node_ch_names"][1],
+            "target_names": self._targets_str,
             "target_types": self.extra_info["node_ch_types"][1],
             "target_coords": self.extra_info["node_ch_coords"][1],
             "target_regions": self.extra_info["node_ch_regions"][1],
