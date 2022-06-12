@@ -24,7 +24,7 @@ identify_ftype
 import os
 import json
 import pickle
-from typing import Any, Optional, Union
+from typing import Any, Optional
 import numpy as np
 import pandas as pd
 import mne
@@ -35,6 +35,7 @@ from coh_exceptions import (
     UnidenticalEntryError,
 )
 from coh_handle_entries import check_non_repeated_vals_lists
+from coh_handle_objects import nested_changes
 
 
 def generate_raw_fpath(
@@ -363,86 +364,6 @@ def identify_ftype(fpath: str) -> str:
         )
 
     return fpath[fpath.rfind(".") + 1 :]
-
-
-def nested_changes_list(contents: list, changes: dict) -> None:
-    """Makes changes to the specified values occuring within nested dictionaries
-    of lists of a parent list.
-
-    PARAMETERS
-    ----------
-    contents : list
-    -   The list containing nested dictionaries and lists whose values should be
-        changed.
-
-    changes : dict
-    -   Dictionary specifying the changes to make, with the keys being the
-        values that should be changed, and the values being what the values
-        should be changed to.
-    """
-
-    for value in contents:
-        if isinstance(value, list):
-            nested_changes_list(contents=value, changes=changes)
-        elif isinstance(value, dict):
-            nested_changes_dict(contents=value, changes=changes)
-        else:
-            if value in changes.keys():
-                value = changes[value]
-
-
-def nested_changes_dict(contents: dict, changes: dict) -> None:
-    """Makes changes to the specified values occuring within nested
-    dictionaries or lists of a parent dictionary.
-
-    PARAMETERS
-    ----------
-    contents : dict
-    -   The dictionary containing nested dictionaries and lists whose values
-        should be changed.
-
-    changes : dict
-    -   Dictionary specifying the changes to make, with the keys being the
-        values that should be changed, and the values being what the values
-        should be changed to.
-    """
-
-    for key, value in contents.items():
-        if isinstance(value, list):
-            nested_changes_list(contents=value, changes=changes)
-        elif isinstance(value, dict):
-            nested_changes_dict(contents=value, changes=changes)
-        else:
-            if value in changes.keys():
-                contents[key] = changes[value]
-
-
-def nested_changes(contents: Union[dict, list], changes: dict) -> None:
-    """Makes changes to the specified values occuring within nested
-    dictionaries or lists of a parent dictionary or list.
-
-    PARAMETERS
-    ----------
-    contents : dict | list
-    -   The dictionary or list containing nested dictionaries and lists whose
-        values should be changed.
-
-    changes : dict
-    -   Dictionary specifying the changes to make, with the keys being the
-        values that should be changed, and the values being what the values
-        should be changed to.
-    """
-
-    if isinstance(contents, dict):
-        nested_changes_dict(contents=contents, changes=changes)
-    elif isinstance(contents, list):
-        nested_changes_list(contents=contents, changes=changes)
-    else:
-        raise TypeError(
-            "Error when changing nested elements of an object:\nProcessing "
-            f"objects of type '{type(contents)}' is not supported. Only 'list' "
-            "and 'dict' objects can be processed."
-        )
 
 
 def extra_deserialise_json(contents: dict) -> dict:
