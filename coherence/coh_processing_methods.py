@@ -8,7 +8,6 @@ ProcMethod
 
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from numpy.typing import NDArray
 import numpy as np
 import pandas as pd
 from mne_connectivity import seed_target_indices
@@ -360,162 +359,203 @@ class ProcConnectivity(ProcMethod):
     def _generate_extra_info(self) -> None:
         """Generates additional information related to the connectivity
         analysis."""
-
-        self._generate_node_ch_names()
         self._generate_node_ch_types()
         self._generate_node_ch_reref_types()
         self._generate_node_ch_coords()
         self._generate_node_ch_regions()
-        self._generate_node_ch_hemispheres()
-        self._generate_node_lateralisation()
+        node_single_hemispheres = self._generate_node_ch_hemispheres()
+        self._generate_node_lateralisation(node_single_hemispheres)
         self._generate_node_ch_epoch_orders()
-
-    def _generate_node_ch_names(self) -> None:
-        """Converts the indices of channels in the connectivity results to their
-        channel names.
-        -   Names are a list containing two sublists consisting of the channel
-            names of the seeds and targets, respectively, for each node in the
-            connectivity results.
-        """
-
-        node_ch_names = [[], []]
-        for group_i, indices in enumerate(self.results[0].indices):
-            for index in indices:
-                node_ch_names[group_i].append(self.results[0].names[index])
-        self.extra_info["node_ch_names"] = node_ch_names
 
     def _generate_node_ch_types(self) -> None:
         """Gets the types of channels in the connectivity results.
-        -   Types are a list containing two sublists consisting of the channel
-            types of the seeds and targets, respectively, for each node in the
-            connectivity results.
+
+        If the types of each channel in a seed/target for a given node are
+        identical, this type is given as a string, otherwise the unique types
+        are taken and joined into a single string by the " & " characters.
         """
+        ch_types = {}
+        for ch_i, combined_name in enumerate(self._comb_names_str):
+            types = []
+            for single_name in self._comb_names_list[ch_i]:
+                types.append(
+                    self.signal.data[0].get_channel_types(picks=single_name)[0]
+                )
+            ch_types[combined_name] = combine_vals_list(unique(types))
 
         node_ch_types = [[], []]
-        ch_types = {}
-        for name in self.results[0].names:
-            ch_types[name] = self.signal.data[0].get_channel_types(picks=name)[
-                0
-            ]
-
-        for group_i in range(2):
-            node_ch_types[group_i] = ordered_list_from_dict(
-                list_order=self.extra_info["node_ch_names"][group_i],
-                dict_to_order=ch_types,
-            )
+        groups = ["_seeds_str", "_targets_str"]
+        for group_i, group in enumerate(groups):
+            for name in getattr(self, group):
+                node_ch_types[group_i].append(ch_types[name])
         self.extra_info["node_ch_types"] = node_ch_types
 
     def _generate_node_ch_reref_types(self) -> None:
         """Gets the rereferencing types of channels in the connectivity results.
-        -   Rereferencing types are a list containing two sublists consisting of
-            the rereferencing types of the seeds and targets, respectively, for
-            each node in the connectivity results.
-        """
 
-        node_ch_reref_types = [[], []]
-        for group_i in range(2):
-            node_ch_reref_types[group_i] = ordered_list_from_dict(
-                list_order=self.extra_info["node_ch_names"][group_i],
+        If the rereferencing types of each channel in a seed/target for a given
+        node are identical, this type is given as a string, otherwise the unique
+        types are taken and joined into a single string by the " & " characters.
+        """
+        ch_reref_types = {}
+        for ch_i, combined_name in enumerate(self._comb_names_str):
+            reref_types = ordered_list_from_dict(
+                list_order=self._comb_names_list[ch_i],
                 dict_to_order=self.extra_info["ch_reref_types"],
             )
-        self.extra_info["node_ch_reref_types"] = node_ch_reref_types
+            unique_types = unique(reref_types)
+            ch_reref_types[combined_name] = combine_vals_list(unique_types)
+
+        node_reref_types = [[], []]
+        groups = ["_seeds_str", "_targets_str"]
+        for group_i, group in enumerate(groups):
+            for name in getattr(self, group):
+                node_reref_types[group_i].append(ch_reref_types[name])
+        self.extra_info["node_ch_reref_types"] = node_reref_types
 
     def _generate_node_ch_coords(self) -> None:
-        """Gets the coordinates of channels in the connectivity results.
-        -   Coordinates are a list containing two sublists consisting of the
-            channel coordinates of the seeds and targets, respectively, for each
-            node in the connectivity results.
-        """
+        """Gets the coordinates of channels in the connectivity results,
+        averaged across for each channel in the seeds and targets."""
+        ch_coords = {}
+        for ch_i, combined_name in enumerate(self._comb_names_str):
+            ch_coords[combined_name] = np.mean(
+                [
+                    self.signal.get_coordinates(single_name)[0]
+                    for single_name in self._comb_names_list[ch_i]
+                ],
+                axis=0,
+            ).tolist()
 
         node_ch_coords = [[], []]
-        ch_coords = {
-            name: self.signal.get_coordinates(name)[0]
-            for name in self.results[0].names
-        }
-        for group_i in range(2):
-            node_ch_coords[group_i] = ordered_list_from_dict(
-                list_order=self.extra_info["node_ch_names"][group_i],
-                dict_to_order=ch_coords,
-            )
+        groups = ["_seeds_str", "_targets_str"]
+        for group_i, group in enumerate(groups):
+            for name in getattr(self, group):
+                node_ch_coords[group_i].append(ch_coords[name])
         self.extra_info["node_ch_coords"] = node_ch_coords
 
     def _generate_node_ch_regions(self) -> None:
         """Gets the regions of channels in the connectivity results.
-        -   Regions are lists containing two sublists consisting of the channel
-            regions of the seeds and targets, respectively, for each node in the
-            connectivity results.
-        """
 
-        node_ch_regions = [[], []]
-        for group_i in range(2):
-            node_ch_regions[group_i] = ordered_list_from_dict(
-                list_order=self.extra_info["node_ch_names"][group_i],
+        If the regions of each channel in a seed/target for a given node are
+        identical, this regions is given as a string, otherwise the unique
+        regions are taken and joined into a single string by the " & "
+        characters.
+        """
+        ch_regions = {}
+        for node_i, combined_name in enumerate(self._comb_names_str):
+            regions = ordered_list_from_dict(
+                list_order=self._comb_names_list[node_i],
                 dict_to_order=self.extra_info["ch_regions"],
             )
+            ch_regions[combined_name] = combine_vals_list(unique(regions))
+
+        node_ch_regions = [[], []]
+        groups = ["_seeds_str", "_targets_str"]
+        for group_i, group in enumerate(groups):
+            for name in getattr(self, group):
+                node_ch_regions[group_i].append(ch_regions[name])
         self.extra_info["node_ch_regions"] = node_ch_regions
 
-    def _generate_node_ch_hemispheres(self) -> None:
+    def _generate_node_ch_hemispheres(self) -> list[list[bool]]:
         """Gets the hemispheres of channels in the connectivity results.
-        -   Hemispheres are lists containing two sublists consisting of the
-            hemispheres of the seeds and targets, respectively, for each node in
-            the connectivity results.
-        """
 
-        node_ch_hemispheres = [[], []]
-        for group_i in range(2):
-            node_ch_hemispheres[group_i] = ordered_list_from_dict(
-                list_order=self.extra_info["node_ch_names"][group_i],
+        If the hemispheres of each channel in a seed/target for a given node are
+        identical, this hemispheres is given as a string, otherwise the unique
+        hemispheres are taken and joined into a single string by the " & "
+        characters.
+
+        RETURNS
+        -------
+        node_single_hemispheres : list[list[bool]]
+        -   list containing two sublists of bools stating whether the channels
+            in the seeds/targets of each node were derived from the same
+            hemisphere.
+        """
+        ch_hemispheres = {}
+        single_hemispheres = {name: True for name in self._comb_names_str}
+        for ch_i, combined_name in enumerate(self._comb_names_str):
+            hemispheres = ordered_list_from_dict(
+                list_order=self._comb_names_list[ch_i],
                 dict_to_order=self.extra_info["ch_hemispheres"],
             )
+            unique_types = unique(hemispheres)
+            if len(unique_types) > 1:
+                single_hemispheres[combined_name] = False
+            ch_hemispheres[combined_name] = combine_vals_list(unique_types)
+
+        node_ch_hemispheres = [[], []]
+        node_single_hemispheres = [[], []]
+        groups = ["_seeds_str", "_targets_str"]
+        for group_i, group in enumerate(groups):
+            for name in getattr(self, group):
+                node_ch_hemispheres[group_i].append(ch_hemispheres[name])
+                node_single_hemispheres[group_i].append(
+                    single_hemispheres[name]
+                )
         self.extra_info["node_ch_hemispheres"] = node_ch_hemispheres
 
-    def _generate_node_lateralisation(self) -> None:
-        """Gets the lateralisation of the channels in the connectivity node.
-        -   Can either be "contralateral" if the seed and target are from
-            different hemispheres, or "ipsilateral" if the seed and target are
-            from the same hemisphere.
-        -   Indication of the hemispheres should be binary in nature, e.g. "L"
-            and "R", or "Left" and "Right", not "L" and "Left" and "R" and
-            "Right".
-        -   Lateralisation is a list of strings with values "contralateral" or
-            "ipsilateral" for each connectivity node.
-        """
+        return node_single_hemispheres
 
+    def _generate_node_lateralisation(
+        self, node_single_hemispheres: list[list[bool]]
+    ) -> None:
+        """Gets the lateralisation of the channels in the connectivity node.
+
+        Can either be "contralateral" if the seed and target are from different
+        hemispheres, "ipsilateral" if the seed and target are from the same
+        hemisphere, or "ipsilateral & contralateral" if the seed and target are
+        from a mix of same and different hemispheres.
+
+        PARAMETERS
+        ----------
+        node_single_hemispheres : list[list[bool]]
+        -   list containing two sublists of bools stating whether the channels
+            in the seeds/targets of each node were derived from the same
+            hemisphere.
+        """
         node_lateralisation = []
         node_ch_hemispheres = self.extra_info["node_ch_hemispheres"]
         for node_i in range(len(node_ch_hemispheres[0])):
             if node_ch_hemispheres[0][node_i] != node_ch_hemispheres[1][node_i]:
-                node_lateralisation.append("contralateral")
+                if (
+                    not node_single_hemispheres[0][node_i]
+                    or not node_single_hemispheres[1][node_i]
+                ):
+                    lateralisation = "ipsilateral & contralateral"
+                else:
+                    lateralisation = "contralateral"
             else:
-                node_lateralisation.append("ipsilateral")
-
+                lateralisation = "ipsilateral"
+            node_lateralisation.append(lateralisation)
         self.extra_info["node_lateralisation"] = node_lateralisation
 
     def _generate_node_ch_epoch_orders(self) -> None:
         """Gets the epoch orders of channels in the connectivity results.
-        -   Epoch orders are a list containing the epoch orders of the seeds and
-            targets for each node in the connectivity results. If either the
-            seed or target has a 'shuffled' epoch order, the epoch order of the
-            node is 'shuffled', otherwise it is 'original'.
-        """
 
-        seed_epoch_orders = ordered_list_from_dict(
-            list_order=self.extra_info["node_ch_names"][0],
-            dict_to_order=self.extra_info["ch_epoch_orders"],
-        )
-        target_epoch_orders = ordered_list_from_dict(
-            list_order=self.extra_info["node_ch_names"][1],
-            dict_to_order=self.extra_info["ch_epoch_orders"],
-        )
-        node_ch_epoch_orders = []
-        for seed_order, target_order in zip(
-            seed_epoch_orders, target_epoch_orders
-        ):
-            if seed_order == "original" and target_order == "original":
-                node_ch_epoch_orders.append("original")
+        If either the seed or target has a "shuffled" epoch order, the epoch
+        order of the node is "shuffled", otherwise it is "original".
+        """
+        ch_epoch_orders = {}
+        for ch_i, combined_name in enumerate(self._comb_names_str):
+            epoch_orders = ordered_list_from_dict(
+                list_order=self._comb_names_list[ch_i],
+                dict_to_order=self.extra_info["ch_epoch_orders"],
+            )
+            ch_epoch_orders[combined_name] = combine_vals_list(
+                unique(epoch_orders)
+            )
+
+        node_epoch_orders = []
+        for seed_name, target_name in zip(self._seeds_str, self._targets_str):
+            if (
+                ch_epoch_orders[seed_name] == "original"
+                and ch_epoch_orders[target_name] == "original"
+            ):
+                order = "original"
             else:
-                node_ch_epoch_orders.append("shuffled")
-        self.extra_info["node_ch_epoch_orders"] = node_ch_epoch_orders
+                order = "shuffled"
+            node_epoch_orders.append(order)
+        self.extra_info["node_ch_epoch_orders"] = node_epoch_orders
 
     @abstractmethod
     def save_object(self) -> None:
