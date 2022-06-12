@@ -1,9 +1,10 @@
 """Methods for creating and handling objects."""
 
-from typing import Union
+from typing import Any, Union
+import numpy as np
 import mne
 from numpy.typing import NDArray
-from coh_handle_entries import rearrange_axes
+from coh_handle_entries import create_lambda, rearrange_axes
 
 
 def create_extra_info(data: dict) -> dict[dict]:
@@ -178,3 +179,176 @@ def create_mne_data_info(
         data_info["subject_info"] = subject_info
 
     return data_info
+
+
+def nested_changes_list(contents: list, changes: dict) -> None:
+    """Makes changes to the specified values occuring within nested dictionaries
+    of lists of a parent list.
+
+    PARAMETERS
+    ----------
+    contents : list
+    -   The list containing nested dictionaries and lists whose values should be
+        changed.
+
+    changes : dict
+    -   Dictionary specifying the changes to make, with the keys being the
+        values that should be changed, and the values being what the values
+        should be changed to.
+    """
+
+    for value in contents:
+        if isinstance(value, list):
+            nested_changes_list(contents=value, changes=changes)
+        elif isinstance(value, dict):
+            nested_changes_dict(contents=value, changes=changes)
+        else:
+            if value in changes.keys():
+                value = changes[value]
+
+
+def nested_changes_dict(contents: dict, changes: dict) -> None:
+    """Makes changes to the specified values occuring within nested
+    dictionaries or lists of a parent dictionary.
+
+    PARAMETERS
+    ----------
+    contents : dict
+    -   The dictionary containing nested dictionaries and lists whose values
+        should be changed.
+
+    changes : dict
+    -   Dictionary specifying the changes to make, with the keys being the
+        values that should be changed, and the values being what the values
+        should be changed to.
+    """
+
+    for key, value in contents.items():
+        if isinstance(value, list):
+            nested_changes_list(contents=value, changes=changes)
+        elif isinstance(value, dict):
+            nested_changes_dict(contents=value, changes=changes)
+        else:
+            if value in changes.keys():
+                contents[key] = changes[value]
+
+
+def nested_changes(contents: Union[dict, list], changes: dict) -> None:
+    """Makes changes to the specified values occuring within nested
+    dictionaries or lists of a parent dictionary or list.
+
+    PARAMETERS
+    ----------
+    contents : dict | list
+    -   The dictionary or list containing nested dictionaries and lists whose
+        values should be changed.
+
+    changes : dict
+    -   Dictionary specifying the changes to make, with the keys being the
+        values that should be changed, and the values being what the values
+        should be changed to.
+    """
+
+    if isinstance(contents, dict):
+        nested_changes_dict(contents=contents, changes=changes)
+    elif isinstance(contents, list):
+        nested_changes_list(contents=contents, changes=changes)
+    else:
+        raise TypeError(
+            "Error when changing nested elements of an object:\nProcessing "
+            f"objects of type '{type(contents)}' is not supported. Only 'list' "
+            "and 'dict' objects can be processed."
+        )
+
+
+def numpy_to_python(obj: Union[dict, list, np.generic]) -> Any:
+    """Iterates through all entries of an object and converts any numpy elements
+    into their base Python object types, e.g. float32 into float, ndarray into
+    list, etc...
+
+    PARAMETERS
+    ----------
+    obj : dict | list | numpy generic
+    -   The object whose entries should be iterated through and, if numpy
+        objects, converted to their equivalent base Python types.
+
+    RETURNS
+    -------
+    Any
+    -   The object whose entries, if numpy objects, have been converted to their
+        equivalent base Python types.
+    """
+    if isinstance(obj, dict):
+        return numpy_to_python_dict(obj)
+    elif isinstance(obj, list):
+        return numpy_to_python_list(obj)
+    elif isinstance(obj, np.generic):
+        return obj.item()
+    else:
+        raise TypeError(
+            "Error when changing nested elements of an object:\nProcessing "
+            f"objects of type '{type(obj)}' is not supported. Only 'list' "
+            ", 'dict', and 'numpy generic' objects can be processed."
+        )
+
+
+def numpy_to_python_dict(obj: dict) -> dict:
+    """Iterates through all entries of a dictionary and converts any numpy
+    elements into their base Python object types, e.g. float32 into float,
+    ndarray into list, etc...
+
+    PARAMETERS
+    ----------
+    obj : dict
+    -   The dictionary whose entries should be iterated through and, if numpy
+        objects, converted to their equivalent base Python types.
+
+    RETURNS
+    -------
+    new_obj : dict
+    -   The dictionary whose entries, if numpy objects, have been converted to
+        their equivalent base Python types.
+    """
+    new_obj = {}
+    for key, value in obj.items():
+        if isinstance(value, list):
+            new_obj[key] = numpy_to_python_list(value)
+        elif isinstance(value, dict):
+            new_obj[key] = numpy_to_python_dict(value)
+        elif type(value).__module__ == np.__name__:
+            new_obj[key] = getattr(value, "tolist", create_lambda(value))()
+        else:
+            new_obj[key] = value
+
+    return new_obj
+
+
+def numpy_to_python_list(obj: list) -> list:
+    """Iterates through all entries of a list and converts any numpy elements
+    into their base Python object types, e.g. float32 into float, ndarray into
+    list, etc...
+
+    PARAMETERS
+    ----------
+    obj : list
+    -   The list whose entries should be iterated through and, if numpy objects,
+        converted to their equivalent base Python types.
+
+    RETURNS
+    -------
+    new_obj : list
+    -   The list whose entries, if numpy objects, have been converted to their
+        equivalent base Python types.
+    """
+    new_obj = []
+    for value in obj:
+        if isinstance(value, list):
+            new_obj.append(numpy_to_python_list(value))
+        elif isinstance(value, dict):
+            new_obj.append(numpy_to_python_dict(value))
+        elif type(value).__module__ == np.__name__:
+            new_obj.append(getattr(value, "tolist", create_lambda(value))())
+        else:
+            new_obj.append(value)
+
+    return new_obj
