@@ -60,7 +60,7 @@ dict_to_df
 
 from copy import deepcopy
 from itertools import chain
-from typing import Optional, Union
+from typing import Any, Optional, Union
 from numpy.typing import NDArray
 import numpy as np
 import pandas as pd
@@ -1802,3 +1802,9 @@ def check_posdef(A: NDArray) -> bool:
         is_posdef = False
 
     return is_posdef
+
+
+def create_lambda(obj: Any) -> Any:
+    """Creates a lambda from an object, useful for when the object has been
+    created in a for loop."""
+    return lambda: obj
