@@ -27,6 +27,7 @@ from coh_exceptions import (
     UnidenticalEntryError,
 )
 from coh_handle_files import check_ftype_present, identify_ftype
+from coh_handle_objects import numpy_to_python
 
 
 class SaveObject:
@@ -111,7 +112,9 @@ def check_before_overwrite(fpath: str) -> bool:
     return write
 
 
-def save_as_json(to_save: dict, fpath: str) -> None:
+def save_as_json(
+    to_save: dict, fpath: str, make_numpy_compatible: bool = True
+) -> None:
     """Saves a dictionary as a json file.
 
     PARAMETERS
@@ -122,7 +125,14 @@ def save_as_json(to_save: dict, fpath: str) -> None:
 
     fpath : str
     -   Location where the data should be saved.
+
+    make_numpy_compatible : bool; default True
+    -   Whether or not to convert numpy objects into their equivalent Python
+        types before saving so that they are JSON-serialisable.
     """
+
+    if make_numpy_compatible:
+        to_save = numpy_to_python(to_save)
 
     with open(fpath, "w", encoding="utf8") as file:
         json.dump(to_save, file)
