@@ -144,7 +144,7 @@ def generate_sessionwise_fpath(
     -   The filepath of the object.
     """
 
-    subfolders = f"{dataset}\\sub-{subject}\\ses-{session}"
+    subfolders = os.path.join(dataset, f"sub-{subject}", f"ses-{session}")
     filename = (
         f"sub-{subject}_ses-{session}_task-{task}_acq-{acquisition}_run-{run}_"
         f"{group_type}{filetype}"
@@ -230,7 +230,7 @@ def generate_results_fpath(
     -   The filepath of the object.
     """
 
-    subfolders = f"{dataset}\\sub-{subject}\\ses-{session}"
+    subfolders = os.path.join(dataset, f"sub-{subject}", f"ses-{session}")
     filename = (
         f"sub-{subject}_ses-{session}_task-{task}_acq-{acquisition}_run-{run}_"
         f"{result_type}{filetype}"
@@ -305,7 +305,9 @@ def generate_fpath_from_analysed(
     task = analysed_info["task"]
     acq = analysed_info["acq"]
     run = analysed_info["run"]
-    folderpath = f"{parent_folderpath}\\{cohort}\\sub-{sub}\\ses-{ses}"
+    folderpath = os.path.join(
+        parent_folderpath, cohort, f"sub-{sub}", f"ses-{ses}"
+    )
     filename = (
         f"sub-{sub}_ses-{ses}_task-{task}_acq-{acq}_run-{run}_{analysis}."
         f"{ftype}"
