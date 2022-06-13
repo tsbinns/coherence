@@ -33,7 +33,11 @@ from scipy.io import loadmat
 
 
 def multivariate_connectivity(
-    data: NDArray, method: str, n_group_a: int, n_group_b: int
+    data: NDArray,
+    method: str,
+    n_group_a: int,
+    n_group_b: int,
+    return_topographies: bool = False,
 ) -> NDArray:
     """Method for directing to different multivariate connectivity methods.
 
@@ -61,11 +65,20 @@ def multivariate_connectivity(
         'data' from 'n_group_a : n_group_b' are taken as the coherency values
         for signals in group B.
 
+    return_topographies : bool; default True
+    -   Whether or not to return spatial topographies of connectivity for the
+        signals when calculating maximised imaginary coherence.
+
     RETURNS
     -------
-    results : NDArray
-    -   Vector containing the computed multivariate connectivity values with
-        length equal to the number of frequencies in 'data'.
+    results : numpy array | tuple(numpy array, tuple(numpy array))
+    -   If 'method' is not "mim", the output is a vector of the computed
+        multivariate connectivity values for each frequency in 'data'.
+    -   If 'return_topographies' is 'True' and 'method' is "mim", the output
+        contains in position zero a vector of the computed multivariate
+        connectivity values for each frequency in 'data', as well as spatial
+        topographies of the connectivity for signals in groups A and B,
+        respectively, in position one.
 
     RAISES
     ------
@@ -86,7 +99,10 @@ def multivariate_connectivity(
         )
     else:
         results = max_imaginary_coherence(
-            data=data, n_group_a=n_group_a, n_group_b=n_group_b
+            data=data,
+            n_group_a=n_group_a,
+            n_group_b=n_group_b,
+            return_topographies=return_topographies,
         )
 
     return results
@@ -165,8 +181,11 @@ def multivariate_interaction_measure(
 
 
 def max_imaginary_coherence(
-    data: NDArray, n_group_a: int, n_group_b: int
-) -> NDArray:
+    data: NDArray,
+    n_group_a: int,
+    n_group_b: int,
+    return_topographies: bool = True,
+) -> Union[NDArray, list[NDArray]]:
     """Computes the maximised imaginary coherence between two groups of signals.
 
     data : numpy array
@@ -184,11 +203,21 @@ def max_imaginary_coherence(
         'data' from 'n_group_a : n_group_b' are taken as the coherency values
         for signals in group B.
 
+    return_topographies : bool; default True
+    -   Whether or not to return spatial topographies of connectivity for the
+        signals.
+
     RETURNS
     -------
     mic : numpy array
     -   One-dimensional array containing a connectivity value between signal
         groups A and B for each frequency.
+
+    tuple(numpy array)
+    -   Spatial topographies of connectivity for the signals in groups A and B,
+        respectively, for each frequency, each with dimensions [signals x
+        frequencies].
+    -   Returned only if 'return_topographies' is 'True'.
 
     RAISES
     ------
@@ -199,8 +228,12 @@ def max_imaginary_coherence(
 
     NOTES
     -----
-    -   Follows the approach set out in Ewald et al., 2012, Neuroimage. DOI:
-        10.1016/j.neuroimage.2011.11.084.
+    -   Follows the approach set out in [1] Ewald et al. (2012), NeuroImage.
+        DOI: 10.1016/j.neuroimage.2011.11.084.
+    -   Spatial topographies are computed using the weight vectors alpha and
+        beta (see [1]) by multiplying the real part of the coherency
+        cross-spectrum 'data' by weight vectors, as in Eq. 20 of Nikulin et al.
+        (2011), NeuroImage, DOI: 10.1016/j.neuroimage.2011.01.057.
     -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
         code provided by Franziska Pellegrini of Stefan Haufe's research group.
     """
@@ -223,6 +256,8 @@ def max_imaginary_coherence(
 
     n_freqs = data.shape[2]
     mic = np.empty(n_freqs)
+    topos_a = []
+    topos_b = []
     for freq_i in range(n_freqs):
         # Equations 2-4
         E = multivariate_connectivity_compute_e(
@@ -242,7 +277,20 @@ def max_imaginary_coherence(
             * np.linalg.norm(beta)
         )
 
-    return mic
+        if return_topographies:
+            topos_a.append(
+                data[:n_group_a, :n_group_a, freq_i].real.dot(alpha)
+            )  # C_aa * alpha
+            topos_b.append(
+                data[n_group_a:, n_group_a:, freq_i].real.dot(beta)
+            )  # C_bb * beta
+
+    if return_topographies:
+        topos_a = np.transpose(np.asarray(topos_a, dtype=np.float64), (1, 0))
+        topos_b = np.transpose(np.asarray(topos_b, dtype=np.float64), (1, 0))
+        return mic, (topos_a, topos_b)
+    else:
+        return mic
 
 
 def granger_causality(

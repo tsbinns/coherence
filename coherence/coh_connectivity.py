@@ -591,9 +591,11 @@ class ConnectivityMultivariate(ProcConnectivity):
         self._cwt_freqs = None
         self._cwt_n_cycles = None
         self._average_windows = None
+        self._return_topographies = None
         self._block_size = None
         self._n_jobs = None
         self._cohy_matrix_indices = None
+        self.topographies = None
         self._progress_bar = None
 
     def process(
@@ -614,6 +616,7 @@ class ConnectivityMultivariate(ProcConnectivity):
         cwt_freqs: Optional[Union[list, NDArray]] = None,
         cwt_n_cycles: Union[int, float, NDArray] = 7,
         average_windows: bool = False,
+        return_topographies: bool = False,
         block_size: int = 1000,
         n_jobs: int = 1,
     ) -> None:
@@ -720,6 +723,11 @@ class ConnectivityMultivariate(ProcConnectivity):
         average_windows : bool; default False
         -   Whether or not to average connectivity results across windows.
 
+        return_topographies: bool; default False
+        -   Whether or not to return spatial topographies of connectivity for
+            the signals.
+        -   Only available when calculating maximised imaginary coherence.
+
         block_size : int; default 1000
         -   The number of connections to compute at once.
 
@@ -751,6 +759,10 @@ class ConnectivityMultivariate(ProcConnectivity):
         self._average_windows = average_windows
         self._block_size = block_size
         self._n_jobs = n_jobs
+        if return_topographies and self._con_method == "mic":
+            self._return_topographies = return_topographies
+        else:
+            self._return_topographies = False
 
         self._sort_seeds_targets()
 
@@ -774,6 +786,7 @@ class ConnectivityMultivariate(ProcConnectivity):
             "cwt_freqs": self._cwt_freqs,
             "cwt_n_cycles": cwt_n_cycles,
             "average_windows": average_windows,
+            "return_topographies": self._return_topographies,
         }
 
     def _sort_seeds_targets(self) -> None:
@@ -803,6 +816,7 @@ class ConnectivityMultivariate(ProcConnectivity):
             )
 
         connectivity = []
+        topographies = []
         for win_i, win_data in enumerate(self.signal.data):
             if self._verbose:
                 print(
@@ -810,8 +824,14 @@ class ConnectivityMultivariate(ProcConnectivity):
                     f"{len(self.signal.data)}.\n"
                 )
             coherency = self._get_cohy(win_data)
-            connectivity.append(self._get_multivariate_results(coherency))
+            con_results, topo_results = self._get_multivariate_results(
+                coherency
+            )
+            connectivity.append(con_results)
+            topographies.append(topo_results)
         self.results = connectivity
+        if self._return_topographies:
+            self.topographies = np.asarray(topographies)
 
         if self._progress_bar is not None:
             self._progress_bar.close()
@@ -889,11 +909,16 @@ class ConnectivityMultivariate(ProcConnectivity):
 
         RETURNS
         -------
-        MNE SpectralConnectivity
+        results : MNE SpectralConnectivity
         -   The multivariate connectivity results of a single window for all
             seed-target pairs.
+
+        topographies : list[list[numpy array]]
+        -   The spatial topographies of seeds and targets, respectively, for all
+            seed-target pairs in a single window.
         """
         connectivity = []
+        topographies = [[], []]
         for con_i, indices in enumerate(self._cohy_matrix_indices):
             if self._verbose:
                 print(
@@ -906,16 +931,24 @@ class ConnectivityMultivariate(ProcConnectivity):
                 method=self._con_method,
                 n_group_a=len(self._seeds_list[con_i]),
                 n_group_b=len(self._targets_list[con_i]),
+                return_topographies=self._return_topographies,
             )
-            connectivity.append(results)
+            if self._return_topographies and self._con_method == "mic":
+                connectivity.append(results[0])
+                topographies[0].append(results[1][0])
+                topographies[1].append(results[1][1])
+            else:
+                connectivity.append(results)
             if self._progress_bar is not None:
                 self._progress_bar.update_progress()
 
-        return self._multivariate_to_mne(
+        results = self._multivariate_to_mne(
             data=np.asarray(connectivity),
             freqs=data.freqs,
             n_epochs_used=data.n_epochs_used,
         )
+
+        return results, topographies
 
     def _get_cohy_matrix(
         self, data: SpectralConnectivity, indices: list[list[int]]
@@ -994,7 +1027,7 @@ class ConnectivityMultivariate(ProcConnectivity):
             data=data,
             freqs=freqs,
             n_nodes=len(self._seeds_list),
-            names=self._node_ch_names,
+            names=self._comb_names_str,
             indices=self._indices,
             method=self._con_method,
             n_epochs_used=n_epochs_used,
@@ -1028,6 +1061,10 @@ class ConnectivityMultivariate(ProcConnectivity):
         for results in self.results:
             connectivity.append(results.get_data())
         connectivity = np.asarray(connectivity).mean(axis=0)
+        if self._return_topographies:
+            self.topographies = np.asarray(
+                self.topographies, dtype=object
+            ).mean(axis=0)
         self.results = [
             SpectralConnectivity(
                 data=connectivity,
@@ -1098,17 +1135,19 @@ class ConnectivityMultivariate(ProcConnectivity):
         dimensions = self._get_optimal_dims()
         results = super().get_results(dimensions=dimensions)
 
-        return {
+        results_dict = {
             f"connectivity-{self._con_method}": results.tolist(),
             f"connectivity-{self._con_method}_dimensions": dimensions,
             "freqs": self.results[0].freqs,
             "seed_names": self._seeds_str,
+            "seed_topographies": self.topographies[0].tolist(),
             "seed_types": self.extra_info["node_ch_types"][0],
             "seed_coords": self.extra_info["node_ch_coords"][0],
             "seed_regions": self.extra_info["node_ch_regions"][0],
             "seed_hemispheres": self.extra_info["node_ch_hemispheres"][0],
             "seed_reref_types": self.extra_info["node_ch_reref_types"][0],
             "target_names": self._targets_str,
+            "target_topographies": self.topographies[1].tolist(),
             "target_types": self.extra_info["node_ch_types"][1],
             "target_coords": self.extra_info["node_ch_coords"][1],
             "target_regions": self.extra_info["node_ch_regions"][1],
@@ -1121,6 +1160,12 @@ class ConnectivityMultivariate(ProcConnectivity):
             "processing_steps": self.processing_steps,
             "subject_info": self.signal.data[0].info["subject_info"],
         }
+
+        if not self._return_topographies:
+            del results_dict["seed_topographies"]
+            del results_dict["target_topographies"]
+
+        return results_dict
 
 
 class ConnectivityGranger(ProcConnectivity):

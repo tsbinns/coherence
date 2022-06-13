@@ -229,6 +229,7 @@ def multivariate_processing(
             cwt_freqs=cwt_freqs,
             cwt_n_cycles=analysis_settings["cwt_n_cycles"],
             average_windows=analysis_settings["average_windows"],
+            return_topographies=analysis_settings["return_topographies"],
             block_size=analysis_settings["block_size"],
             n_jobs=analysis_settings["n_jobs"],
         )
