@@ -447,7 +447,7 @@ class ConnectivityCoherence(ProcConnectivity):
         self._block_size = block_size
         self._n_jobs = n_jobs
 
-        super()._sort_indices()
+        super()._sort_seeds_targets()
 
         self._get_results()
 
@@ -558,13 +558,13 @@ class ConnectivityCoherence(ProcConnectivity):
             f"connectivity-{self._method}": results.tolist(),
             f"connectivity-{self._method}_dimensions": dimensions,
             "freqs": self.results[0].freqs,
-            "seed_names": self.extra_info["node_ch_names"][0],
+            "seed_names": self._seeds_str,
             "seed_types": self.extra_info["node_ch_types"][0],
             "seed_coords": self.extra_info["node_ch_coords"][0],
             "seed_regions": self.extra_info["node_ch_regions"][0],
             "seed_hemispheres": self.extra_info["node_ch_hemispheres"][0],
             "seed_reref_types": self.extra_info["node_ch_reref_types"][0],
-            "target_names": self.extra_info["node_ch_names"][1],
+            "target_names": self._targets_str,
             "target_types": self.extra_info["node_ch_types"][1],
             "target_coords": self.extra_info["node_ch_coords"][1],
             "target_regions": self.extra_info["node_ch_regions"][1],
