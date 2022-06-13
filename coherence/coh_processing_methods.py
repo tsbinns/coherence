@@ -8,16 +8,20 @@ ProcMethod
 
 from abc import ABC, abstractmethod
 from copy import deepcopy
+from typing import Union
 import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 from mne_connectivity import seed_target_indices
 from coh_handle_entries import (
     combine_vals_list,
     get_eligible_idcs_lists,
     get_group_names_idcs,
     ordered_list_from_dict,
+    rearrange_axes,
     unique,
 )
+from coh_saving import save_object
 import coh_signal
 
 
@@ -50,7 +54,6 @@ class ProcMethod(ABC):
 
     @abstractmethod
     def __init__(self, signal: coh_signal.Signal, verbose: bool) -> None:
-
         # Initialises aspects of the ProcMethod object that will be filled with
         # information as the data is processed.
         self.results = None
@@ -80,7 +83,6 @@ class ProcMethod(ABC):
     def _sort_inputs(self) -> None:
         """Checks the inputs to the processing method object to ensure that they
         match the requirements for processing and assigns inputs."""
-
         self.processing_steps = deepcopy(self.signal.processing_steps)
         self.extra_info = deepcopy(self.signal.extra_info)
 
@@ -94,7 +96,6 @@ class ProcMethod(ABC):
         dims : list[str]
         -   Dimensions of the results.
         """
-
         if self._windows_averaged:
             dims = self._results_dims[1:]
         else:
@@ -102,9 +103,32 @@ class ProcMethod(ABC):
 
         return deepcopy(dims)
 
-    @abstractmethod
-    def save_object(self) -> None:
-        """Saves the object as a .pkl file."""
+    def save_object(
+        self,
+        fpath: str,
+        ask_before_overwrite: Union[bool, None] = None,
+    ) -> None:
+        """Saves the object as a .pkl file.
+
+        PARAMETERS
+        ----------
+        fpath : str
+        -   Location where the data should be saved. The filetype extension
+            (.pkl) can be included, otherwise it will be automatically added.
+
+        ask_before_overwrite : bool
+        -   Whether or not the user is asked to confirm to overwrite a
+            pre-existing file if one exists.
+        """
+        if ask_before_overwrite is None:
+            ask_before_overwrite = self._verbose
+
+        save_object(
+            to_save=self,
+            fpath=fpath,
+            ask_before_overwrite=ask_before_overwrite,
+            verbose=self._verbose,
+        )
 
     @abstractmethod
     def save_results(self) -> None:
@@ -123,10 +147,9 @@ class ProcMethod(ABC):
 
         RETURNS
         -------
-        optimal_dims : list[str]
+        list[str]
         -   Optimal dimensions of the results.
         """
-
         possible_order = [
             "windows",
             "channels",
@@ -134,11 +157,8 @@ class ProcMethod(ABC):
             "frequencies",
             "timepoints",
         ]
-        optimal_dims = [
-            dim for dim in possible_order if dim in self.results_dims
-        ]
 
-        return optimal_dims
+        return [dim for dim in possible_order if dim in self.results_dims]
 
 
 class ProcConnectivity(ProcMethod):
@@ -163,7 +183,6 @@ class ProcConnectivity(ProcMethod):
     @abstractmethod
     def __init__(self, signal: coh_signal.Signal, verbose: bool) -> None:
         super().__init__(signal, verbose)
-
         # Initialises aspects of the ProcMethod object that will be filled with
         # information as the data is processed.
         self._indices = None
@@ -171,7 +190,8 @@ class ProcConnectivity(ProcMethod):
         self._targets_list = None
         self._seeds_str = None
         self._targets_str = None
-        self._node_ch_names = None
+        self._comb_names_str = None
+        self._comb_names_list = None
 
     @abstractmethod
     def process(self) -> None:
@@ -243,6 +263,16 @@ class ProcConnectivity(ProcMethod):
                     )
                 setattr(self, f"{group}_list", names_list)
                 setattr(self, f"{group}_str", names_str)
+            elif isinstance(group_vals, list):
+                names_str = [combine_vals_list(val for val in group_vals)]
+                setattr(self, f"{group}_str", names_str)
+                setattr(self, f"{group}_list", group_vals)
+            else:
+                raise TypeError(
+                    "Seeds and targets must given as lists, or as dictionaries "
+                    "with instructions for generating these lists, however the "
+                    f"{group[1:]} are of type {type(group_vals)}."
+                )
 
         if expand_seeds_targets:
             self._expand_seeds_targets()
@@ -267,24 +297,26 @@ class ProcConnectivity(ProcMethod):
         -   DataFrame containing the features of each channel.
         """
         ch_names = self.signal.data[0].ch_names
-        features = {
-            "ch_names": ch_names,
-            "ch_types": self.signal.data[0].get_channel_types(picks=ch_names),
-            "ch_regions": ordered_list_from_dict(
-                ch_names, self.extra_info["ch_regions"]
-            ),
-            "ch_hemispheres": ordered_list_from_dict(
-                ch_names, self.extra_info["ch_hemispheres"]
-            ),
-            "ch_reref_types": ordered_list_from_dict(
-                ch_names, self.extra_info["ch_reref_types"]
-            ),
-            "ch_epoch_orders": ordered_list_from_dict(
-                ch_names, self.extra_info["ch_epoch_orders"]
-            ),
-        }
-
-        return pd.DataFrame(features)
+        return pd.DataFrame(
+            {
+                "ch_names": ch_names,
+                "ch_types": self.signal.data[0].get_channel_types(
+                    picks=ch_names
+                ),
+                "ch_regions": ordered_list_from_dict(
+                    ch_names, self.extra_info["ch_regions"]
+                ),
+                "ch_hemispheres": ordered_list_from_dict(
+                    ch_names, self.extra_info["ch_hemispheres"]
+                ),
+                "ch_reref_types": ordered_list_from_dict(
+                    ch_names, self.extra_info["ch_reref_types"]
+                ),
+                "ch_epoch_orders": ordered_list_from_dict(
+                    ch_names, self.extra_info["ch_epoch_orders"]
+                ),
+            }
+        )
 
     def _expand_seeds_targets(self) -> None:
         """Expands the channels in the seed and target groups such that
@@ -555,10 +587,6 @@ class ProcConnectivity(ProcMethod):
         self.extra_info["node_ch_epoch_orders"] = node_epoch_orders
 
     @abstractmethod
-    def save_object(self) -> None:
-        """Saves the object as a .pkl file."""
-
-    @abstractmethod
     def save_results(self) -> None:
         """Converts the results and additional information to a dictionary and
         saves them as a file."""
@@ -567,3 +595,35 @@ class ProcConnectivity(ProcMethod):
     def results_as_dict(self) -> None:
         """Organises the results and additional information into a
         dictionary."""
+
+    def get_results(self, dimensions: Union[list[str], None] = None) -> NDArray:
+        """Extracts and returns results.
+
+        PARAMETERS
+        ----------
+        dimensions : list[str] | None;  default None
+        -   The dimensions of the results that will be returned.
+        -   If 'None', the current dimensions are used.
+
+        RETURNS
+        -------
+        results : numpy array
+        -   The results.
+        """
+
+        if dimensions is None:
+            dimensions = self.results_dims
+
+        if self._windows_averaged:
+            results = self.results[0].get_data()
+        else:
+            results = []
+            for mne_obj in self.results:
+                results.append(mne_obj.get_data())
+            results = np.asarray(results)
+
+        results = rearrange_axes(
+            obj=results, old_order=self.results_dims, new_order=dimensions
+        )
+
+        return deepcopy(results)
