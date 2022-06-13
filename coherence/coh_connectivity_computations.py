@@ -249,8 +249,8 @@ def granger_causality(
     csd: NDArray,
     freqs: list[Union[int, float]],
     method: str,
-    seeds: list[list[Union[int, float]]],
-    targets: list[list[Union[int, float]]],
+    seeds: list[list[int]],
+    targets: list[list[int]],
     n_lags: int = 20,
 ) -> NDArray:
     """Computes frequency-domain Granger causality (GC) between each set of
@@ -273,13 +273,13 @@ def granger_causality(
         for net TRGC, i.e. TRGC from seeds to targets minus TRGC from targets to
         seeds.
 
-    seeds : list[list[int | float]]
+    seeds : list[list[int]]
     -   Indices of signals in 'csd' to treat as seeds. Should be a list of
         sublists, where each sublist contains the signal indices that will be
         treated as a group of seeds.
     -   The number of sublists must match the number of sublists in 'targets'.
 
-    targets : list[list[int | float]]
+    targets : list[list[int]]
     -   Indices of signals in 'csd' to treat as targets. Should be a list of
         sublists, where each sublist contains the signal indices that will be
         treated as a group of targets.
@@ -327,7 +327,7 @@ def gc_computation(
         n_lags + 1].
 
     freqs : list[int | float]
-    -   Frequencies pf the data being analysed.
+    -   Frequencies of the data being analysed.
 
     method : str
     -   Which form of GC to compute.
@@ -337,13 +337,13 @@ def gc_computation(
         for net TRGC, i.e. TRGC from seeds to targets minus TRGC from targets to
         seeds.
 
-    seeds : list[list[int | float]]
+    seeds : list[list[int]]
     -   Indices of signals in 'csd' to treat as seeds. Should be a list of
         sublists, where each sublist contains the signal indices that will be
         treated as a group of seeds.
     -   The number of sublists must match the number of sublists in 'targets'.
 
-    targets : list[list[int | float]]
+    targets : list[list[int]]
     -   Indices of signals in 'csd' to treat as targets. Should be a list of
         sublists, where each sublist contains the signal indices that will be
         treated as a group of targets.
