@@ -10,7 +10,6 @@ ConectivityMultivariate : subclass of the abstract base class 'ProcMethod'
     MIM, or maximised imaginary coherence, MIC) between signals.
 """
 
-from copy import deepcopy
 from typing import Optional, Union
 from mne import Epochs
 from mne.time_frequency import (
@@ -35,17 +34,10 @@ from coh_exceptions import (
     ProcessingOrderError,
     UnavailableProcessingError,
 )
-from coh_handle_entries import (
-    combine_vals_list,
-    ordered_list_from_dict,
-    rearrange_axes,
-    separate_vals_string,
-    unique,
-)
 from coh_processing_methods import ProcConnectivity
 from coh_progress_bar import ProgressBar
 import coh_signal
-from coh_saving import save_object, save_dict
+from coh_saving import save_dict
 
 
 class ConnectivityCoherence(ProcConnectivity):
@@ -79,14 +71,15 @@ class ConnectivityCoherence(ProcConnectivity):
 
     def __init__(self, signal: coh_signal.Signal, verbose: bool = True) -> None:
         super().__init__(signal, verbose)
-
         # Initialises inputs of the object.
         super()._sort_inputs()
 
         # Initialises aspects of the object that will be filled with information
         # as the data is processed.
-        self._method = None
-        self._mode = None
+        self._con_method = None
+        self._pow_method = None
+        self._seeds = None
+        self._targets = None
         self._fmin = None
         self._fmax = None
         self._fskip = None
@@ -116,7 +109,6 @@ class ConnectivityCoherence(ProcConnectivity):
         ProcessingOrderError
         -   Raised if the windows have already been averaged across.
         """
-
         if self._windows_averaged:
             raise ProcessingOrderError(
                 "Error when averaging the connectivity results across "
@@ -156,7 +148,6 @@ class ConnectivityCoherence(ProcConnectivity):
         UnavailableProcessingError
         -   Raised if timepoints are not present in the results.
         """
-
         if self._timepoints_averaged:
             raise ProcessingOrderError(
                 "Error when processing the connectivity results: Trying to "
@@ -198,9 +189,7 @@ class ConnectivityCoherence(ProcConnectivity):
         -   Raised if dimensions for the results are not listed for the analysis
             method used to calculate the results.
         """
-
         supported_modes = ["multitaper", "fourier", "cwt_morlet"]
-
         self._results_dims = ["windows"]
         if self._mode in ["multitaper", "fourier"]:
             self._results_dims.extend(["channels", "frequencies"])
@@ -217,7 +206,6 @@ class ConnectivityCoherence(ProcConnectivity):
     def _sort_dimensions(self) -> None:
         """Establishes dimensions of the coherence results and averages across
         windows and/or timepoints, if requested."""
-
         self._establish_coherence_dimensions()
 
         if self._average_windows:
@@ -228,7 +216,6 @@ class ConnectivityCoherence(ProcConnectivity):
 
     def _get_results(self) -> None:
         """Performs the connectivity analysis."""
-
         if self._verbose:
             self._progress_bar = ProgressBar(
                 n_steps=len(self.signal.data) * len(self._indices),
@@ -245,10 +232,10 @@ class ConnectivityCoherence(ProcConnectivity):
             connectivity.append(
                 spectral_connectivity_epochs(
                     data=data,
-                    method=self._method,
+                    method=self._con_method,
                     indices=self._indices,
                     sfreq=data.info["sfreq"],
-                    mode=self._mode,
+                    mode=self._pow_method,
                     fmin=self._fmin,
                     fmax=self._fmax,
                     fskip=self._fskip,
@@ -265,7 +252,7 @@ class ConnectivityCoherence(ProcConnectivity):
                     verbose=self._verbose,
                 )
             )
-            if self._method == "imcoh":
+            if self._con_method == "imcoh":
                 connectivity[i] = SpectroTemporalConnectivity(
                     data=np.abs(connectivity[i].get_data()),
                     freqs=connectivity[i].freqs,
@@ -288,8 +275,8 @@ class ConnectivityCoherence(ProcConnectivity):
 
     def process(
         self,
-        method: str,
-        mode: str,
+        con_method: str,
+        pow_method: str,
         seeds: Optional[Union[str, list[str]]] = None,
         targets: Optional[Union[str, list[str]]] = None,
         fmin: Optional[Union[float, tuple]] = None,
@@ -313,7 +300,7 @@ class ConnectivityCoherence(ProcConnectivity):
 
         PARAMETERS
         ----------
-        method : str
+        con_method : str
         -   The method for calculating connectivity.
         -   Supported inputs are: 'coh' - standard coherence; 'cohy' -
             coherency; 'imcoh' - imaginary part of coherence; 'plv' -
@@ -323,7 +310,7 @@ class ConnectivityCoherence(ProcConnectivity):
             'wpli' - weighted phase lag index; 'wpli2_debiased' - debiased
             estimator of squared weighted phase lag index.
 
-        mode : str
+        pow_method : str
         -   The mode for calculating connectivity using 'method'.
         -   Supported inputs are: 'multitaper'; 'fourier'; and 'cwt_morlet'.
 
@@ -419,7 +406,6 @@ class ConnectivityCoherence(ProcConnectivity):
         n_jobs : int; default 1
         -   The number of epochs to calculate connectivity for in parallel.
         """
-
         if self._processed:
             ProcessingOrderError(
                 "The data in this object has already been processed. "
@@ -427,8 +413,8 @@ class ConnectivityCoherence(ProcConnectivity):
                 "perform other analyses on the data."
             )
 
-        self._method = method
-        self._mode = mode
+        self._con_method = con_method
+        self._pow_method = pow_method
         self._seeds = seeds
         self._targets = targets
         self._fmin = fmin
@@ -453,10 +439,10 @@ class ConnectivityCoherence(ProcConnectivity):
 
         self._processed = True
         self.processing_steps["connectivity_coherence"] = {
-            "method": method,
-            "mode": mode,
-            "seeds": seeds,
-            "targets": targets,
+            "con_method": con_method,
+            "pow_method": pow_method,
+            "seeds": self._seeds_str,
+            "targets": self._targets_str,
             "fmin": fmin,
             "fmax": fmax,
             "fskip": fskip,
@@ -466,39 +452,11 @@ class ConnectivityCoherence(ProcConnectivity):
             "mt_bandwidth": mt_bandwidth,
             "mt_adaptive": mt_adaptive,
             "mt_low_bias": mt_low_bias,
-            "cwt_freqs": cwt_freqs,
+            "cwt_freqs": self._cwt_freqs,
             "cwt_n_cycles": cwt_n_cycles,
             "average_windows": average_windows,
             "average_timepoints": average_timepoints,
         }
-
-    def save_object(
-        self,
-        fpath: str,
-        ask_before_overwrite: Optional[bool] = None,
-    ) -> None:
-        """Saves the object as a .pkl file.
-
-        PARAMETERS
-        ----------
-        fpath : str
-        -   Location where the data should be saved. The filetype extension
-            (.pkl) can be included, otherwise it will be automatically added.
-
-        ask_before_overwrite : bool
-        -   Whether or not the user is asked to confirm to overwrite a
-            pre-existing file if one exists.
-        """
-
-        if ask_before_overwrite is None:
-            ask_before_overwrite = self._verbose
-
-        save_object(
-            to_save=self,
-            fpath=fpath,
-            ask_before_overwrite=ask_before_overwrite,
-            verbose=self._verbose,
-        )
 
     def save_results(
         self,
@@ -530,7 +488,6 @@ class ConnectivityCoherence(ProcConnectivity):
         -   By default, this is set to None, in which case the value of the
             verbosity when the Signal object was instantiated is used.
         """
-
         if ask_before_overwrite is None:
             ask_before_overwrite = self._verbose
 
@@ -550,13 +507,12 @@ class ConnectivityCoherence(ProcConnectivity):
         dict
         -   The results and additional information stored as a dictionary.
         """
-
         dimensions = self._get_optimal_dims()
         results = self.get_results(dimensions=dimensions)
 
         return {
-            f"connectivity-{self._method}": results.tolist(),
-            f"connectivity-{self._method}_dimensions": dimensions,
+            f"connectivity-{self._con_method}": results.tolist(),
+            f"connectivity-{self._con_method}_dimensions": dimensions,
             "freqs": self.results[0].freqs,
             "seed_names": self._seeds_str,
             "seed_types": self.extra_info["node_ch_types"][0],
@@ -577,38 +533,6 @@ class ConnectivityCoherence(ProcConnectivity):
             "processing_steps": self.processing_steps,
             "subject_info": self.signal.data[0].info["subject_info"],
         }
-
-    def get_results(self, dimensions: Union[list[str], None] = None) -> NDArray:
-        """Extracts and returns results.
-
-        PARAMETERS
-        ----------
-        dimensions : list[str] | None;  default None
-        -   The dimensions of the results that will be returned.
-        -   If 'None', the current dimensions are used.
-
-        RETURNS
-        -------
-        results : numpy array
-        -   The results.
-        """
-
-        if dimensions is None:
-            dimensions = self.results_dims
-
-        if self._windows_averaged:
-            results = self.results[0].get_data()
-        else:
-            results = []
-            for mne_obj in self.results:
-                results.append(mne_obj.get_data())
-            results = np.asarray(results)
-
-        results = rearrange_axes(
-            obj=results, old_order=self.results_dims, new_order=dimensions
-        )
-
-        return deepcopy(results)
 
 
 class ConnectivityMultivariate(ProcConnectivity):
@@ -669,7 +593,7 @@ class ConnectivityMultivariate(ProcConnectivity):
         self._average_windows = None
         self._block_size = None
         self._n_jobs = None
-        self._separated_names = None
+        self._cohy_matrix_indices = None
         self._progress_bar = None
 
     def process(
@@ -847,7 +771,7 @@ class ConnectivityMultivariate(ProcConnectivity):
             "mt_bandwidth": mt_bandwidth,
             "mt_adaptive": mt_adaptive,
             "mt_low_bias": mt_low_bias,
-            "cwt_freqs": cwt_freqs,
+            "cwt_freqs": self._cwt_freqs,
             "cwt_n_cycles": cwt_n_cycles,
             "average_windows": average_windows,
         }
@@ -1120,34 +1044,6 @@ class ConnectivityMultivariate(ProcConnectivity):
         if self._verbose:
             print(f"Averaging the data over {n_windows} windows.\n")
 
-    def save_object(
-        self,
-        fpath: str,
-        ask_before_overwrite: Optional[bool] = None,
-    ) -> None:
-        """Saves the object as a .pkl file.
-
-        PARAMETERS
-        ----------
-        fpath : str
-        -   Location where the data should be saved. The filetype extension
-            (.pkl) can be included, otherwise it will be automatically added.
-
-        ask_before_overwrite : bool
-        -   Whether or not the user is asked to confirm to overwrite a
-            pre-existing file if one exists.
-        """
-
-        if ask_before_overwrite is None:
-            ask_before_overwrite = self._verbose
-
-        save_object(
-            to_save=self,
-            fpath=fpath,
-            ask_before_overwrite=ask_before_overwrite,
-            verbose=self._verbose,
-        )
-
     def save_results(
         self,
         fpath: str,
@@ -1200,7 +1096,7 @@ class ConnectivityMultivariate(ProcConnectivity):
         """
 
         dimensions = self._get_optimal_dims()
-        results = self.get_results(dimensions=dimensions)
+        results = super().get_results(dimensions=dimensions)
 
         return {
             f"connectivity-{self._con_method}": results.tolist(),
@@ -1225,38 +1121,6 @@ class ConnectivityMultivariate(ProcConnectivity):
             "processing_steps": self.processing_steps,
             "subject_info": self.signal.data[0].info["subject_info"],
         }
-
-    def get_results(self, dimensions: Union[list[str], None] = None) -> NDArray:
-        """Extracts and returns results.
-
-        PARAMETERS
-        ----------
-        dimensions : list[str] | None;  default None
-        -   The dimensions of the results that will be returned.
-        -   If 'None', the current dimensions are used.
-
-        RETURNS
-        -------
-        results : numpy array
-        -   The results.
-        """
-
-        if dimensions is None:
-            dimensions = self.results_dims
-
-        if self._windows_averaged:
-            results = self.results[0].get_data()
-        else:
-            results = []
-            for mne_obj in self.results:
-                results.append(mne_obj.get_data())
-            results = np.asarray(results)
-
-        results = rearrange_axes(
-            obj=results, old_order=self.results_dims, new_order=dimensions
-        )
-
-        return deepcopy(results)
 
 
 class ConnectivityGranger(ProcConnectivity):
@@ -1317,6 +1181,8 @@ class ConnectivityGranger(ProcConnectivity):
         self._average_windows = None
         self._n_jobs = None
         self._progress_bar = None
+        self._csd_matrix_indices = None
+        self._freqs = None
 
     def process(
         self,
@@ -1453,7 +1319,6 @@ class ConnectivityGranger(ProcConnectivity):
         -   If 'None', the number of samples between 'tmin' and 'tmax' is used.
         -   Only used if 'cs_method' is "fourier" or "multitaper".
         """
-
         self._gc_method = gc_method
         self._cs_method = cs_method
         self._seeds = seeds
@@ -1464,7 +1329,6 @@ class ConnectivityGranger(ProcConnectivity):
         self._fmt_fmax = fmt_fmax
         self._tmin = tmin
         self._tmax = tmax
-        self._picks = unique([*seeds, *targets])
         self._cwt_n_cycles = cwt_n_cycles
         self._cwt_use_fft = cwt_use_fft
         self._fmt_n_fft = fmt_n_fft
@@ -1481,7 +1345,6 @@ class ConnectivityGranger(ProcConnectivity):
 
     def _sort_processing_inputs(self) -> None:
         """Checks that inputs for processing the data are appropriate."""
-
         supported_cs_methods = ["fourier", "multitaper", "cwt_morlet"]
         if self._cs_method not in supported_cs_methods:
             raise NotImplementedError(
@@ -1490,14 +1353,23 @@ class ConnectivityGranger(ProcConnectivity):
                 "is not recognised. Supported inputs are "
                 f"{supported_cs_methods}."
             )
+        super()._sort_seeds_targets()
+        self._sort_csd_indices()
 
-        super()._sort_indices()
-
-        self._picks = unique([*self._seeds, *self._targets])
+    def _sort_csd_indices(self) -> None:
+        """Gets the indices of the seeds and targets for each connectivity node
+        that will be taken from the cross-spectral density matrix."""
+        self._csd_matrix_indices = [[], []]
+        for seeds, targets in zip(self._seeds_list, self._targets_list):
+            self._csd_matrix_indices[0].append(
+                [self.signal.data[0].ch_names.index(name) for name in seeds]
+            )
+            self._csd_matrix_indices[1].append(
+                [self.signal.data[0].ch_names.index(name) for name in targets]
+            )
 
     def _get_results(self) -> None:
         """Performs the connectivity analysis."""
-
         if self._verbose:
             self._progress_bar = ProgressBar(
                 n_steps=len(self.signal.data) * len(self._indices) * 3,
@@ -1505,7 +1377,7 @@ class ConnectivityGranger(ProcConnectivity):
             )
 
         cross_spectra = self._compute_csd()
-        self.results = self._compute_gc(cross_spectra=cross_spectra)
+        self._compute_gc(cross_spectra=cross_spectra)
 
         self._sort_dimensions()
         super()._generate_extra_info()
@@ -1518,7 +1390,6 @@ class ConnectivityGranger(ProcConnectivity):
         cross_spectra : list[MNE CrossSpectralDensity]
         -   The cross-spectra for each window of the data.
         """
-
         cross_spectra = []
         for i, data in enumerate(self.signal.data):
             if self._verbose:
@@ -1534,7 +1405,6 @@ class ConnectivityGranger(ProcConnectivity):
                         fmax=self._fmt_fmax,
                         tmin=self._tmin,
                         tmax=self._tmax,
-                        picks=self._picks,
                         n_fft=self._fmt_n_fft,
                         projs=None,
                         n_jobs=self._n_jobs,
@@ -1549,7 +1419,6 @@ class ConnectivityGranger(ProcConnectivity):
                         fmax=self._fmt_fmax,
                         tmin=self._tmin,
                         tmax=self._tmax,
-                        picks=self._picks,
                         n_fft=self._fmt_n_fft,
                         bandwidth=self._mt_bandwidth,
                         adaptive=self._mt_adaptive,
@@ -1566,7 +1435,6 @@ class ConnectivityGranger(ProcConnectivity):
                         frequencies=self._cwt_freqs,
                         tmin=self._tmin,
                         tmax=self._tmax,
-                        picks=self._picks,
                         n_cycles=self._cwt_n_cycles,
                         use_fft=self._cwt_use_fft,
                         decim=self._cwt_decim,
@@ -1578,25 +1446,19 @@ class ConnectivityGranger(ProcConnectivity):
             if self._progress_bar is not None:
                 self._progress_bar.update_progress()
 
+        self._freqs = cross_spectra[0].frequencies
+
         return cross_spectra
 
-    def _compute_gc(
-        self, cross_spectra: list[CrossSpectralDensity]
-    ) -> list[SpectralConnectivity]:
+    def _compute_gc(self, cross_spectra: list[CrossSpectralDensity]) -> None:
         """Computes Granger casuality between signals from the cross-spectral
-        density.
+        density for each window.
 
         PARAMETERS
         ----------
         cross_spectra : list[MNE CrossSpectralDensity]
         -   The cross-spectra between signals for each window.
-
-        RETURNS
-        -------
-        results : list[SpectralConnectivity]
-        -   The Granger causality between signals for each window.
         """
-
         results = []
         for i, csd in enumerate(cross_spectra):
             if self._verbose:
@@ -1604,26 +1466,138 @@ class ConnectivityGranger(ProcConnectivity):
                     f"Computing Granger causality for window {i+1} of "
                     f"{len(self.signal.data)}.\n"
                 )
-            result = granger_causality(
-                csd=csd,
-                freqs=csd[i],
-                method=self._gc_method,
-                seeds=self._indices[0],
-                targets=self._indices[1],
-                n_lags=self._n_lags,
+            csd_matrix = np.transpose(
+                np.asarray(
+                    [csd.get_data(frequency=freq) for freq in self._freqs]
+                ),
+                (1, 2, 0),
+            )
+            results.append(
+                granger_causality(
+                    csd=csd_matrix,
+                    freqs=self._freqs,
+                    method=self._gc_method,
+                    seeds=self._csd_matrix_indices[0],
+                    targets=self._csd_matrix_indices[1],
+                    n_lags=self._n_lags,
+                )
             )
             if self._progress_bar is not None:
                 self._progress_bar.update_progress()
 
-        return results
+        self.results = results
 
-    def save_object(self) -> None:
-        """Saves the object as a .pkl file."""
+    def _sort_dimensions(self) -> None:
+        """Establishes dimensions of the connectivity results and averages
+        across windows, if requested."""
+        self._results_dims = ["windows", "channels", "frequencies"]
 
-    def save_results(self) -> None:
-        """Converts the results and additional information to a dictionary and
-        saves them as a file."""
+        if self._average_windows:
+            self._average_windows_results()
 
-    def results_as_dict(self) -> None:
-        """Organises the results and additional information into a
-        dictionary."""
+    def _average_windows_results(self) -> None:
+        """Averages the connectivity results across windows.
+
+        RAISES
+        ------
+        ProcessingOrderError
+        -   Raised if the windows have already been averaged across.
+        """
+        if self._windows_averaged:
+            raise ProcessingOrderError(
+                "Error when averaging the connectivity results across "
+                "windows:\nResults have already been averaged across windows."
+            )
+
+        n_windows = len(self.results)
+        self.results = [
+            SpectralConnectivity(
+                data=np.asarray([data for data in self.results]).mean(axis=0),
+                freqs=self._freqs,
+                n_nodes=len(self._comb_names_str),
+                names=self._comb_names_str,
+                indices=self._indices,
+                method=self._gc_method,
+                n_epochs_used=self.signal.data[0]._data.shape[0],
+            )
+        ]
+
+        self._windows_averaged = True
+        if self._verbose:
+            print(f"Averaging the data over {n_windows} windows.\n")
+
+    def save_results(
+        self,
+        fpath: str,
+        ftype: Optional[str] = None,
+        ask_before_overwrite: Optional[bool] = None,
+    ) -> None:
+        """Saves the results and additional information as a file.
+
+        PARAMETERS
+        ----------
+        fpath : str
+        -   Location where the data should be saved.
+
+        ftype : str | None; default None
+        -   The filetype of the data that will be saved, without the leading
+            period. E.g. for saving the file in the json format, this would be
+            "json", not ".json".
+        -   The information being saved must be an appropriate type for saving
+            in this format.
+        -   If None, the filetype is determined based on 'fpath', and so the
+            extension must be included in the path.
+
+        ask_before_overwrite : bool | None; default the object's verbosity
+        -   If True, the user is asked to confirm whether or not to overwrite a
+            pre-existing file if one exists.
+        -   If False, the user is not asked to confirm this and it is done
+            automatically.
+        -   By default, this is set to None, in which case the value of the
+            verbosity when the Signal object was instantiated is used.
+        """
+        if ask_before_overwrite is None:
+            ask_before_overwrite = self._verbose
+
+        save_dict(
+            to_save=self.results_as_dict(),
+            fpath=fpath,
+            ftype=ftype,
+            ask_before_overwrite=ask_before_overwrite,
+            verbose=self._verbose,
+        )
+
+    def results_as_dict(self) -> dict:
+        """Returns the results and additional information as a dictionary.
+
+        RETURNS
+        -------
+        dict
+        -   The results and additional information stored as a dictionary.
+        """
+        dimensions = self._get_optimal_dims()
+        results = super().get_results(dimensions=dimensions)
+
+        return {
+            f"connectivity-{self._gc_method}": results.tolist(),
+            f"connectivity-{self._gc_method}_dimensions": dimensions,
+            "freqs": self._freqs,
+            "seed_names": self._seeds_str,
+            "seed_types": self.extra_info["node_ch_types"][0],
+            "seed_coords": self.extra_info["node_ch_coords"][0],
+            "seed_regions": self.extra_info["node_ch_regions"][0],
+            "seed_hemispheres": self.extra_info["node_ch_hemispheres"][0],
+            "seed_reref_types": self.extra_info["node_ch_reref_types"][0],
+            "target_names": self._targets_str,
+            "target_types": self.extra_info["node_ch_types"][1],
+            "target_coords": self.extra_info["node_ch_coords"][1],
+            "target_regions": self.extra_info["node_ch_regions"][1],
+            "target_hemispheres": self.extra_info["node_ch_hemispheres"][1],
+            "target_reref_types": self.extra_info["node_ch_reref_types"][1],
+            "node_lateralisation": self.extra_info["node_lateralisation"],
+            "node_epoch_orders": self.extra_info["node_ch_epoch_orders"],
+            "samp_freq": self.signal.data[0].info["sfreq"],
+            "metadata": self.extra_info["metadata"],
+            "processing_steps": self.processing_steps,
+            "subject_info": self.signal.data[0].info["subject_info"],
+        }
