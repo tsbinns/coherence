@@ -191,7 +191,6 @@ class ProcConnectivity(ProcMethod):
         -   Raised if the dimensions of the data in the Signal object is not
             supported.
         """
-
         supported_data_dims = ["windows", "epochs", "channels", "timepoints"]
         if self.signal.data_dimensions != supported_data_dims:
             raise ValueError(
@@ -200,7 +199,6 @@ class ProcConnectivity(ProcMethod):
                 f"{self.signal.data_dimensions}, but only data with dimensions "
                 f"{supported_data_dims} is supported."
             )
-
         super()._sort_inputs()
 
     def _sort_seeds_targets(self) -> None:
@@ -215,7 +213,6 @@ class ProcConnectivity(ProcMethod):
         If the seeds and targets are both lists, the channel names in these
         lists are taken as the seeds and targets and no expansion is performed.
         """
-
         groups = ["_seeds", "_targets"]
         features = self._features_to_df()
         groups_vals = [getattr(self, group) for group in groups]
@@ -292,9 +289,10 @@ class ProcConnectivity(ProcMethod):
     def _expand_seeds_targets(self) -> None:
         """Expands the channels in the seed and target groups such that
         connectivity is computed bwteen each seed and each target group.
-        -   Should be used when seeds and/or targets have been automatically
-            generated based on channel types."""
 
+        Should be used when seeds and/or targets have been automatically
+        generated based on channel types.
+        """
         seeds_list = []
         targets_list = []
         seeds_str = []
@@ -337,12 +335,11 @@ class ProcConnectivity(ProcMethod):
 
         self._comb_names_str = unique_names_str
         self._comb_names_list = unique_names_list
-        self._indices = np.asarray(indices)
+        self._indices = tuple(indices)
 
     def _generate_indices(self) -> None:
         """Generates MNE-readable indices for calculating connectivity between
         signals."""
-
         self._indices = seed_target_indices(
             seeds=[
                 i
