@@ -1,5 +1,6 @@
 """Generates connectivity results from preprocessed data."""
 
+import os
 import numpy as np
 from coh_handle_files import (
     generate_analysiswise_fpath,
@@ -65,10 +66,12 @@ def coherence_processing(
     ### Analysis setup
     ## Gets the relevant filepaths
     generic_settings_fpath = generate_analysiswise_fpath(
-        f"{folderpath_processing}\\Settings\\Generic", analysis, ".json"
+        os.path.join(folderpath_processing, "Settings", "Generic"),
+        analysis,
+        ".json",
     )
     specific_settings_fpath = generate_sessionwise_fpath(
-        f"{folderpath_processing}\\Settings\\Specific",
+        os.path.join(folderpath_processing, "Settings", "Specific"),
         dataset,
         subject,
         session,
@@ -90,11 +93,11 @@ def coherence_processing(
             analysis_settings["cwt_freqs"][0],
             analysis_settings["cwt_freqs"][1] + 1,
         )
-    for method in analysis_settings["methods"]:
+    for method in analysis_settings["con_methods"]:
         coherence = ConnectivityCoherence(signal)
         coherence.process(
-            method=method,
-            mode=analysis_settings["mode"],
+            con_method=method,
+            pow_method=analysis_settings["pow_method"],
             seeds=data_settings["seeds"],
             targets=data_settings["targets"],
             fmin=analysis_settings["fmin"],
@@ -115,7 +118,7 @@ def coherence_processing(
         )
         if save:
             coherence_fpath = generate_sessionwise_fpath(
-                f"{folderpath_processing}\\Data",
+                os.path.join(folderpath_processing, "Data"),
                 dataset,
                 subject,
                 session,
@@ -180,10 +183,12 @@ def multivariate_processing(
     ### Analysis setup
     ## Gets the relevant filepaths
     generic_settings_fpath = generate_analysiswise_fpath(
-        f"{folderpath_processing}\\Settings\\Generic", analysis, ".json"
+        os.path.join(folderpath_processing, "Settings", "Generic"),
+        analysis,
+        ".json",
     )
     specific_settings_fpath = generate_sessionwise_fpath(
-        f"{folderpath_processing}\\Settings\\Specific",
+        os.path.join(folderpath_processing, "Settings", "Specific"),
         dataset,
         subject,
         session,
@@ -229,7 +234,7 @@ def multivariate_processing(
         )
         if save:
             multivariate_fpath = generate_sessionwise_fpath(
-                f"{folderpath_processing}\\Data",
+                os.path.join(folderpath_processing, "Data"),
                 dataset,
                 subject,
                 session,
@@ -294,10 +299,12 @@ def granger_processing(
     ### Analysis setup
     ## Gets the relevant filepaths
     generic_settings_fpath = generate_analysiswise_fpath(
-        f"{folderpath_processing}\\Settings\\Generic", analysis, ".json"
+        os.path.join(folderpath_processing, "Settings", "Generic"),
+        analysis,
+        ".json",
     )
     specific_settings_fpath = generate_sessionwise_fpath(
-        f"{folderpath_processing}\\Settings\\Specific",
+        os.path.join(folderpath_processing, "Settings", "Specific"),
         dataset,
         subject,
         session,
@@ -344,7 +351,7 @@ def granger_processing(
         )
         if save:
             granger_fpath = generate_sessionwise_fpath(
-                f"{folderpath_processing}\\Data",
+                os.path.join(folderpath_processing, "Data"),
                 dataset,
                 subject,
                 session,
