@@ -76,10 +76,6 @@ class ProcMethod(ABC):
         """Processes the data."""
 
     @abstractmethod
-    def _get_results(self) -> None:
-        """Performs the analysis to get the results."""
-
-    @abstractmethod
     def _sort_inputs(self) -> None:
         """Checks the inputs to the processing method object to ensure that they
         match the requirements for processing and assigns inputs."""
@@ -196,10 +192,6 @@ class ProcConnectivity(ProcMethod):
     @abstractmethod
     def process(self) -> None:
         """Processes the data."""
-
-    @abstractmethod
-    def _get_results(self) -> None:
-        """Performs the analysis to get the results."""
 
     def _sort_inputs(self) -> None:
         """Checks the inputs to the object to ensure that they match the
