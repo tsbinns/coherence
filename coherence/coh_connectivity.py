@@ -595,7 +595,8 @@ class ConnectivityMultivariate(ProcConnectivity):
         self._block_size = None
         self._n_jobs = None
         self._cohy_matrix_indices = None
-        self.topographies = None
+        self.seed_topographies = None
+        self.target_topographies = None
         self._progress_bar = None
 
     def process(
@@ -816,7 +817,7 @@ class ConnectivityMultivariate(ProcConnectivity):
             )
 
         connectivity = []
-        topographies = []
+        topographies = [[], []]
         for win_i, win_data in enumerate(self.signal.data):
             if self._verbose:
                 print(
@@ -828,10 +829,12 @@ class ConnectivityMultivariate(ProcConnectivity):
                 coherency
             )
             connectivity.append(con_results)
-            topographies.append(topo_results)
+            topographies[0].append(topo_results[0])
+            topographies[1].append(topo_results[1])
         self.results = connectivity
         if self._return_topographies:
-            self.topographies = np.asarray(topographies)
+            self.seed_topographies = np.asarray(topographies[0], dtype=object)
+            self.target_topographies = np.asarray(topographies[1], dtype=object)
 
         if self._progress_bar is not None:
             self._progress_bar.close()
@@ -1042,6 +1045,17 @@ class ConnectivityMultivariate(ProcConnectivity):
         if self._average_windows:
             self._average_windows_results()
 
+        if self._return_topographies:
+            groups = ["seed_topographies", "target_topographies"]
+            for group in groups:
+                win_topos = []
+                for win_data in getattr(self, group)[0]:
+                    node_topos = []
+                    for node_data in win_data:
+                        node_topos.append(node_data.tolist())
+                    win_topos.append(node_topos)
+                setattr(self, group, [win_topos])
+
     def _average_windows_results(self) -> None:
         """Averages the connectivity results across windows.
 
@@ -1062,9 +1076,10 @@ class ConnectivityMultivariate(ProcConnectivity):
             connectivity.append(results.get_data())
         connectivity = np.asarray(connectivity).mean(axis=0)
         if self._return_topographies:
-            self.topographies = np.asarray(
-                self.topographies, dtype=object
-            ).mean(axis=0)
+            self.seed_topographies = [np.mean(self.seed_topographies, axis=0)]
+            self.target_topographies = [
+                np.mean(self.target_topographies, axis=0)
+            ]
         self.results = [
             SpectralConnectivity(
                 data=connectivity,
@@ -1133,21 +1148,21 @@ class ConnectivityMultivariate(ProcConnectivity):
         """
 
         dimensions = self._get_optimal_dims()
-        results = super().get_results(dimensions=dimensions)
+        con_results, topo_results = self.get_results(dimensions=dimensions)
 
         results_dict = {
-            f"connectivity-{self._con_method}": results.tolist(),
+            f"connectivity-{self._con_method}": con_results.tolist(),
             f"connectivity-{self._con_method}_dimensions": dimensions,
             "freqs": self.results[0].freqs,
             "seed_names": self._seeds_str,
-            "seed_topographies": self.topographies[0].tolist(),
+            "seed_topographies": topo_results[0],
             "seed_types": self.extra_info["node_ch_types"][0],
             "seed_coords": self.extra_info["node_ch_coords"][0],
             "seed_regions": self.extra_info["node_ch_regions"][0],
             "seed_hemispheres": self.extra_info["node_ch_hemispheres"][0],
             "seed_reref_types": self.extra_info["node_ch_reref_types"][0],
             "target_names": self._targets_str,
-            "target_topographies": self.topographies[1].tolist(),
+            "target_topographies": topo_results[1],
             "target_types": self.extra_info["node_ch_types"][1],
             "target_coords": self.extra_info["node_ch_coords"][1],
             "target_regions": self.extra_info["node_ch_regions"][1],
@@ -1166,6 +1181,69 @@ class ConnectivityMultivariate(ProcConnectivity):
             del results_dict["target_topographies"]
 
         return results_dict
+
+    def get_results(
+        self, dimensions: Union[list[str], None] = None
+    ) -> tuple[NDArray, list[Union[list, None]]]:
+        """Gets the connectivity and topography results of the analysis.
+
+        PARAMETERS
+        ----------
+        dimensions : list[str] | None; default None
+        -   The dimensions of the connectivity results that will be returned.
+        -   If 'None', the current dimensions are used.
+
+        RETURNS
+        -------
+        numpy array
+        -   The connectivity results.
+
+        list[list | None]
+        -   The topographies of the connectivity results.
+        -   If topographies have been computed, a list with two sublists
+            containing the topographies for the seed and target channels,
+            respectively, for each connectivity node are returned, in which case
+            the topographies have dimensions [windows x nodes x channels x
+            frequencies] if windows have not been averaged over, or [nodes x
+            channels x frequencies] if they have.
+        -   If topographies have not been calculated, a list with two 'None'
+            entries is returned.
+        """
+
+        return (
+            super().get_results(dimensions=dimensions),
+            self._get_topography_results(),
+        )
+
+    def _get_topography_results(self) -> list[Union[list, None]]:
+        """Gets the topography results.
+
+        RETURNS
+        -------
+        topographies : list[list | None]
+        -   The topographies of the connectivity results.
+        -   If topographies have been computed, a list with two sublists
+            containing the topographies for the seed and target channels,
+            respectively, for each connectivity node are returned, in which case
+            the topographies have dimensions [windows x nodes x channels x
+            frequencies] if windows have not been averaged over, or [nodes x
+            channels x frequencies] if they have.
+        -   If topographies have not been calculated, a list with two 'None'
+            entries is returned.
+        """
+
+        if self._return_topographies:
+            topographies = []
+            if self._average_windows:
+                topographies.append(self.seed_topographies[0])
+                topographies.append(self.target_topographies[0])
+            else:
+                topographies.append(self.seed_topographies)
+                topographies.append(self.target_topographies)
+        else:
+            topographies = [None, None]
+
+        return topographies
 
 
 class ConnectivityGranger(ProcConnectivity):
