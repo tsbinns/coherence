@@ -30,6 +30,7 @@ from coh_handle_entries import (
 )
 from coh_handle_files import (
     check_annots_empty,
+    check_annots_orig_time,
     check_ftype_present,
     identify_ftype,
 )
@@ -136,6 +137,7 @@ class Signal:
         self._channels_picked = False
         self._coordinates_set = False
         self._regions_set = False
+        self._subregions_set = False
         self._hemispheres_set = False
         self._bandpass_filtered = False
         self._notch_filtered = False
@@ -187,10 +189,10 @@ class Signal:
         -   The order in which the channels should appear in the attributes of
             the 'extra_info' dictionary.
         """
-
         to_order = [
             "ch_reref_types",
             "ch_regions",
+            "ch_subregions",
             "ch_hemispheres",
             "ch_epoch_orders",
         ]
@@ -310,17 +312,16 @@ class Signal:
             ]
 
     def set_regions(self, ch_names: list[str], ch_regions: list[str]) -> None:
-        """Adds channel regions to the extra_info dictionary.
+        """Adds channel regions (e.g. prefrontal, parietal) to the extra_info
+        dictionary.
 
         PARAMETERS
         ----------
         ch_names : list[str]
-        -   The names of the channels corresponding to the regions in
-            'ch_regions'.
+        -   Names of the channels.
 
         ch_regions : list[str]
-        -   Regions of the channels, with each entry consiting of a region name
-            of the corresponding channel specified in 'ch_names'.
+        -   Regions of the channels.
         """
 
         if len(ch_names) != len(ch_regions):
@@ -339,6 +340,40 @@ class Signal:
             print("Setting channel regions to:")
             [
                 print(f"{ch_names[i]}: {ch_regions[i]}")
+                for i in range(len(ch_names))
+            ]
+
+    def set_subregions(
+        self, ch_names: list[str], ch_subregions: list[str]
+    ) -> None:
+        """Adds channel subregions (e.g. prefrontal, parietal) to the extra_info
+        dictionary.
+
+        PARAMETERS
+        ----------
+        ch_names : list[str]
+        -   Names of the channels.
+
+        ch_subregions : list[str]
+        -   Subregions of the channels.
+        """
+
+        if len(ch_names) != len(ch_subregions):
+            raise EntryLengthError(
+                "The channel names and subregions do not have the same length "
+                f"({len(ch_names)} and {len(ch_subregions)}, respectively)."
+            )
+
+        for i, ch_name in enumerate(ch_names):
+            self.extra_info["ch_subregions"][ch_name] = ch_subregions[i]
+        for i in range(len(self.data)):
+            self.data[i].ch_subregions = self.extra_info["ch_subregions"]
+
+        self._subregions_set = True
+        if self._verbose:
+            print("Setting channel subregions to:")
+            [
+                print(f"{ch_names[i]}: {ch_subregions[i]}")
                 for i in range(len(ch_names))
             ]
 
@@ -382,10 +417,9 @@ class Signal:
 
         RETURNS
         -------
-        data_arr : np.array
+        data_arr : numpy array
         -   Array of the data.
         """
-
         data_arr = np.empty(len(self.data))
         for i, data in enumerate(self.data):
             if isinstance(data, mne.io.Raw):
@@ -397,10 +431,13 @@ class Signal:
 
     def _initialise_additional_info(self) -> None:
         """Fills the extra_info dictionary with placeholder information. This
-        should only be called when the data is initially loaded.
-        """
-
-        info_to_set = ["ch_reref_types", "ch_regions", "ch_hemispheres"]
+        should only be called when the data is initially loaded."""
+        info_to_set = [
+            "ch_reref_types",
+            "ch_regions",
+            "ch_subregions",
+            "ch_hemispheres",
+        ]
         for info in info_to_set:
             self.extra_info[info] = {
                 ch_name: None for ch_name in self.data[0].info["ch_names"]
@@ -410,7 +447,10 @@ class Signal:
     def _fix_coords(self) -> None:
         """Fixes the units of the channel coordinates in the data by multiplying
         them by 1,000."""
-
+        raise NotImplementedError(
+            "Fixing the coordinates with this method does not currently "
+            "function correctly, and so should not be called!"
+        )
         ch_coords = self.get_coordinates()
         for ch_i, coords in enumerate(ch_coords):
             ch_coords[ch_i] = [coord * 1000 for coord in coords]
@@ -535,6 +575,8 @@ class Signal:
 
         if self.extra_info["ch_regions"] is not None:
             self._regions_set = True
+        if self.extra_info["ch_subregions"] is not None:
+            self._subregions_set = True
         if self.extra_info["ch_hemispheres"] is not None:
             self._hemispheres_set = True
 
@@ -575,12 +617,12 @@ class Signal:
                 "the data."
             )
 
-    def load_annotations(self, path_annots: str) -> None:
+    def load_annotations(self, fpath: str) -> None:
         """Loads annotations corresponding to the mne.io.Raw object.
 
         PARAMETERS
         ----------
-        path_annots : str
+        fpath : str
         -   The filepath of the annotations to load.
 
         RAISES
@@ -611,14 +653,16 @@ class Signal:
         if self._verbose:
             print(
                 "Applying annotations to the data from the filepath:\n"
-                f"{path_annots}."
+                f"{fpath}."
             )
 
-        if check_annots_empty(path_annots):
+        if check_annots_empty(fpath):
             print("There are no events to read from the annotations file.")
             annotations_present = False
         else:
-            self.data[0].set_annotations(mne.read_annotations(path_annots))
+            self.data[0].set_annotations(
+                check_annots_orig_time(mne.read_annotations(fpath))
+            )
             annotations_present = True
 
         if annotations_present:
@@ -669,10 +713,11 @@ class Signal:
         """
 
         self._drop_extra_info(ch_names)
+        extra_info_keys = ["ch_regions", "ch_subregions", "ch_hemispheres"]
         for i, data in enumerate(self.data):
             self.data[i] = data.drop_channels(ch_names)
-            self.data[i].ch_regions = self.extra_info["ch_regions"]
-            self.data[i].ch_hemispheres = self.extra_info["ch_hemispheres"]
+            for key in extra_info_keys:
+                setattr(self.data[i], key, self.extra_info[key])
 
     def pick_channels(self, ch_names: list[str]) -> None:
         """Retains only certain channels in the mne.io.Raw or mne.Epochs
@@ -686,10 +731,11 @@ class Signal:
         """
 
         self._pick_extra_info(ch_names)
+        extra_info_keys = ["ch_regions", "ch_subregions", "ch_hemispheres"]
         for i, data in enumerate(self.data):
             data.pick_channels(ch_names)
-            self.data[i].ch_regions = self.extra_info["ch_regions"]
-            self.data[i].ch_hemispheres = self.extra_info["ch_hemispheres"]
+            for key in extra_info_keys:
+                setattr(self.data[i], key, self.extra_info[key])
 
         self._channels_picked = True
         self._update_processing_steps("channel_picks", ch_names)
@@ -776,6 +822,7 @@ class Signal:
         ch_types_new: Union[list[Union[str, None]], None],
         ch_coords_new: Union[list[Union[list[Union[int, float]], None]], None],
         ch_regions_new: Union[list[Union[str, None]], None],
+        ch_subregions_new: Union[list[Union[str, None]], None],
         ch_hemispheres_new: Union[list[Union[str, None]], None],
     ) -> None:
         """Checks that the input for combining channels are all of the same
@@ -802,10 +849,16 @@ class Signal:
             based on the channels being combined.
 
         ch_regions_new : list[str | None] | None
-        -   The regions of the new channels.
+        -   The regions (e.g. cortex, STN) of the new channels.
         -   If None or if some entries are None, the region is determined based
             on the channels being combined, in which case they must be from the
             same region.
+
+        ch_subregions_new : list[str | None] | None
+        -   The subregions (e.g. prefrontal, parietal) of the new channels.
+        -   If None or if some entries are None, the subregion is determined
+            based on the channels being combined, in which case they must be
+            from the same region.
 
         ch_hemispheres_new : list[str | None] | None
         -   The hemispheres of the new channels.
@@ -821,6 +874,7 @@ class Signal:
                 ch_types_new,
                 ch_coords_new,
                 ch_regions_new,
+                ch_subregions_new,
                 ch_hemispheres_new,
             ],
             ignore_values=[None],
@@ -833,7 +887,8 @@ class Signal:
                 f"'ch_types_new' ({lengths[2]}); "
                 f"'ch_coords_new' ({lengths[3]}); "
                 f"'ch_regions_new' ({lengths[4]}); "
-                f"'ch_hemispheres_new' ({lengths[5]});"
+                f"'ch_subregions_new' ({lengths[5]}); "
+                f"'ch_hemispheres_new' ({lengths[6]});"
             )
 
     def _sort_combination_inputs_strings(
@@ -870,7 +925,12 @@ class Signal:
         -   The sorted features of the new, combined channels.
         """
 
-        supported_input_types = ["ch_types", "ch_hemispheres", "ch_regions"]
+        supported_input_types = [
+            "ch_types",
+            "ch_hemispheres",
+            "ch_regions",
+            "ch_subregions",
+        ]
         if input_type not in supported_input_types:
             raise UnavailableProcessingError(
                 "Error when trying to combine data over channels:\n"
@@ -887,17 +947,10 @@ class Signal:
                     existing_values = np.unique(
                         self.data[0].get_channel_types(picks=ch_names_old[i])
                     )
-                elif input_type == "ch_regions":
+                else:
                     existing_values = np.unique(
                         [
-                            self.extra_info["ch_regions"][channel]
-                            for channel in ch_names_old[i]
-                        ]
-                    )
-                elif input_type == "ch_hemispheres":
-                    existing_values = np.unique(
-                        [
-                            self.extra_info["ch_hemispheres"][channel]
+                            self.extra_info[input_type][channel]
                             for channel in ch_names_old[i]
                         ]
                     )
@@ -980,6 +1033,7 @@ class Signal:
         ch_types_new: Union[list[Union[str, None]], None],
         ch_coords_new: Union[list[Union[list[Union[int, float]], None]], None],
         ch_regions_new: Union[list[Union[str, None]], None],
+        ch_subregions_new: Union[list[Union[str, None]], None],
         ch_hemispheres_new: Union[list[Union[str, None]], None],
     ) -> tuple[list[str], list[Union[int, float]], list[str]]:
         """Sorts the inputs for combining data over channels.
@@ -1008,12 +1062,20 @@ class Signal:
         -   If None, the coordinates are automatically determined for all
             channels.
 
-        ch_regions_new : list[str | None] | None
-        -   The regions of the new, combined channels.
+        ch_regions_new : list[str | None] | None; default None
+        -   The regions (e.g. cortex, STN) of the new, combined channels.
         -   If an entry is None, the region is determined based on the regions
             of the channels being combined. This only works if all channels
             being combined are from the same region.
         -   If None, all regions are determined automatically.
+
+        ch_subregions_new : list[str | None] | None; default None
+        -   The regions (e.g. prefrontal, parietal) of the new, combined
+            channels.
+        -   If an entry is None, the subregion is determined based on the
+            subregions of the channels being combined. This only works if all
+            channels being combined are from the same region.
+        -   If None, all subregions are determined automatically.
 
         ch_hemispheres_new : list[str | None] | None
         -   The hemispheres of the new, combined channels.
@@ -1029,6 +1091,7 @@ class Signal:
             ch_types_new=ch_types_new,
             ch_coords_new=ch_coords_new,
             ch_regions_new=ch_regions_new,
+            ch_subregions_new=ch_subregions_new,
             ch_hemispheres_new=ch_hemispheres_new,
         )
 
@@ -1042,6 +1105,11 @@ class Signal:
             inputs=ch_regions_new,
             input_type="ch_regions",
         )
+        ch_subregions_new = self._sort_combination_inputs_strings(
+            ch_names_old=ch_names_old,
+            inputs=ch_subregions_new,
+            input_type="ch_subregions",
+        )
         ch_hemispheres_new = self._sort_combination_inputs_strings(
             ch_names_old=ch_names_old,
             inputs=ch_hemispheres_new,
@@ -1053,7 +1121,13 @@ class Signal:
             input_type="ch_coords",
         )
 
-        return ch_types_new, ch_coords_new, ch_regions_new, ch_hemispheres_new
+        return (
+            ch_types_new,
+            ch_coords_new,
+            ch_regions_new,
+            ch_subregions_new,
+            ch_hemispheres_new,
+        )
 
     def _combine_channel_data(self, to_combine: list[list[str]]) -> NDArray:
         """Combines the data of channels through addition.
@@ -1089,6 +1163,7 @@ class Signal:
         ch_coords: list[list[Union[int, float]]],
         ch_reref_types: list[str],
         ch_regions: list[str],
+        ch_subregions: list[str],
         ch_hemispheres: list[str],
         ch_epoch_orders: Union[list[str], None] = None,
     ) -> None:
@@ -1123,7 +1198,10 @@ class Signal:
         -   Rereferencing types of the new channels.
 
         ch_regions : list[str]
-        -   The regions of the new channels.
+        -   The regions (e.g. cortex, STN) of the new channels.
+
+        ch_subregions : list[str]
+        -   The subregions (e.g. prefrontal, parietal) of the new channels.
 
         ch_hemispheres : list[str]
         -   The hemispheres of the new channels.
@@ -1168,6 +1246,7 @@ class Signal:
         for i, name in enumerate(ch_names):
             self.extra_info["ch_reref_types"][name] = ch_reref_types[i]
             self.extra_info["ch_regions"][name] = ch_regions[i]
+            self.extra_info["ch_subregions"][name] = ch_subregions[i]
             self.extra_info["ch_hemispheres"][name] = ch_hemispheres[i]
             if ch_epoch_orders is not None:
                 self.extra_info["ch_epoch_orders"][name] = ch_epoch_orders[i]
@@ -1181,6 +1260,7 @@ class Signal:
             list[Union[list[Union[int, float]], None]]
         ] = None,
         ch_regions_new: Optional[list[Union[str, None]]] = None,
+        ch_subregions_new: Optional[list[Union[str, None]]] = None,
         ch_hemispheres_new: Optional[list[Union[str, None]]] = None,
     ) -> None:
         """Combines the data of multiple channels in the mne.io.Raw object through
@@ -1211,11 +1291,19 @@ class Signal:
             channels.
 
         ch_regions_new : list[str | None] | None; default None
-        -   The regions of the new, combined channels.
+        -   The regions (e.g. cortex, STN) of the new, combined channels.
         -   If an entry is None, the region is determined based on the regions
             of the channels being combined. This only works if all channels
             being combined are from the same region.
         -   If None, all regions are determined automatically.
+
+        ch_subregions_new : list[str | None] | None; default None
+        -   The regions (e.g. prefrontal, parietal) of the new, combined
+            channels.
+        -   If an entry is None, the subregion is determined based on the
+            subregions of the channels being combined. This only works if all
+            channels being combined are from the same region.
+        -   If None, all subregions are determined automatically.
 
         ch_hemispheres_new : list[str | None] | None; default None
         -   The hemispheres of the new, combined channels.
@@ -1247,6 +1335,7 @@ class Signal:
             ch_types_new,
             ch_coords_new,
             ch_regions_new,
+            ch_subregions_new,
             ch_hemispheres_new,
         ) = self._sort_combination_inputs(
             ch_names_old=ch_names_old,
@@ -1254,6 +1343,7 @@ class Signal:
             ch_types_new=ch_types_new,
             ch_coords_new=ch_coords_new,
             ch_regions_new=ch_regions_new,
+            ch_subregions_new=ch_subregions_new,
             ch_hemispheres_new=ch_hemispheres_new,
         )
 
@@ -1269,6 +1359,7 @@ class Signal:
             ch_coords=ch_coords_new,
             ch_reref_types=[None] * len(ch_names_new),
             ch_regions=ch_regions_new,
+            ch_subregions=ch_subregions_new,
             ch_hemispheres=ch_hemispheres_new,
             ch_epoch_orders=None,
         )
@@ -1307,6 +1398,7 @@ class Signal:
         ch_reref_types: Union[list[Union[str, None]], None],
         ch_coords_new: Union[list[Union[list[Union[int, float]], None]], None],
         ch_regions_new: Union[list[Union[str, None]], None],
+        ch_subregions_new: Union[list[Union[str, None]], None],
         ch_hemispheres_new: Union[list[Union[str, None]], None],
     ) -> tuple[mne.io.Raw, list[str], dict[str], dict[str]]:
         """Applies a rereferencing method to the mne.io.Raw object.
@@ -1351,8 +1443,14 @@ class Signal:
             according to the corresponding channel in 'ch_names_old'.
 
         ch_regions_new : list[str | None] | None
-        -   The regions of the rereferenced channels channels, corresponding to
-            the channels in 'ch_names_new'.
+        -   The regions of the rereferenced channels (e.g. cortex, STN),
+            corresponding to the channels in 'ch_names_new'.
+        -   If some or all entries are None, regions of the new channels are
+            determined based on those they are referenced from.
+
+        ch_subregions_new : list[str | None] | None
+        -   The subregions of the rereferenced channels (e.g. prefrontal,
+            parietal), corresponding to the channels in 'ch_names_new'.
         -   If some or all entries are None, regions of the new channels are
             determined based on those they are referenced from.
 
@@ -1364,7 +1462,7 @@ class Signal:
 
         RETURNS
         -------
-        mne.io.Raw
+        MNE Raw
         -   The rereferenced data in an mne.io.Raw object.
 
         list[str]
@@ -1387,6 +1485,7 @@ class Signal:
             ch_reref_types,
             ch_coords_new,
             ch_regions_new,
+            ch_subregions_new,
             ch_hemispheres_new,
         ).rereference()
 
@@ -1488,6 +1587,7 @@ class Signal:
         ch_reref_types: Union[list[Union[str, None]], None],
         ch_coords_new: Union[list[Union[list[Union[int, float]], None]], None],
         ch_regions_new: Union[list[Union[str, None]], None],
+        ch_subregions_new: Union[list[Union[str, None]], None],
         ch_hemispheres_new: Union[list[Union[str, None]], None],
     ) -> list[str]:
         """Parent method for calling on other methods to rereference the data,
@@ -1530,8 +1630,14 @@ class Signal:
             according to the corresponding channel in 'ch_names_old'.
 
         ch_regions_new : list[str | None] | None
-        -   The regions of the rereferenced channels channels, corresponding to
-            the channels in 'ch_names_new'.
+        -   The regions of the rereferenced channels (e.g. cortex, STN),
+            corresponding to the channels in 'ch_names_new'.
+        -   If some or all entries are None, regions of the new channels are
+            determined based on those they are referenced from.
+
+        ch_subregions_new : list[str | None] | None
+        -   The subregions of the rereferenced channels (e.g. prefrontal,
+            parietal), corresponding to the channels in 'ch_names_new'.
         -   If some or all entries are None, regions of the new channels are
             determined based on those they are referenced from.
 
@@ -1569,6 +1675,7 @@ class Signal:
             ch_names_new,
             ch_reref_types_dict,
             ch_regions_dict,
+            ch_subregions_dict,
             ch_hemispheres_dict,
         ) = self._apply_rereference(
             reref_method,
@@ -1578,6 +1685,7 @@ class Signal:
             ch_reref_types,
             ch_coords_new,
             ch_regions_new,
+            ch_subregions_new,
             ch_hemispheres_new,
         )
         self._append_rereferenced_raw(rerefed_raw)
@@ -1585,6 +1693,7 @@ class Signal:
             info_to_add={
                 "ch_reref_types": ch_reref_types_dict,
                 "ch_regions": ch_regions_dict,
+                "ch_subregions": ch_subregions_dict,
                 "ch_hemispheres": ch_hemispheres_dict,
             }
         )
@@ -1601,6 +1710,7 @@ class Signal:
         ch_reref_types: Union[list[Union[str, None]], None],
         ch_coords_new: Union[list[Union[list[Union[int, float]], None]], None],
         ch_regions_new: Union[list[Union[str, None]], None],
+        ch_subregions_new: Union[list[Union[str, None]], None],
         ch_hemispheres_new: Union[list[Union[str, None]], None],
     ) -> None:
         """Bipolar rereferences channels in the mne.io.Raw object.
@@ -1638,8 +1748,14 @@ class Signal:
             according to the corresponding channel in 'ch_names_old'.
 
         ch_regions_new : list[str | None] | None
-        -   The regions of the rereferenced channels channels, corresponding to
-            the channels in 'ch_names_new'.
+        -   The regions of the rereferenced channels (e.g. cortex, STN),
+            corresponding to the channels in 'ch_names_new'.
+        -   If some or all entries are None, regions of the new channels are
+            determined based on those they are referenced from.
+
+        ch_subregions_new : list[str | None] | None
+        -   The subregions of the rereferenced channels (e.g. prefrontal,
+            parietal), corresponding to the channels in 'ch_names_new'.
         -   If some or all entries are None, regions of the new channels are
             determined based on those they are referenced from.
 
@@ -1658,6 +1774,7 @@ class Signal:
             ch_reref_types,
             ch_coords_new,
             ch_regions_new,
+            ch_subregions_new,
             ch_hemispheres_new,
         )
 
@@ -1682,6 +1799,7 @@ class Signal:
         ch_reref_types: Union[list[Union[str, None]], None],
         ch_coords_new: Union[list[Union[list[Union[int, float]], None]], None],
         ch_regions_new: Union[list[Union[str, None]], None],
+        ch_subregions_new: Union[list[Union[str, None]], None],
         ch_hemispheres_new: Union[list[Union[str, None]], None],
     ) -> None:
         """Common-average rereferences channels in the mne.io.Raw object.
@@ -1719,8 +1837,14 @@ class Signal:
             according to the corresponding channel in 'ch_names_old'.
 
         ch_regions_new : list[str | None] | None
-        -   The regions of the rereferenced channels channels, corresponding to
-            the channels in 'ch_names_new'.
+        -   The regions of the rereferenced channels (e.g. cortex, STN),
+            corresponding to the channels in 'ch_names_new'.
+        -   If some or all entries are None, regions of the new channels are
+            determined based on those they are referenced from.
+
+        ch_subregions_new : list[str | None] | None
+        -   The subregions of the rereferenced channels (e.g. prefrontal,
+            parietal), corresponding to the channels in 'ch_names_new'.
         -   If some or all entries are None, regions of the new channels are
             determined based on those they are referenced from.
 
@@ -1739,6 +1863,7 @@ class Signal:
             ch_reref_types,
             ch_coords_new,
             ch_regions_new,
+            ch_subregions_new,
             ch_hemispheres_new,
         )
 
@@ -1764,6 +1889,7 @@ class Signal:
         ch_reref_types: list[str],
         ch_coords_new: Optional[list[Optional[list[Union[int, float]]]]],
         ch_regions_new: Union[list[Union[str, None]], None],
+        ch_subregions_new: Union[list[Union[str, None]], None],
         ch_hemispheres_new: Union[list[Union[str, None]], None],
     ) -> None:
         """Pseudo rereferences channels in the mne.io.Raw object.
@@ -1807,8 +1933,14 @@ class Signal:
             according to the corresponding channel in 'ch_names_old'.
 
         ch_regions_new : list[str | None] | None
-        -   The regions of the rereferenced channels channels, corresponding to
-            the channels in 'ch_names_new'.
+        -   The regions of the rereferenced channels (e.g. cortex, STN),
+            corresponding to the channels in 'ch_names_new'.
+        -   If some or all entries are None, regions of the new channels are
+            determined based on those they are referenced from.
+
+        ch_subregions_new : list[str | None] | None
+        -   The subregions of the rereferenced channels (e.g. prefrontal,
+            parietal), corresponding to the channels in 'ch_names_new'.
         -   If some or all entries are None, regions of the new channels are
             determined based on those they are referenced from.
 
@@ -1827,6 +1959,7 @@ class Signal:
             ch_reref_types,
             ch_coords_new,
             ch_regions_new,
+            ch_subregions_new,
             ch_hemispheres_new,
         )
 
@@ -1997,6 +2130,10 @@ class Signal:
             ordered_list_from_dict(channels, self.extra_info["ch_regions"])
             * n_shuffles
         )
+        ch_subregions = (
+            ordered_list_from_dict(channels, self.extra_info["ch_subregions"])
+            * n_shuffles
+        )
         ch_hemispheres = (
             ordered_list_from_dict(channels, self.extra_info["ch_hemispheres"])
             * n_shuffles
@@ -2009,6 +2146,7 @@ class Signal:
             ch_coords=shuffled_data[0]._get_channel_positions(),
             ch_reref_types=ch_reref_types,
             ch_regions=ch_regions,
+            ch_subregions=ch_subregions,
             ch_hemispheres=ch_hemispheres,
             ch_epoch_orders=["shuffled"] * len(channels) * n_shuffles,
         )
@@ -2117,6 +2255,9 @@ class Signal:
             "ch_coords": self.get_coordinates(),
             "ch_regions": ordered_list_from_dict(
                 self.data[0].ch_names, self.extra_info["ch_regions"]
+            ),
+            "ch_subregions": ordered_list_from_dict(
+                self.data[0].ch_names, self.extra_info["ch_subregions"]
             ),
             "ch_hemispheres": ordered_list_from_dict(
                 self.data[0].ch_names, self.extra_info["ch_hemispheres"]
