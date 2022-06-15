@@ -6,6 +6,7 @@ preprocessing
 -   Loads an mne.io.Raw object and preprocesses it in preparation for analysis.
 """
 
+import os
 from coh_handle_files import (
     generate_analysiswise_fpath,
     generate_raw_fpath,
@@ -71,8 +72,12 @@ def preprocessing(
 
     ### Analysis setup
     ## Gets the relevant filepaths
-    generic_analysis_folder = f"{folderpath_preprocessing}\\Settings\\Generic"
-    specific_analysis_folder = f"{folderpath_preprocessing}\\Settings\\Specific"
+    generic_analysis_folder = os.path.join(
+        folderpath_preprocessing, "Settings", "Generic"
+    )
+    specific_analysis_folder = os.path.join(
+        folderpath_preprocessing, "Settings", "Specific"
+    )
     analysis_settings_fpath = generate_analysiswise_fpath(
         generic_analysis_folder, analysis, ".json"
     )
@@ -116,7 +121,14 @@ def preprocessing(
         signal.set_coordinates(
             data_settings["ch_names"], data_settings["ch_coords"]
         )
-    signal.set_regions(data_settings["ch_names"], data_settings["ch_regions"])
+    signal.set_regions(
+        data_settings["ch_names"],
+        data_settings["ch_regions"],
+    )
+    signal.set_subregions(
+        data_settings["ch_names"],
+        data_settings["ch_subregions"],
+    )
     signal.set_hemispheres(
         data_settings["ch_names"], data_settings["ch_hemispheres"]
     )
@@ -128,6 +140,7 @@ def preprocessing(
             ch_types_new=combine_settings["ch_types_new"],
             ch_coords_new=combine_settings["ch_coords_new"],
             ch_regions_new=combine_settings["ch_regions_new"],
+            ch_subregions_new=combine_settings["ch_subregions_new"],
         )
     if analysis_settings["rereference"]:
         for key in data_settings["rereferencing"].keys():
@@ -144,13 +157,14 @@ def preprocessing(
                     f"method '{key}' is not implemented."
                 )
             reref_method(
-                reref_settings["ch_names_old"],
-                reref_settings["ch_names_new"],
-                reref_settings["ch_types_new"],
-                reref_settings["ch_reref_types"],
-                reref_settings["ch_coords_new"],
-                reref_settings["ch_regions_new"],
-                reref_settings["ch_hemispheres_new"],
+                ch_names_old=reref_settings["ch_names_old"],
+                ch_names_new=reref_settings["ch_names_new"],
+                ch_types_new=reref_settings["ch_types_new"],
+                ch_reref_types=reref_settings["ch_reref_types"],
+                ch_coords_new=reref_settings["ch_coords_new"],
+                ch_regions_new=reref_settings["ch_regions_new"],
+                ch_subregions_new=reref_settings["ch_subregions_new"],
+                ch_hemispheres_new=reref_settings["ch_hemispheres_new"],
             )
         signal.drop_unrereferenced_channels()
         signal.order_channels(data_settings["post_reref_organisation"])
@@ -178,7 +192,9 @@ def preprocessing(
     signal.add_metadata(metadata)
 
     if save:
-        preprocessed_data_folder = f"{folderpath_preprocessing}\\Data"
+        preprocessed_data_folder = os.path.join(
+            folderpath_preprocessing, "Data"
+        )
         preprocessed_data_fpath = generate_sessionwise_fpath(
             preprocessed_data_folder,
             dataset,
@@ -205,7 +221,6 @@ def preprocessing_for_annotations(
     task: str,
     acquisition: str,
     run: str,
-    save: bool = False,
 ) -> Signal:
     """Loads an mne.io.Raw object and preprocesses it for annotating
 
@@ -239,9 +254,6 @@ def preprocessing_for_annotations(
     run : str
     -   The name of the run for which the data will be analysed.
 
-    save : bool; default False
-    -   Whether or not to save the preprocessed data
-
     RETURNS
     -------
     signal : Signal
@@ -250,8 +262,12 @@ def preprocessing_for_annotations(
 
     ### Analysis setup
     ## Gets the relevant filepaths
-    generic_analysis_folder = f"{folderpath_preprocessing}\\Settings\\Generic"
-    specific_analysis_folder = f"{folderpath_preprocessing}\\Settings\\Specific"
+    generic_analysis_folder = os.path.join(
+        folderpath_preprocessing, "Settings", "Generic"
+    )
+    specific_analysis_folder = os.path.join(
+        folderpath_preprocessing, "Settings", "Specific"
+    )
     analysis_settings_fpath = generate_analysiswise_fpath(
         generic_analysis_folder, analysis, ".json"
     )
@@ -310,13 +326,14 @@ def preprocessing_for_annotations(
                     f"method '{key}' is not implemented."
                 )
             reref_method(
-                reref_settings["ch_names_old"],
-                reref_settings["ch_names_new"],
-                reref_settings["ch_types_new"],
-                reref_settings["ch_reref_types"],
-                reref_settings["ch_coords_new"],
-                reref_settings["ch_regions_new"],
-                reref_settings["ch_hemispheres_new"],
+                ch_names_old=reref_settings["ch_names_old"],
+                ch_names_new=reref_settings["ch_names_new"],
+                ch_types_new=reref_settings["ch_types_new"],
+                ch_reref_types=reref_settings["ch_reref_types"],
+                ch_coords_new=reref_settings["ch_coords_new"],
+                ch_regions_new=reref_settings["ch_regions_new"],
+                ch_subregions_new=reref_settings["ch_subregions_new"],
+                ch_hemispheres_new=reref_settings["ch_hemispheres_new"],
             )
         signal.order_channels(data_settings["post_reref_organisation"])
     if analysis_settings["line_noise"] is not None:
@@ -331,20 +348,5 @@ def preprocessing_for_annotations(
     ## Adds metadata about the preprocessed data
     metadata = extract_metadata(settings=data_settings)
     signal.add_metadata(metadata)
-
-    if save:
-        preprocessed_data_folder = f"{folderpath_preprocessing}\\Data"
-        preprocessed_data_fpath = generate_sessionwise_fpath(
-            preprocessed_data_folder,
-            dataset,
-            subject,
-            session,
-            task,
-            acquisition,
-            run,
-            f"preprocessed-{analysis}",
-            ".json",
-        )
-        signal.save_as_dict(fpath=preprocessed_data_fpath)
 
     return signal
