@@ -147,10 +147,15 @@ class SignalViewer:
 
         start_time = self.signal.data[0].times[0]
         end_time = self.signal.data[0].times[-1]
+        time_interval = (
+            self.signal.data[0].times[1] - self.signal.data[0].times[0]
+        )
         for i, label in enumerate(self.signal.data[0].annotations.description):
             if label == "START":
                 self.signal.data[0].annotations.duration[i] = (
-                    self.signal.data[0].annotations.onset[i] - start_time
+                    self.signal.data[0].annotations.onset[i]
+                    - start_time
+                    + time_interval
                 )
                 self.signal.data[0].annotations.onset[i] = start_time
                 self.signal.data[0].annotations.description[i] = "BAD_"
@@ -163,7 +168,9 @@ class SignalViewer:
                     )
             elif label == "END":
                 self.signal.data[0].annotations.duration[i] = (
-                    end_time - self.signal.data[0].annotations.onset[i]
+                    end_time
+                    - self.signal.data[0].annotations.onset[i]
+                    + time_interval
                 )
                 self.signal.data[0].annotations.description[i] = "BAD_"
                 if self._verbose:
