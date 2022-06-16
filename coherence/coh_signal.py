@@ -2143,7 +2143,9 @@ class Signal:
             data_dimensions=self.data_dimensions,
             ch_names=shuffled_data[0].ch_names,
             ch_types=shuffled_data[0].get_channel_types(),
-            ch_coords=shuffled_data[0]._get_channel_positions(),
+            ch_coords=shuffled_data[0]._get_channel_positions(
+                picks=shuffled_data[0].ch_names
+            ),
             ch_reref_types=ch_reref_types,
             ch_regions=ch_regions,
             ch_subregions=ch_subregions,

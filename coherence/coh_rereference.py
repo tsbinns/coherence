@@ -306,7 +306,7 @@ class Reref(ABC):
             raw.get_data(reject_by_annotation="omit").copy(),
             raw.info.copy(),
             raw.info["ch_names"].copy(),
-            raw._get_channel_positions().copy().tolist(),
+            raw._get_channel_positions(picks=raw.ch_names).copy().tolist(),
         )
 
     def _raw_from_data(self) -> None:
