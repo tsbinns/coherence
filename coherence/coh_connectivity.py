@@ -10,7 +10,7 @@ ConectivityMultivariate : subclass of the abstract base class 'ProcMethod'
     MIM, or maximised imaginary coherence, MIC) between signals.
 """
 
-from typing import Optional, Union
+from typing import Union
 from mne import Epochs
 from mne.time_frequency import (
     CrossSpectralDensity,
@@ -191,14 +191,14 @@ class ConnectivityCoherence(ProcConnectivity):
         """
         supported_modes = ["multitaper", "fourier", "cwt_morlet"]
         self._results_dims = ["windows"]
-        if self._mode in ["multitaper", "fourier"]:
+        if self._pow_method in ["multitaper", "fourier"]:
             self._results_dims.extend(["channels", "frequencies"])
-        elif self._mode in ["cwt_morlet"]:
+        elif self._pow_method in ["cwt_morlet"]:
             self._results_dims.extend(["channels", "frequencies", "timepoints"])
         else:
             raise UnavailableProcessingError(
                 "Error when sorting the results of the connectivity analysis:\n"
-                f"The analysis mode '{self._mode}' does not have an associated "
+                f"The analysis mode '{self._pow_method}' does not have an associated "
                 "dimension for the results axes.\nOnly methods "
                 f"'{supported_modes}' are supported."
             )
@@ -277,18 +277,18 @@ class ConnectivityCoherence(ProcConnectivity):
         self,
         con_method: str,
         pow_method: str,
-        seeds: Optional[Union[str, list[str]]] = None,
-        targets: Optional[Union[str, list[str]]] = None,
-        fmin: Optional[Union[float, tuple]] = None,
-        fmax: Optional[Union[float, tuple]] = float("inf"),
+        seeds: Union[Union[str, list[str]], None] = None,
+        targets: Union[Union[str, list[str]], None] = None,
+        fmin: Union[Union[float, tuple], None] = None,
+        fmax: Union[float, tuple] = float("inf"),
         fskip: int = 0,
         faverage: bool = False,
-        tmin: Optional[float] = None,
-        tmax: Optional[float] = None,
-        mt_bandwidth: Optional[float] = None,
+        tmin: Union[float, None] = None,
+        tmax: Union[float, None] = None,
+        mt_bandwidth: Union[float, None] = None,
         mt_adaptive: bool = False,
         mt_low_bias: bool = True,
-        cwt_freqs: Optional[Union[list, NDArray]] = None,
+        cwt_freqs: Union[Union[list, NDArray], None] = None,
         cwt_n_cycles: Union[int, float, NDArray] = 7,
         average_windows: bool = False,
         average_timepoints: bool = False,
@@ -461,8 +461,8 @@ class ConnectivityCoherence(ProcConnectivity):
     def save_results(
         self,
         fpath: str,
-        ftype: Optional[str] = None,
-        ask_before_overwrite: Optional[bool] = None,
+        ftype: Union[str, None] = None,
+        ask_before_overwrite: Union[bool, None] = None,
     ) -> None:
         """Saves the results and additional information as a file.
 
@@ -518,12 +518,14 @@ class ConnectivityCoherence(ProcConnectivity):
             "seed_types": self.extra_info["node_ch_types"][0],
             "seed_coords": self.extra_info["node_ch_coords"][0],
             "seed_regions": self.extra_info["node_ch_regions"][0],
+            "seed_subregions": self.extra_info["node_ch_subregions"][0],
             "seed_hemispheres": self.extra_info["node_ch_hemispheres"][0],
             "seed_reref_types": self.extra_info["node_ch_reref_types"][0],
             "target_names": self._targets_str,
             "target_types": self.extra_info["node_ch_types"][1],
             "target_coords": self.extra_info["node_ch_coords"][1],
             "target_regions": self.extra_info["node_ch_regions"][1],
+            "target_subregions": self.extra_info["node_ch_subregions"][1],
             "target_hemispheres": self.extra_info["node_ch_hemispheres"][1],
             "target_reref_types": self.extra_info["node_ch_reref_types"][1],
             "node_lateralisation": self.extra_info["node_lateralisation"],
@@ -605,16 +607,16 @@ class ConnectivityMultivariate(ProcConnectivity):
         cohy_method: str,
         seeds: Union[str, list[str], None] = None,
         targets: Union[str, list[str], None] = None,
-        fmin: Optional[Union[float, tuple]] = None,
-        fmax: Optional[Union[float, tuple]] = float("inf"),
+        fmin: Union[Union[float, tuple], None] = None,
+        fmax: Union[float, tuple] = float("inf"),
         fskip: int = 0,
         faverage: bool = False,
-        tmin: Optional[float] = None,
-        tmax: Optional[float] = None,
-        mt_bandwidth: Optional[float] = None,
+        tmin: Union[float, None] = None,
+        tmax: Union[float, None] = None,
+        mt_bandwidth: Union[float, None] = None,
         mt_adaptive: bool = False,
         mt_low_bias: bool = True,
-        cwt_freqs: Optional[Union[list, NDArray]] = None,
+        cwt_freqs: Union[Union[list, NDArray], None] = None,
         cwt_n_cycles: Union[int, float, NDArray] = 7,
         average_windows: bool = False,
         return_topographies: bool = False,
@@ -1099,8 +1101,8 @@ class ConnectivityMultivariate(ProcConnectivity):
     def save_results(
         self,
         fpath: str,
-        ftype: Optional[str] = None,
-        ask_before_overwrite: Optional[bool] = None,
+        ftype: Union[str, None] = None,
+        ask_before_overwrite: Union[bool, None] = None,
     ) -> None:
         """Saves the results and additional information as a file.
 
@@ -1159,6 +1161,7 @@ class ConnectivityMultivariate(ProcConnectivity):
             "seed_types": self.extra_info["node_ch_types"][0],
             "seed_coords": self.extra_info["node_ch_coords"][0],
             "seed_regions": self.extra_info["node_ch_regions"][0],
+            "seed_subregions": self.extra_info["node_ch_subregions"][0],
             "seed_hemispheres": self.extra_info["node_ch_hemispheres"][0],
             "seed_reref_types": self.extra_info["node_ch_reref_types"][0],
             "target_names": self._targets_str,
@@ -1166,6 +1169,7 @@ class ConnectivityMultivariate(ProcConnectivity):
             "target_types": self.extra_info["node_ch_types"][1],
             "target_coords": self.extra_info["node_ch_coords"][1],
             "target_regions": self.extra_info["node_ch_regions"][1],
+            "target_subregions": self.extra_info["node_ch_subregions"][1],
             "target_hemispheres": self.extra_info["node_ch_hemispheres"][1],
             "target_reref_types": self.extra_info["node_ch_reref_types"][1],
             "node_lateralisation": self.extra_info["node_lateralisation"],
@@ -1641,7 +1645,7 @@ class ConnectivityGranger(ProcConnectivity):
                 names=self._comb_names_str,
                 indices=self._indices,
                 method=self._gc_method,
-                n_epochs_used=self.signal.data[0]._data.shape[0],
+                n_epochs_used=self.signal.data[0].get_data().shape[0],
             )
         ]
 
@@ -1652,8 +1656,8 @@ class ConnectivityGranger(ProcConnectivity):
     def save_results(
         self,
         fpath: str,
-        ftype: Optional[str] = None,
-        ask_before_overwrite: Optional[bool] = None,
+        ftype: Union[str, None] = None,
+        ask_before_overwrite: Union[bool, None] = None,
     ) -> None:
         """Saves the results and additional information as a file.
 
@@ -1709,12 +1713,14 @@ class ConnectivityGranger(ProcConnectivity):
             "seed_types": self.extra_info["node_ch_types"][0],
             "seed_coords": self.extra_info["node_ch_coords"][0],
             "seed_regions": self.extra_info["node_ch_regions"][0],
+            "seed_subregions": self.extra_info["node_ch_subregions"][0],
             "seed_hemispheres": self.extra_info["node_ch_hemispheres"][0],
             "seed_reref_types": self.extra_info["node_ch_reref_types"][0],
             "target_names": self._targets_str,
             "target_types": self.extra_info["node_ch_types"][1],
             "target_coords": self.extra_info["node_ch_coords"][1],
             "target_regions": self.extra_info["node_ch_regions"][1],
+            "target_subregions": self.extra_info["node_ch_subregions"][1],
             "target_hemispheres": self.extra_info["node_ch_hemispheres"][1],
             "target_reref_types": self.extra_info["node_ch_reref_types"][1],
             "node_lateralisation": self.extra_info["node_lateralisation"],
