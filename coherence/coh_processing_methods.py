@@ -384,6 +384,7 @@ class ProcConnectivity(ProcMethod):
         self._generate_node_ch_reref_types()
         self._generate_node_ch_coords()
         self._generate_node_ch_regions()
+        self._generate_node_ch_subregions()
         node_single_hemispheres = self._generate_node_ch_hemispheres()
         self._generate_node_lateralisation(node_single_hemispheres)
         self._generate_node_ch_epoch_orders()
@@ -476,6 +477,29 @@ class ProcConnectivity(ProcMethod):
             for name in getattr(self, group):
                 node_ch_regions[group_i].append(ch_regions[name])
         self.extra_info["node_ch_regions"] = node_ch_regions
+
+    def _generate_node_ch_subregions(self) -> None:
+        """Gets the subregions of channels in the connectivity results.
+
+        If the subregions of each channel in a seed/target for a given node are
+        identical, these subregions are given as a string, otherwise the unique
+        subregions are taken and joined into a single string by the " & "
+        characters.
+        """
+        ch_subregions = {}
+        for node_i, combined_name in enumerate(self._comb_names_str):
+            subregions = ordered_list_from_dict(
+                list_order=self._comb_names_list[node_i],
+                dict_to_order=self.extra_info["ch_regions"],
+            )
+            ch_subregions[combined_name] = combine_vals_list(unique(subregions))
+
+        node_ch_subregions = [[], []]
+        groups = ["_seeds_str", "_targets_str"]
+        for group_i, group in enumerate(groups):
+            for name in getattr(self, group):
+                node_ch_subregions[group_i].append(ch_subregions[name])
+        self.extra_info["node_ch_subregions"] = node_ch_subregions
 
     def _generate_node_ch_hemispheres(self) -> list[list[bool]]:
         """Gets the hemispheres of channels in the connectivity results.

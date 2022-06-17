@@ -25,12 +25,14 @@ def create_extra_info(data: dict) -> dict[dict]:
 
     ch_dict_keys = [
         "ch_regions",
+        "ch_subregions",
         "ch_hemispheres",
         "ch_reref_types",
         "ch_epoch_orders",
     ]
     extra_info_keys = [
         "ch_regions",
+        "ch_subregions",
         "ch_hemispheres",
         "ch_reref_types",
         "ch_epoch_orders",
