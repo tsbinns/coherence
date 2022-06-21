@@ -12,11 +12,12 @@ from coh_preprocess_data import preprocessing
 
 ### Info about the data to analyse
 FOLDERPATH_DATA = (
-    "C:\\Users\\User\\OneDrive - Charité - Universitätsmedizin Berlin\\"
+    "\\\\?\\C:\\Users\\User\\OneDrive - Charité - Universitätsmedizin Berlin\\"
     "PROJECT ECOG-LFP Coherence\\Data"
 )
 FOLDERPATH_PREPROCESSING = (
-    "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN\\Preprocessing"
+    "\\\\?\\C:\\Users\\User\\OneDrive - Charité - Universitätsmedizin Berlin\\"
+    "PROJECT ECOG-LFP Coherence\\Analysis\\Preprocessing"
 )
 DATASET = "BIDS_Berlin_ECOG_LFP"
 ANALYSIS = "with_notch_filter"
