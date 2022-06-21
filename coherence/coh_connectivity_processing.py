@@ -243,9 +243,9 @@ def multivariate_processing(
                 acquisition,
                 run,
                 f"connectivity-{analysis}_{con_method}",
-                ".json",
+                "",
             )
-            multivariate.save_results(multivariate_fpath)
+            multivariate.save_results(multivariate_fpath, "json")
 
 
 def granger_processing(
