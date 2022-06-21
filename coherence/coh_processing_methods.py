@@ -148,6 +148,7 @@ class ProcMethod(ABC):
         """
         possible_order = [
             "windows",
+            "nodes",
             "channels",
             "epochs",
             "frequencies",
@@ -490,7 +491,7 @@ class ProcConnectivity(ProcMethod):
         for node_i, combined_name in enumerate(self._comb_names_str):
             subregions = ordered_list_from_dict(
                 list_order=self._comb_names_list[node_i],
-                dict_to_order=self.extra_info["ch_regions"],
+                dict_to_order=self.extra_info["ch_subregions"],
             )
             ch_subregions[combined_name] = combine_vals_list(unique(subregions))
 
