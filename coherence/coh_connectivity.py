@@ -10,6 +10,7 @@ ConectivityMultivariate : subclass of the abstract base class 'ProcMethod'
     MIM, or maximised imaginary coherence, MIC) between signals.
 """
 
+from copy import deepcopy
 from typing import Union
 from mne import Epochs
 from mne.time_frequency import (
@@ -34,6 +35,7 @@ from coh_exceptions import (
     ProcessingOrderError,
     UnavailableProcessingError,
 )
+from coh_handle_entries import rearrange_axes
 from coh_processing_methods import ProcConnectivity
 from coh_progress_bar import ProgressBar
 import coh_signal
@@ -599,6 +601,7 @@ class ConnectivityMultivariate(ProcConnectivity):
         self._cohy_matrix_indices = None
         self.seed_topographies = None
         self.target_topographies = None
+        self._topography_results_dims = None
         self._progress_bar = None
 
     def process(
@@ -1042,21 +1045,16 @@ class ConnectivityMultivariate(ProcConnectivity):
         """Establishes dimensions of the connectivity results and averages
         across windows, if requested."""
 
-        self._results_dims = ["windows", "channels", "frequencies"]
+        self._results_dims = ["windows", "nodes", "frequencies"]
+        self._topography_results_dims = [
+            "windows",
+            "nodes",
+            "channels",
+            "frequencies",
+        ]
 
         if self._average_windows:
             self._average_windows_results()
-
-        if self._return_topographies:
-            groups = ["seed_topographies", "target_topographies"]
-            for group in groups:
-                win_topos = []
-                for win_data in getattr(self, group)[0]:
-                    node_topos = []
-                    for node_data in win_data:
-                        node_topos.append(node_data.tolist())
-                    win_topos.append(node_topos)
-                setattr(self, group, [win_topos])
 
     def _average_windows_results(self) -> None:
         """Averages the connectivity results across windows.
@@ -1098,6 +1096,22 @@ class ConnectivityMultivariate(ProcConnectivity):
         if self._verbose:
             print(f"Averaging the data over {n_windows} windows.\n")
 
+    @property
+    def topography_results_dims(self) -> list[str]:
+        """Returns the dimensions of the spatial topography results.
+
+        RETURNS
+        -------
+        dims : list[str]
+        -   Dimensions of the results.
+        """
+        if self._windows_averaged:
+            dims = self._topography_results_dims[1:]
+        else:
+            dims = self._topography_results_dims
+
+        return deepcopy(dims)
+
     def save_results(
         self,
         fpath: str,
@@ -1132,16 +1146,57 @@ class ConnectivityMultivariate(ProcConnectivity):
         if ask_before_overwrite is None:
             ask_before_overwrite = self._verbose
 
-        save_dict(
-            to_save=self.results_as_dict(),
-            fpath=fpath,
-            ftype=ftype,
-            ask_before_overwrite=ask_before_overwrite,
-            verbose=self._verbose,
-        )
+        to_save = self.results_as_dict()
+        if self._return_topographies:
+            save_dict(
+                to_save=to_save[0],
+                fpath=fpath,
+                ftype=ftype,
+                ask_before_overwrite=ask_before_overwrite,
+                verbose=self._verbose,
+            )
+            save_dict(
+                to_save=to_save[1],
+                fpath=f"{fpath}_topographies",
+                ftype=ftype,
+                ask_before_overwrite=ask_before_overwrite,
+                verbose=self._verbose,
+            )
+        else:
+            save_dict(
+                to_save=to_save,
+                fpath=fpath,
+                ftype=ftype,
+                ask_before_overwrite=ask_before_overwrite,
+                verbose=self._verbose,
+            )
 
-    def results_as_dict(self) -> dict:
-        """Returns the results and additional information as a dictionary.
+    def results_as_dict(self) -> Union[dict, tuple[dict, dict]]:
+        """Returns the connectivity and, if applicable, topography results, as
+        well as additional information as a dictionary.
+
+        RETURNS
+        -------
+        results : dict | tuple(dict, dict)
+        -   The results and additional information stored as a dictionary.
+        -   If spatial topographies have not been computed, a single dict
+            containing the connectivity results is returned, otherwise a tuple
+            of two dicts is returned containing the connectivity and spatial
+            topography results, respectively.
+        """
+
+        connectivity_results = self.connectivity_results_as_dict()
+        if self._return_topographies:
+            topography_results = self.topography_results_as_dict()
+            results = (connectivity_results, topography_results)
+        else:
+            results = connectivity_results
+
+        return results
+
+    def connectivity_results_as_dict(self) -> dict:
+        """Returns the connectivity results and additional information as a
+        dictionary.
 
         RETURNS
         -------
@@ -1150,14 +1205,13 @@ class ConnectivityMultivariate(ProcConnectivity):
         """
 
         dimensions = self._get_optimal_dims()
-        con_results, topo_results = self.get_results(dimensions=dimensions)
+        results = self.get_connectivity_results(dimensions=dimensions)
 
-        results_dict = {
-            f"connectivity-{self._con_method}": con_results.tolist(),
+        return {
+            f"connectivity-{self._con_method}": results.tolist(),
             f"connectivity-{self._con_method}_dimensions": dimensions,
             "freqs": self.results[0].freqs,
             "seed_names": self._seeds_str,
-            "seed_topographies": topo_results[0],
             "seed_types": self.extra_info["node_ch_types"][0],
             "seed_coords": self.extra_info["node_ch_coords"][0],
             "seed_regions": self.extra_info["node_ch_regions"][0],
@@ -1165,7 +1219,6 @@ class ConnectivityMultivariate(ProcConnectivity):
             "seed_hemispheres": self.extra_info["node_ch_hemispheres"][0],
             "seed_reref_types": self.extra_info["node_ch_reref_types"][0],
             "target_names": self._targets_str,
-            "target_topographies": topo_results[1],
             "target_types": self.extra_info["node_ch_types"][1],
             "target_coords": self.extra_info["node_ch_coords"][1],
             "target_regions": self.extra_info["node_ch_regions"][1],
@@ -1180,72 +1233,235 @@ class ConnectivityMultivariate(ProcConnectivity):
             "subject_info": self.signal.data[0].info["subject_info"],
         }
 
-        if not self._return_topographies:
-            del results_dict["seed_topographies"]
-            del results_dict["target_topographies"]
+    def topography_results_as_dict(self) -> dict:
+        """Returns the topography results and additional information as a
+        dictionary.
 
-        return results_dict
+        The form of the results differs from the connectivity results, in that
+        each entry represents not a connectivity node, but a channel within a
+        connectivity node.
+
+        RETURNS
+        results : dict
+        -   The results and additional information stored as a dictionary.
+
+        RAISES
+        ------
+        AttributeError
+        -   Raised if spatial topography results have not been computed.
+        """
+        if not self._return_topographies:
+            raise AttributeError(
+                "Spatial topography results have not been computed, and thus "
+                "cannot be converted into a dictionary."
+            )
+        if not self._windows_averaged:
+            raise NotImplementedError(
+                "Returning spatial topographies when windows have not been "
+                "averaged over has not been implemented."
+            )
+
+        results, connectivity_results = self._prepare_topography_results_dict()
+
+        topos_name = f"connectivity-{self._con_method}_topography"
+        for node_i in range(len(self._seeds_list)):
+            for group in ["seed", "target"]:
+                if group == "seed":
+                    ch_names = self._seeds_list[node_i]
+                    topographies = self.seed_topographies[0][node_i]
+                else:
+                    ch_names = self._targets_list[node_i]
+                    topographies = self.target_topographies[0][node_i]
+                for ch_i, ch_name in enumerate(ch_names):
+                    results[topos_name].append(topographies[ch_i].tolist())
+                    results["ch_names"].append(ch_name)
+                    results["ch_types"].append(
+                        self.signal.data[0].get_channel_types(picks=ch_name)[0]
+                    )
+                    results["ch_coords"].append(
+                        self.signal.get_coordinates(ch_name)[0]
+                    )
+                    results["ch_regions"].append(
+                        self.extra_info["ch_regions"][ch_name]
+                    )
+                    results["ch_subregions"].append(
+                        self.extra_info["ch_subregions"][ch_name]
+                    )
+                    results["ch_hemispheres"].append(
+                        self.extra_info["ch_hemispheres"][ch_name]
+                    )
+                    results["ch_reref_types"].append(
+                        self.extra_info["ch_reref_types"][ch_name]
+                    )
+                    results["ch_node_types"].append(group)
+                    for key, value in connectivity_results.items():
+                        results[key].append(value[node_i])
+
+        return results
+
+    def _prepare_topography_results_dict(self) -> tuple[dict, dict]:
+        """Prepares dictionaries that will be used for storing the spatial
+        topography results as a dictionary.
+
+        RETURNS
+        -------
+        topography_results : dict
+        -   Dictionary partly filled with data independent of connectivity nodes
+            (e.g. frequencies, result dimensions, subject information, etc...)
+            which can be completely filled with node/channel-dependent data.
+
+        connectivity_results : dict
+        -   Dictionary containing node-dependent data for the connectivity
+            analysis that will be copied into the topography results.
+        """
+        connectivity_results = self.connectivity_results_as_dict()
+        remove_keys = [
+            f"connectivity-{self._con_method}",
+            f"connectivity-{self._con_method}_dimensions",
+            "freqs",
+            "samp_freq",
+            "metadata",
+            "processing_steps",
+            "subject_info",
+        ]
+        for key in remove_keys:
+            del connectivity_results[key]
+
+        topographies_name = f"connectivity-{self._con_method}_topography"
+        topography_results_keys = [
+            topographies_name,
+            "ch_names",
+            "ch_types",
+            "ch_coords",
+            "ch_regions",
+            "ch_subregions",
+            "ch_hemispheres",
+            "ch_reref_types",
+            "ch_node_types",
+            *connectivity_results.keys(),
+        ]
+        topography_results = {
+            f"{topographies_name}_dimensions": ["channels", "frequencies"],
+            "freqs": self.results[0].freqs,
+            "samp_freq": self.signal.data[0].info["sfreq"],
+            "metadata": self.extra_info["metadata"],
+            "processing_steps": self.processing_steps,
+            "subject_info": self.signal.data[0].info["subject_info"],
+        }
+        for key in topography_results_keys:
+            topography_results[key] = []
+
+        return topography_results, connectivity_results
 
     def get_results(
-        self, dimensions: Union[list[str], None] = None
+        self,
+        connectivity_dims: Union[list[str], None] = None,
+        topography_dims: Union[list[str], None] = None,
     ) -> tuple[NDArray, list[Union[list, None]]]:
-        """Gets the connectivity and topography results of the analysis.
+        """Gets the connectivity and, if applicable, topography results of the
+        analysis.
+
+        PARAMETERS
+        ----------
+        connectivity_dims : list[str] | None; default None
+        -   The dimensions of the connectivity results that will be returned.
+        -   If 'None', the current dimensions are used.
+
+        topography_dims : list[str] | None; default None
+        -   The dimensions of the topography results that will be returned.
+        -   If 'None', the current dimensions are used.
+
+        RETURNS
+        -------
+        results : tuple(numpy array, numpy array) | numpy array
+        -   The results.
+        -   If spatial topographies have been computed, the output
+            is a tuple of two numpy arrays containing the connectivity and
+            topography results, respectively, otherwise the output is an array
+            containing the connectivity results.
+        -   The topography results array contains two subarrays containing the
+            spatial weights of the seeds and targets, respectively.
+        """
+        connectivity_results = self.get_connectivity_results(
+            dimensions=connectivity_dims
+        )
+        if self._return_topographies:
+            topography_results = self.get_topography_results(
+                dimensions=topography_dims
+            )
+            results = (connectivity_results, topography_results)
+        else:
+            results = connectivity_results
+
+        return results
+
+    def get_connectivity_results(
+        self, dimensions: Union[list[str], None] = None
+    ) -> NDArray:
+        """Gets the results of the connectivity analysis.
 
         PARAMETERS
         ----------
         dimensions : list[str] | None; default None
-        -   The dimensions of the connectivity results that will be returned.
+        -   The dimensions of the results that will be returned.
         -   If 'None', the current dimensions are used.
 
         RETURNS
         -------
         numpy array
         -   The connectivity results.
-
-        list[list | None]
-        -   The topographies of the connectivity results.
-        -   If topographies have been computed, a list with two sublists
-            containing the topographies for the seed and target channels,
-            respectively, for each connectivity node are returned, in which case
-            the topographies have dimensions [windows x nodes x channels x
-            frequencies] if windows have not been averaged over, or [nodes x
-            channels x frequencies] if they have.
-        -   If topographies have not been calculated, a list with two 'None'
-            entries is returned.
         """
+        return super().get_results(dimensions=dimensions)
 
-        return (
-            super().get_results(dimensions=dimensions),
-            self._get_topography_results(),
-        )
-
-    def _get_topography_results(self) -> list[Union[list, None]]:
+    def get_topography_results(
+        self, dimensions: Union[list[str], None] = None
+    ) -> NDArray:
         """Gets the topography results.
+
+        PARAMETERS
+        ----------
+        dimensions : list[str] | None;  default None
+        -   The dimensions of the results that will be returned.
+        -   If 'None', the current dimensions are used.
 
         RETURNS
         -------
-        topographies : list[list | None]
-        -   The topographies of the connectivity results.
-        -   If topographies have been computed, a list with two sublists
-            containing the topographies for the seed and target channels,
-            respectively, for each connectivity node are returned, in which case
-            the topographies have dimensions [windows x nodes x channels x
-            frequencies] if windows have not been averaged over, or [nodes x
-            channels x frequencies] if they have.
-        -   If topographies have not been calculated, a list with two 'None'
-            entries is returned.
-        """
+        topographies : numpy array
+        -   The topographies of the connectivity results as an array with two
+            subarrays containing the topographies for the seed and target
+            channels, respectively, for each connectivity node are returned, in
+            which case the topographies have dimensions [windows x nodes x
+            channels x frequencies] if windows have not been averaged over, or
+            [nodes x channels x frequencies] if they have.
 
-        if self._return_topographies:
-            topographies = []
-            if self._average_windows:
-                topographies.append(self.seed_topographies[0])
-                topographies.append(self.target_topographies[0])
-            else:
-                topographies.append(self.seed_topographies)
-                topographies.append(self.target_topographies)
+        RAISES
+        ------
+        AttributeError
+        -   Raised if spatial topographies have not been computed.
+        """
+        if not self._return_topographies:
+            raise AttributeError(
+                "Spatial topography values have not been computed, and so "
+                "cannot be returned."
+            )
+
+        topographies = []
+        if self._windows_averaged:
+            topographies.append(self.seed_topographies[0])
+            topographies.append(self.target_topographies[0])
         else:
-            topographies = [None, None]
+            topographies.append(self.seed_topographies)
+            topographies.append(self.target_topographies)
+
+        if dimensions is not None:
+            topographies = [
+                rearrange_axes(
+                    topographies[0], self._topography_results_dims, dimensions
+                ),
+                rearrange_axes(
+                    topographies[1], self._topography_results_dims, dimensions
+                ),
+            ]
 
         return topographies
 
