@@ -229,8 +229,8 @@ def check_file_inputs(fpath: str, ftype: Union[str, None]) -> None:
     -   A filepath, with or without a filetype extension.
 
     ftype : str | None
-    -   A filetype extension. Can only be 'None' if a filetype is present in
-        'fpath'.
+    -   A filetype extension without the leading period.
+    -   Can only be 'None' if a filetype is present in 'fpath'.
 
     RETURNS
     -------
@@ -263,7 +263,7 @@ def check_file_inputs(fpath: str, ftype: Union[str, None]) -> None:
     elif check_ftype_present(fpath) and ftype is None:
         ftype = identify_ftype(fpath)
     elif not check_ftype_present(fpath) and ftype is not None:
-        fpath += ftype
+        fpath = f"{fpath}.{ftype}"
     else:
         raise MissingFileExtensionError(
             "Error when trying to save ta dictionary:\nNo filetype has been "
