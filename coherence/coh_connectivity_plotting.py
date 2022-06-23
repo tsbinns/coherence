@@ -96,16 +96,3 @@ def connectivity_plotting(
                 f"type '{plot['plot_type']}' is not supported. Only plots of "
                 f"type(s) {supported_plot_types} are supported.\n"
             )
-        if save:
-            figures_fpath = generate_sessionwise_fpath(
-                f"{folderpath_plotting}\\Figures",
-                analysis_settings["cohort"],
-                analysis_settings["sub"],
-                analysis_settings["ses"],
-                analysis_settings["task"],
-                analysis_settings["acq"],
-                analysis_settings["run"],
-                plotting,
-                ".svg",
-            )
-            plot.save(fpath=figures_fpath)
