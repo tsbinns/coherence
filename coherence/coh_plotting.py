@@ -430,9 +430,13 @@ class LinePlot(Plotting):
 
         extremes = {}
         for idx, var_name in enumerate(var_names):
+            try:
+                extra_var = extra_vars[idx]
+            except TypeError:
+                extra_var = None
             extremes[var_name] = self._get_extremes_var(
                 var_name=var_name,
-                extra_var=extra_vars[idx],
+                extra_var=extra_var,
                 idcs=idcs,
                 min_cap=min_cap,
                 max_cap=max_cap,
@@ -483,9 +487,6 @@ class LinePlot(Plotting):
         -   List with two entries corresponding to the minimum and maximum
             values of the checked results, respectively.
         """
-
-        if extra_var is None:
-            extra_var = []
         if idcs is None:
             idcs = np.arange(len(self._results.index)).tolist()
 
@@ -499,8 +500,8 @@ class LinePlot(Plotting):
             ]
             minima = [min(main_vals)]
             maxima = [max(main_vals)]
-            extra_vals = self._results[extra_var][row_i]
-            if extra_vals is not None:
+            if extra_var is not None:
+                extra_vals = self._results[extra_var][row_i]
                 extra_vals = extra_vals[x_lim_idcs[0] : x_lim_idcs[1] + 1]
                 subbed_vals = np.subtract(main_vals, extra_vals).tolist()
                 added_vals = np.add(main_vals, extra_vals).tolist()
