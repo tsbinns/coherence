@@ -937,8 +937,8 @@ class ConnectivityMultivariate(ProcConnectivity):
             results = multivariate_connectivity(
                 data=cohy_matrix,
                 method=self._con_method,
-                n_group_a=len(self._seeds_list[con_i]),
-                n_group_b=len(self._targets_list[con_i]),
+                n_seeds=len(self._seeds_list[con_i]),
+                n_targets=len(self._targets_list[con_i]),
                 return_topographies=self._return_topographies,
             )
             if self._return_topographies and self._con_method == "mic":
@@ -1157,7 +1157,7 @@ class ConnectivityMultivariate(ProcConnectivity):
             )
             save_dict(
                 to_save=to_save[1],
-                fpath=f"{fpath}_topographies",
+                fpath=f"{fpath}_topography",
                 ftype=ftype,
                 ask_before_overwrite=ask_before_overwrite,
                 verbose=self._verbose,
