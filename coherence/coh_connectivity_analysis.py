@@ -50,6 +50,7 @@ def connectivity_analysis(
     result_types = analysis_settings["result_types"]
     steps = analysis_settings["steps"]
     band_measures = analysis_settings["freq_band_measures"]
+    band_data_keys = analysis_settings["freq_band_data_keys"]
     var_measures = analysis_settings["var_measures"]
     freq_bands = analysis_settings["freq_bands"]
 
@@ -64,7 +65,9 @@ def connectivity_analysis(
 
     if freq_bands is not None:
         results.freq_band_results(
-            bands=freq_bands, attributes=result_types, measures=band_measures
+            bands=freq_bands,
+            attributes=band_data_keys,
+            measures=band_measures,
         )
 
     for step in steps:
