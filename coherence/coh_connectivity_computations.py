@@ -35,8 +35,8 @@ from scipy.io import loadmat
 def multivariate_connectivity(
     data: NDArray,
     method: str,
-    n_group_a: int,
-    n_group_b: int,
+    n_seeds: int,
+    n_targets: int,
     return_topographies: bool = False,
 ) -> NDArray:
     """Method for directing to different multivariate connectivity methods.
@@ -55,15 +55,14 @@ def multivariate_connectivity(
     -   Supported inputs are: "mim" for multivariate interaction measure; "mic"
         for maximised imaginary coherence.
 
-    n_group_a : int
-    -   Number of signals in group A. Entries in the first two dimensions of
-        'data' from '0 : n_group_a' are taken as the coherency values for
-        signals in group A.
+    n_seeds : int
+    -   Number of seed signals. Entries in the first two dimensions of 'data'
+        from '0 : n_seeds' are taken as the coherency values for seed signals.
 
-    n_group_b : int
-    -   Number of signals in group B. Entries in the first two dimensions of
-        'data' from 'n_group_a : n_group_b' are taken as the coherency values
-        for signals in group B.
+    n_targets : int
+    -   Number of target signals. Entries in the first two dimensions of 'data'
+        from 'n_seeds : n_targets' are taken as the coherency values for target
+        signals.
 
     return_topographies : bool; default True
     -   Whether or not to return spatial topographies of connectivity for the
@@ -95,13 +94,13 @@ def multivariate_connectivity(
 
     if method == "mim":
         results = multivariate_interaction_measure(
-            data=data, n_group_a=n_group_a, n_group_b=n_group_b
+            data=data, n_seeds=n_seeds, n_targets=n_targets
         )
     else:
         results = max_imaginary_coherence(
             data=data,
-            n_group_a=n_group_a,
-            n_group_b=n_group_b,
+            n_seeds=n_seeds,
+            n_targets=n_targets,
             return_topographies=return_topographies,
         )
 
@@ -109,7 +108,7 @@ def multivariate_connectivity(
 
 
 def multivariate_interaction_measure(
-    data: NDArray, n_group_a: int, n_group_b: int
+    data: NDArray, n_seeds: int, n_targets: int
 ) -> NDArray:
     """Computes the multivariate interaction measure between two groups of
     signals.
@@ -119,28 +118,27 @@ def multivariate_interaction_measure(
         signals, A and B, across frequencies. Has the dimensions [signals x
         signals x frequencies].
 
-    n_group_a : int
-    -   Number of signals in group A. Entries in the first two dimensions of
-        'data' from '0 : n_group_a' are taken as the coherency values for
-        signals in group A.
+    n_seeds : int
+    -   Number of seed signals. Entries in the first two dimensions of 'data'
+        from '0 : n_seeds' are taken as the coherency values for seed signals.
 
-    n_group_b : int
-    -   Number of signals in group B. Entries in the first two dimensions of
-        'data' from 'n_group_a : n_group_b' are taken as the coherency values
-        for signals in group B.
+    n_targets : int
+    -   Number of target signals. Entries in the first two dimensions of 'data'
+        from 'n_seeds : n_targets' are taken as the coherency values for target
+        signals.
 
     RETURNS
     -------
     mim : numpy array
-    -   One-dimensional array containing a connectivity value between signal
-        groups A and B for each frequency.
+    -   One-dimensional array containing a connectivity value between seeds and
+        targets for each frequency.
 
     RAISES
     ------
     ValueError
     -   Raised if the data is not a three-dimensional array.
     -   Raised if the first two dimensions of 'data' is not a square matrix with
-        lengths equal to the combined number of signals in groups A and B.
+        lengths equal to the combined number of seed and target signals.
 
     NOTES
     -----
@@ -155,15 +153,14 @@ def multivariate_interaction_measure(
             "array containing connectivity values across frequencies, but the "
             f"data has {len(data.shape)} dimensions."
         )
-    n_signals = n_group_a + n_group_b
+    n_signals = n_seeds + n_targets
     if (n_signals, n_signals) != data.shape[0:2]:
         raise ValueError(
             "Error when calculating the multivariate interaction measure:\nThe "
             f"data for each frequency must be a [{n_signals} x {n_signals}] "
             "square matrix containing all connectivities between the "
-            f"{n_group_a} signals in group A and the {n_group_b} signals in "
-            f"group B, but it is a [{np.shape(data)[0]} x {np.shape(data)[1]}] "
-            "matrix."
+            f"{n_seeds} seed and {n_targets} target signals in, but it is a "
+            f"[{np.shape(data)[0]} x {np.shape(data)[1]}] matrix."
         )
 
     n_freqs = data.shape[2]
@@ -171,7 +168,7 @@ def multivariate_interaction_measure(
     for freq_i in range(n_freqs):
         # Equations 2-4
         E = multivariate_connectivity_compute_e(
-            data=data[:, :, freq_i], n_group_a=n_group_a
+            data=data[:, :, freq_i], n_seeds=n_seeds
         )
 
         # Equation 14
@@ -182,8 +179,8 @@ def multivariate_interaction_measure(
 
 def max_imaginary_coherence(
     data: NDArray,
-    n_group_a: int,
-    n_group_b: int,
+    n_seeds: int,
+    n_targets: int,
     return_topographies: bool = True,
 ) -> Union[NDArray, list[NDArray]]:
     """Computes the maximised imaginary coherence between two groups of signals.
@@ -193,15 +190,14 @@ def max_imaginary_coherence(
         signals, A and B, across frequencies. Has the dimensions [signals x
         signals x frequencies].
 
-    n_group_a : int
-    -   Number of signals in group A. Entries in the first two dimensions of
-        'data' from '0 : n_group_a' are taken as the coherency values for
-        signals in group A.
+    n_seeds : int
+    -   Number of seed signals. Entries in the first two dimensions of 'data'
+        from '0 : n_seeds' are taken as the coherency values for seed signals.
 
-    n_group_b : int
-    -   Number of signals in group B. Entries in the first two dimensions of
-        'data' from 'n_group_a : n_group_b' are taken as the coherency values
-        for signals in group B.
+    n_targets : int
+    -   Number of target signals. Entries in the first two dimensions of 'data'
+        from 'n_seeds : n_targets' are taken as the coherency values for target
+        signals.
 
     return_topographies : bool; default True
     -   Whether or not to return spatial topographies of connectivity for the
@@ -210,11 +206,11 @@ def max_imaginary_coherence(
     RETURNS
     -------
     mic : numpy array
-    -   One-dimensional array containing a connectivity value between signal
-        groups A and B for each frequency.
+    -   One-dimensional array containing a connectivity value between seed and
+        target signals for each frequency.
 
     tuple(numpy array)
-    -   Spatial topographies of connectivity for the signals in groups A and B,
+    -   Spatial topographies of connectivity for the seed and target signals,
         respectively, for each frequency, each with dimensions [signals x
         frequencies].
     -   Returned only if 'return_topographies' is 'True'.
@@ -224,7 +220,7 @@ def max_imaginary_coherence(
     ValueError
     -   Raised if the data is not a three-dimensional array.
     -   Raised if the first two dimensions of 'data' is not a square matrix with
-        lengths equal to the combined number of signals in groups A and B.
+        lengths equal to the combined number of seed and target signals.
 
     NOTES
     -----
@@ -233,7 +229,8 @@ def max_imaginary_coherence(
     -   Spatial topographies are computed using the weight vectors alpha and
         beta (see [1]) by multiplying the real part of the coherency
         cross-spectrum 'data' by weight vectors, as in Eq. 20 of Nikulin et al.
-        (2011), NeuroImage, DOI: 10.1016/j.neuroimage.2011.01.057.
+        (2011), NeuroImage, DOI: 10.1016/j.neuroimage.2011.01.057, with the
+        absolute values then taken.
     -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
         code provided by Franziska Pellegrini of Stefan Haufe's research group.
     """
@@ -243,13 +240,13 @@ def max_imaginary_coherence(
             "array containing connectivity values across frequencies, but the "
             f"data has {len(data.shape)} dimensions."
         )
-    n_signals = n_group_a + n_group_b
+    n_signals = n_seeds + n_targets
     if (n_signals, n_signals) != data.shape[0:2]:
         raise ValueError(
             "Error when calculating the multivariate interaction measure:\nThe "
             f"data for each frequency must be a [{n_signals} x {n_signals}] "
             "square matrix containing all connectivities between the "
-            f"{n_group_a} signals in group A and the {n_group_b} signals in "
+            f"{n_seeds} signals in group A and the {n_targets} signals in "
             f"group B, but it is a [{data.shape[0]} x {data.shape[1]}] "
             "matrix."
         )
@@ -261,7 +258,7 @@ def max_imaginary_coherence(
     for freq_i in range(n_freqs):
         # Equations 2-4
         E = multivariate_connectivity_compute_e(
-            data=data[:, :, freq_i], n_group_a=n_group_a
+            data=data[:, :, freq_i], n_seeds=n_seeds
         )
 
         # Weights for signals in the groups
@@ -279,15 +276,15 @@ def max_imaginary_coherence(
 
         if return_topographies:
             topos_a.append(
-                data[:n_group_a, :n_group_a, freq_i].real.dot(alpha)
+                np.abs(np.real(data[:n_seeds, :n_seeds, freq_i]).dot(alpha))
             )  # C_aa * alpha
             topos_b.append(
-                data[n_group_a:, n_group_a:, freq_i].real.dot(beta)
+                np.abs(np.real(data[n_seeds:, n_seeds:, freq_i]).dot(beta))
             )  # C_bb * beta
 
     if return_topographies:
-        topos_a = np.transpose(np.asarray(topos_a, dtype=np.float64), (1, 0))
-        topos_b = np.transpose(np.asarray(topos_b, dtype=np.float64), (1, 0))
+        topos_a = np.transpose(topos_a, (1, 0))
+        topos_b = np.transpose(topos_b, (1, 0))
         return mic, (topos_a, topos_b)
     else:
         return mic
