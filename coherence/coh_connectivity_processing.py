@@ -125,7 +125,7 @@ def coherence_processing(
                 task,
                 acquisition,
                 run,
-                f"connectivity-{analysis}_{method}",
+                f"connectivity-{method}_{analysis}",
                 ".json",
             )
             coherence.save_results(coherence_fpath)
@@ -242,7 +242,7 @@ def multivariate_processing(
                 task,
                 acquisition,
                 run,
-                f"connectivity-{analysis}_{con_method}",
+                f"connectivity-{con_method}_{analysis}",
                 "",
             )
             multivariate.save_results(multivariate_fpath, "json")
@@ -359,7 +359,7 @@ def granger_processing(
                 task,
                 acquisition,
                 run,
-                f"connectivity-{analysis}_{gc_method}",
+                f"connectivity-{gc_method}_{analysis}",
                 ".json",
             )
             coherence.save_results(granger_fpath)
