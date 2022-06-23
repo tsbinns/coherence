@@ -10,13 +10,15 @@ from coh_connectivity_plotting import connectivity_plotting
 
 
 ### Info about the results to analyse
-FOLDERPATH_PLOTTING = (
-    "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN\\Plotting"
-)
 FOLDERPATH_ANALYSIS = (
-    "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN\\Analysis"
+    "\\\\?\\C:\\Users\\User\\OneDrive - Charité - Universitätsmedizin Berlin\\"
+    "PROJECT ECOG-LFP Coherence\\Analysis\\Analysis"
 )
-PLOTTING = "connectivity-MedOffOn"
+FOLDERPATH_PLOTTING = (
+    "\\\\?\\C:\\Users\\User\\OneDrive - Charité - Universitätsmedizin Berlin\\"
+    "PROJECT ECOG-LFP Coherence\\Analysis\\Plotting"
+)
+PLOTTING = "con_multivar_regional-MedOffOn"
 
 
 if __name__ == "__main__":
