@@ -698,31 +698,28 @@ def discrete_lyapunov(A: NDArray, Q: NDArray) -> NDArray:
     return X
 
 
-def multivariate_connectivity_compute_e(
-    data: NDArray, n_group_a: int
-) -> NDArray:
+def multivariate_connectivity_compute_e(data: NDArray, n_seeds: int) -> NDArray:
     """Computes 'E' as the imaginary part of the transformed connectivity matrix
-    'D' derived from the original connectivity matrix 'C' between the signals in
-    groups A and B.
+    'D' derived from the original connectivity matrix 'C' between the seed and
+    target signals.
     -   Designed for use with the methods 'max_imaginary_coherence' and
         'multivariate_interaction_measure'.
 
     data : numpy array
-    -   Coherency values between all possible connections of two groups of
-        signals, A and B, for a single frequency. Has the dimensions [signals x
-        signals].
+    -   Coherency values between all possible connections of seeds and targets,
+        for a single frequency. Has the dimensions [signals x signals].
 
-    n_group_a : int
-    -   Number of signals in group A. Entries in both dimensions of 'data' from
-        '0 : n_group_a' are taken as the coherency values for signals in group
-        A. Entries from 'n_group_a : end' are taken as the coherency values for
-        signals in group B.
+    n_seeds : int
+    -   Number of seed signals. Entries in both dimensions of 'data' from
+        '0 : n_seeds' are taken as the coherency values for seed signals.
+        Entries from 'n_seeds : end' are taken as the coherency values for
+        target signals.
 
     RETURNS
     -------
     E : numpy array
     -   The imaginary part of the transformed connectivity matrix 'D' between
-        signals in groups A and B.
+        seed and target signals.
 
     NOTES
     -----
@@ -732,25 +729,21 @@ def multivariate_connectivity_compute_e(
         code provided by Franziska Pellegrini of Stefan Haufe's research group.
     """
     # Equation 2
-    C_aa = data[0:n_group_a, 0:n_group_a]
-    C_ab = data[0:n_group_a, n_group_a:]
-    C_bb = data[n_group_a:, n_group_a:]
-    C_ba = data[n_group_a:, 0:n_group_a]
+    C_aa = data[0:n_seeds, 0:n_seeds]
+    C_ab = data[0:n_seeds, n_seeds:]
+    C_bb = data[n_seeds:, n_seeds:]
+    C_ba = data[n_seeds:, 0:n_seeds]
     C = np.vstack((np.hstack((C_aa, C_ab)), np.hstack((C_ba, C_bb))))
 
     # Equation 3
     T = np.zeros(C.shape)
-    T[0:n_group_a, 0:n_group_a] = spla.fractional_matrix_power(
-        np.real(C_aa), -0.5
-    )
-    T[n_group_a:, n_group_a:] = spla.fractional_matrix_power(
-        np.real(C_bb), -0.5
-    )
+    T[0:n_seeds, 0:n_seeds] = spla.fractional_matrix_power(np.real(C_aa), -0.5)
+    T[n_seeds:, n_seeds:] = spla.fractional_matrix_power(np.real(C_bb), -0.5)
 
     # Equation 4
     D = np.matmul(T, np.matmul(C, T))
 
-    # 'E' as the imaginary part of 'D' between groups A and B
-    E = np.imag(D[0:n_group_a, n_group_a:])
+    # 'E' as the imaginary part of 'D' between seeds and targets
+    E = np.imag(D[0:n_seeds, n_seeds:])
 
     return E
