@@ -299,6 +299,9 @@ class ProcConnectivity(ProcMethod):
                 "ch_regions": ordered_list_from_dict(
                     ch_names, self.extra_info["ch_regions"]
                 ),
+                "ch_subregions": ordered_list_from_dict(
+                    ch_names, self.extra_info["ch_subregions"]
+                ),
                 "ch_hemispheres": ordered_list_from_dict(
                     ch_names, self.extra_info["ch_hemispheres"]
                 ),
