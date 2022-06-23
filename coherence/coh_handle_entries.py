@@ -633,6 +633,9 @@ def reorder_rows_dataframe(
     """Reorders the rows of a pandas DataFrame based on the order in which
     values occur in a given column.
 
+    If certain values are not present in the data, they are not included in the
+    ordering. If no values are present in the data, no ordering is performed.
+
     PARAMETERS
     ----------
     dataframe : pandas DataFrame
@@ -651,9 +654,15 @@ def reorder_rows_dataframe(
     dataframe : pandas DataFrame
     -   Reordered DataFrame.
     """
+    remove_values = []
+    for value in values_order:
+        if value not in np.unique(dataframe[key].tolist()):
+            remove_values.append(value)
+    values_order = [val for val in values_order if val not in remove_values]
 
-    dataframe = deepcopy(dataframe)
-    dataframe = dataframe.set_index(key).loc[values_order].reset_index()
+    if values_order != []:
+        dataframe = deepcopy(dataframe)
+        dataframe = dataframe.set_index(key).loc[values_order].reset_index()
 
     return dataframe
 
@@ -1228,7 +1237,8 @@ def drop_from_dict(obj: dict, drop: list[str]) -> dict:
 
 
 def _check_dimensions_results(
-    dimensions: list[Union[str, list[str]]], results_key: str
+    dimensions: list[Union[str, list[str]]],
+    results_key: str,
 ) -> list[Union[str, list[str]]]:
     """Checks whether dimensions of results are in the correct format.
 
@@ -1274,39 +1284,51 @@ def _check_dimensions_results(
     RAISES
     ------
     ValueError
+    -   Raised if both "channels" and "nodes" are present in the dimensions.
     -   Raised if the dimensions are a list of sublists corresponding to the
         dimensions of individual channels/nodes, but with "channels" already
         being included in the dimensions of these individual channels/nodes
         which is, by their very nature, incorrect.
     """
+    if "nodes" in dimensions:
+        signal_dim = "nodes"
+    elif "channels" in dimensions:
+        signal_dim = "channels"
+    elif "nodes" in dimensions and "channels" in dimensions:
+        raise NotImplementedError(
+            "Processing results containing data for both 'channels' and "
+            "'nodes' is not supported."
+        )
+    else:
+        signal_dim = "channels"
 
     identical_dimensions = True
     if all(isinstance(entry, list) for entry in dimensions):
         for dims in dimensions:
-            if "channels" in dims:
+            if signal_dim in dims:
                 raise ValueError(
                     "Error when trying to sort the dimensions of the results:\n"
                     "Multiple dimensions for the results entry "
                     f"'{results_key}' are present. In this case, it is assumed "
                     "that each entry in the dimensions corresponds to each "
-                    "channel/node in the results. As a result, a 'channels' "
+                    f"channel/node in the results. As a result, a {signal_dim} "
                     "axis should not be present in the dimensions, but it is "
                     f"{dims}.\nEither provide dimensions which are only a "
-                    "single list of strings that applies to all channels, or "
-                    "give dimensions for each individual node/channel (in "
-                    "which case no 'channel' axis should be present in the "
-                    "dimensions)."
+                    "single list of strings that applies to all "
+                    "channels/nodes, or give dimensions for each individual "
+                    f"channel/node (in which case no {signal_dim}) axis should "
+                    "be present in the dimensions)."
                 )
         identical_dimensions, _ = check_vals_identical_list(to_check=dimensions)
         if identical_dimensions:
-            dimensions = ["channels", *dimensions[0]]
+            dimensions = [signal_dim, *dimensions[0]]
         else:
             check_non_repeated_vals_lists(
                 lists=dimensions, allow_non_repeated=False
             )
 
     if identical_dimensions:
-        dims_to_find = ["channels", "frequencies"]
+        dims_to_find = [signal_dim, "frequencies"]
         [
             dims_to_find.append(dim)
             for dim in dimensions
@@ -1325,26 +1347,28 @@ def _check_dimensions_results(
 
 def _sort_dimensions_results(results: dict, verbose: bool) -> tuple[dict, list]:
     """Rearranges the dimensions of attributes in a results dictionary so that
-    the 0th axis corresponds to results from different channels, and the 1st
-    dimension to different frequencies. If no dimensions, are given, the 0th
-    axis is assumed to correspond to channels and the 1st axis to frequencies.
+    the 0th axis corresponds to results from different channels/nodes, and the
+    1st dimension to different frequencies. If no dimensions, are given, the 0th
+    axis is assumed to correspond to channels/nodes and the 1st axis to
+    frequencies.
     -   Dimensions for an attribute, say 'X', would be containined in an
         attribute of the results dictionary under the name 'X_dimensions'.
     -   The dimensions should be provided as a list of strings containing the
-        values 'channels' and 'frequencies' in the positions whose index
-        corresponds to these axes in the values of 'X'. A single list should be
-        given, i.e. 'X_dimensions' should hold for all entries of 'X'.
+        values "channels" or "nodes" and "frequencies" in the positions whose
+        index corresponds to these axes in the values of 'X'. A single list
+        should be given, i.e. 'X_dimensions' should hold for all entries of 'X'.
     -   E.g. if 'X' has shape [25, 10, 50, 300] with an 'X_dimensions' of
-        ['epochs', 'channels', 'frequencies', 'timepoints'], the shape of 'X'
+        [epochs x channels/nodes x frequencies x timepoints], the shape of 'X'
         would be rearranged to [10, 50, 25, 300], corresponding to the
-        dimensions ["channels", "frequencies", "epochs", "timepoints"].
-    -   The axis for channels should be indicated as "channels", and the axis
-        for frequencies should be marked as "frequencies".
+        dimensions [channels/nodes x frequencies x epochs x timepoints].
+    -   The axis for channels/nodes should be indicated as "channels" or "nodes,
+        respectively, and the axis for frequencies should be marked as
+        "frequencies".
     -   If the dimensions is a list of lists of strings, there should be a
         sublist for each channel/node in the results. Dimensions in the sublists
         should correspond to the results of each individual channel/node (i.e.
-        no "channel" axis should be present in the dimensions of an individual
-        node/channel as this is agiven).
+        no "channel" or "node" axis should be present in the dimensions of an
+        individual node/channel as this is agiven).
 
     PARAMETERS
     ----------
@@ -1363,12 +1387,23 @@ def _sort_dimensions_results(results: dict, verbose: bool) -> tuple[dict, list]:
     -   Names of the dimension attributes in the results dictionary, or an empty
         list if no attributes are given.
     """
-
     dims_keys = []
     for key in results.keys():
         dims_key = f"{key}_dimensions"
         new_dims_set = False
         if dims_key in results.keys():
+            dimensions = results[dims_key]
+            if "nodes" in dimensions:
+                signal_dim = "nodes"
+            elif "channels" in dimensions:
+                signal_dim = "channels"
+            elif "nodes" in dimensions and "channels" in dimensions:
+                raise NotImplementedError(
+                    "Processing results containing data for both 'channels' "
+                    "and 'nodes' is not supported."
+                )
+            else:
+                signal_dim = "channels"
             dimensions, dims_to_find = _check_dimensions_results(
                 dimensions=results[dims_key], results_key=key
             )
@@ -1381,7 +1416,7 @@ def _sort_dimensions_results(results: dict, verbose: bool) -> tuple[dict, list]:
                             results[key][node_i],
                             new_axes_order,
                         ).tolist()
-                new_dims = ["channels", *dims_to_find]
+                new_dims = [signal_dim, *dims_to_find]
                 if verbose:
                     print(
                         f"Changing the dimensions of '{key}' which were "
