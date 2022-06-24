@@ -21,8 +21,8 @@ FOLDERPATH_PREPROCESSING = (
 )
 DATASET = "BIDS_Berlin_ECOG_LFP"
 ANALYSIS = "with_notch_filter"
-SUBJECT = "003"
-SESSION = "EcogLfpMedOff01"
+SUBJECT = "006"
+SESSION = "EcogLfpMedOn02"
 TASK = "Rest"
 ACQUISITION = "StimOff"
 RUN = "1"
