@@ -1,4 +1,4 @@
-"""Analyses ECoG-LFP coherence values."""
+"""Analyses ECoG-LFP connectivity results."""
 
 import os
 import sys
@@ -18,7 +18,7 @@ FOLDERPATH_ANALYSIS = (
     "\\\\?\\C:\\Users\\User\\OneDrive - Charité - Universitätsmedizin Berlin\\"
     "PROJECT ECOG-LFP Coherence\\Analysis\\Analysis"
 )
-ANALYSIS = "con_multivar_regional-MedOffOn"
+ANALYSIS = "con_multivar_whole-MedOffOn"
 
 
 if __name__ == "__main__":
