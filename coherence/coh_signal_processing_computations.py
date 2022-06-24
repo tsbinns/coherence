@@ -156,7 +156,7 @@ def autocovariance_to_full_var(
             np.linalg.cholesky(V)
         except np.linalg.linalg.LinAlgError as np_error:
             n_lags = G.shape[2]
-            if n_lags - 1 > 0:
+            if n_lags - 1 > 1:
                 _, V = autocovariance_to_full_var(
                     G=G[:, :, : n_lags - 1],
                     enforce_posdef_residuals_cov=True,
@@ -250,6 +250,8 @@ def whittle_lwr_recursion(
 
     AF[:, kf] = mrdivide(GB[kb, :], G0)
     AB[:, kb] = mrdivide(GF[kf, :], G0)
+    # AF[:, kf] = np.matmul(GB[kb, :], np.linalg.inv(G0))
+    # AB[:, kb] = np.matmul(GB[kf, :], np.linalg.inv(G0))
 
     ### Recursion
     for k in np.arange(2, q + 1):
