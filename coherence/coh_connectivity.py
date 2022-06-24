@@ -1549,14 +1549,17 @@ class ConnectivityGranger(ProcConnectivity):
         fmt_fmax: Union[int, float] = float("inf"),
         fmt_n_fft: Union[int, None] = None,
     ):
-        """Performs the Granger casuality analysis on the data.
+        """Performs the Granger casuality (GC) analysis on the data.
 
         PARAMETERS
         ----------
         gc_method : str
-        -   The Granger causality metric to compute.
-        -   Supported inputs are: "gc" - standard Granger causality; and "trgc"
-            - time-reversed Granger causality.
+        -   The GC metric to compute.
+        -   Supported inputs are: "gc" for GC from seeds to targets; "net_gc"
+            for net GC, i.e. GC from seeds to targets minus GC from targets to
+            seeds; "trgc" for time-reversed GC (TRGC) from seeds to targets; and
+            "net_trgc" for net TRGC, i.e. TRGC from seeds to targets minus TRGC
+            from targets to seeds.
 
         cs_method : str
         -   The method for computing the cross-spectra of the data.
