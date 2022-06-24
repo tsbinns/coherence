@@ -13,15 +13,17 @@ from coh_loading import load_preprocessed_dict
 
 ### Info about the data to analyse
 FOLDERPATH_PREPROCESSING = (
-    "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN\\Preprocessing"
+    "\\\\?\\C:\\Users\\User\\OneDrive - Charité - Universitätsmedizin Berlin\\"
+    "PROJECT ECOG-LFP Coherence\\Analysis\\Preprocessing"
 )
 FOLDERPATH_PROCESSING = (
-    "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN\\Processing"
+    "\\\\?\\C:\\Users\\User\\OneDrive - Charité - Universitätsmedizin Berlin\\"
+    "PROJECT ECOG-LFP Coherence\\Analysis\\Processing"
 )
 DATASET = "BIDS_Berlin_ECOG_LFP"
 PREPROCESSING = "preprocessed-with_notch_filter"
-ANALYSIS = "con_granger"
-SUBJECT = "003"
+ANALYSIS = "con_granger_whole"
+SUBJECT = "006"
 SESSION = "EcogLfpMedOff01"
 TASK = "Rest"
 ACQUISITION = "StimOff"
