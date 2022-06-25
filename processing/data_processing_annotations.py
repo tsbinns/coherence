@@ -17,14 +17,15 @@ FOLDERPATH_DATA = (
     "PROJECT ECOG-LFP Coherence\\Data"
 )
 FOLDERPATH_PREPROCESSING = (
-    "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN\\Preprocessing"
+    "C:\\Users\\User\\OneDrive - Charité - Universitätsmedizin Berlin\\"
+    "PROJECT ECOG-LFP Coherence\\Analysis\\Preprocessing"
 )
 DATASET = "BIDS_Berlin_ECOG_LFP"
 ANALYSIS = "for_annotations"
-SUBJECT = "003"
-SESSION = "EcogLfpMedOff01"
+SUBJECT = "011"
+SESSION = "EcogLfpMedOn02"
 TASK = "Rest"
-ACQUISITION = "StimOff"
+ACQUISITION = "StimOffDopa65"
 RUN = "1"
 
 
