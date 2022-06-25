@@ -299,6 +299,9 @@ def preprocessing_for_annotations(
             data_settings["ch_names"], data_settings["ch_coords"]
         )
     signal.set_regions(data_settings["ch_names"], data_settings["ch_regions"])
+    signal.set_subregions(
+        data_settings["ch_names"], data_settings["ch_subregions"]
+    )
     signal.set_hemispheres(
         data_settings["ch_names"], data_settings["ch_hemispheres"]
     )
@@ -310,6 +313,7 @@ def preprocessing_for_annotations(
             ch_types_new=combine_settings["ch_types_new"],
             ch_coords_new=combine_settings["ch_coords_new"],
             ch_regions_new=combine_settings["ch_regions_new"],
+            ch_subregions_new=combine_settings["ch_subregions_new"],
         )
     if analysis_settings["rereference"]:
         for key in data_settings["rereferencing"].keys():
