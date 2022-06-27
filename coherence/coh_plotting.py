@@ -1048,7 +1048,7 @@ class LinePlot(Plotting):
                 subplot.plot(
                     x_vals,
                     y_vals,
-                    color=colours[colour_i],
+                    # color=colours[colour_i],
                     linewidth=2,
                     label=values_label,
                 )
