@@ -22,25 +22,29 @@ import numpy as np
 import scipy as sp
 
 
-def mrdivide(A: NDArray, B: NDArray) -> NDArray:
-    """Performs a matrix right division, equivalent to the 'mrdivide' function
-    or '/' operator in MATLAB.
+def linsolve_transa(A: NDArray, B: NDArray) -> NDArray:
+    """Equivalent of calling MATLAB's 'linsolve' function with the 'TRANSA'
+    option set to 'True', whereby instead of solving the equation A*X=B, the
+    equation A'*X=B is solved (where ' is the complex conjugate transposed).
+
+    This is implemented in Python by calling scipy's 'linalg.solve' function
+    with 'transposed' set to 'True'.
 
     PARAMETERS
     ----------
     A : numpy array
-    -   An n x m matrix on the left side of the division.
+    -   Variable A in the equation to solve.
 
     B : numpy array
-    -   An n x m matrix on the right side of the division.
+    -   Variable B in the equation to solve.
 
     RETURNS
     -------
     numpy array
-    -   The result of the matrix right division.
+    -   Variable X in the equation to solve.
     """
 
-    return np.linalg.solve(B.conj().T, A.conj().T).conj().T
+    return sp.linalg.solve(A, B, transposed=True)
 
 
 def reshape(array: NDArray, dims: Union[int, tuple[int]]) -> NDArray:
