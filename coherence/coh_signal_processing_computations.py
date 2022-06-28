@@ -301,8 +301,12 @@ def whittle_lwr_recursion(
 
 
 def var_to_iss(AF: NDArray, V: NDArray):
-    """Computes innovations-form parameters for a state-space model from a VAR
-    model using Aoki's method.
+    """Computes innovations-form parameters for a state-space model from a full
+    vector autoregressive (VAR) model using Aoki's method.
+
+    For a non-moving-average full VAR model, the state-space parameters C (the
+    observation matrix) and V (the innivations covariance matrix) are identical
+    to AF and V of the VAR model, respectively.
 
     PARAMETERS
     ----------
@@ -324,6 +328,8 @@ def var_to_iss(AF: NDArray, V: NDArray):
 
     NOTES
     -----
+    -   Reference(s): [1] Barnett, L. & Seth, A.K., 2015, Physical Review, DOI:
+        10.1103/PhysRevE.91.040101.
     -   Aoki's method for computing innovations-form parameters for a
         state-space model allows for zero-lag coefficients.
     -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
@@ -409,6 +415,8 @@ def iss_to_gc(
 
     NOTES
     -----
+    -   Reference(s): [1] Barnett, L. & Seth, A.K., 2015, Physical Review, DOI:
+        10.1103/PhysRevE.91.040101.
     -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
         code provided by Stefan Haufe's research group.
     """
@@ -424,7 +432,7 @@ def iss_to_gc(
         HV = np.matmul(H[:, :, freq_i], VSQRT)
         S = np.matmul(
             HV, HV.conj().T
-        )  # CSD of the projected state variable (Eq. 6)
+        )  # CSD of the projected state variable (Eq. 6 of [1])
         S_tt = S[np.ix_(targets, targets)]  # CSD between targets
         if len(PVSQRT) == 1:
             HV_ts = H[targets, seeds, freq_i] * PVSQRT
@@ -438,7 +446,7 @@ def iss_to_gc(
         else:
             numerator = np.real(np.linalg.det(S_tt))
             denominator = np.real(np.linalg.det(S_tt - HVH_ts))
-        f[freq_i] = np.log(numerator) - np.log(denominator)  # Eq. 11
+        f[freq_i] = np.log(numerator) - np.log(denominator)  # Eq. 11 of [1]
 
     return f
 
@@ -547,6 +555,8 @@ def partial_covariance(
 
     NOTES
     -----
+    -   Reference: Barnett, L. & Seth, A.K., 2015, Physical Review, DOI:
+        10.1103/PhysRevE.91.040101.
     -   Given a covariance matrix V, the partial covariance matrix of V between
         indices i and j, given k (V_ij|k), is equivalent to
         V_ij - V_ik * V_kk^-1 * V_kj. In this case, i and j are seeds, and k is
