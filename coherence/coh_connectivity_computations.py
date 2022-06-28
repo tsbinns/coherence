@@ -24,9 +24,9 @@ from coh_matlab_functions import reshape
 from coh_signal_processing_computations import (
     autocovariance_to_full_var,
     csd_to_autocovariance,
+    iss_to_gc,
     multivariate_connectivity_compute_e,
-    ss_params_to_gc,
-    var_to_ss_params,
+    var_to_iss,
 )
 
 from scipy.io import loadmat
@@ -436,8 +436,8 @@ def gc_computation(
             var_coeffs,
             (var_coeffs.shape[0], var_coeffs.shape[0] * var_coeffs.shape[2]),
         )
-        A, K = var_to_ss_params(AF=var_coeffs_2d, V=residuals_cov)
-        gc_vals[node_i, :] = ss_params_to_gc(
+        A, K = var_to_iss(AF=var_coeffs_2d, V=residuals_cov)
+        gc_vals[node_i, :] = iss_to_gc(
             A=A,
             C=var_coeffs_2d,
             K=K,
@@ -447,7 +447,7 @@ def gc_computation(
             targets=target_idcs_new,
         )
         if "net" in method:
-            gc_vals[node_i, :] -= ss_params_to_gc(
+            gc_vals[node_i, :] -= iss_to_gc(
                 A=A,
                 C=var_coeffs_2d,
                 K=K,
