@@ -12,7 +12,9 @@ import numpy as np
 from scipy import linalg as spla
 from numpy.typing import NDArray
 from coh_handle_entries import check_posdef
-from coh_matlab_functions import mrdivide, reshape, kron
+from coh_matlab_functions import reshape, kron, linsolve_transa
+
+from scipy.io import loadmat
 
 
 def csd_to_autocovariance(
@@ -248,21 +250,31 @@ def whittle_lwr_recursion(
     kf = np.arange(k * n)  # forward indices
     kb = np.arange(r * n, qn)  # backward indices
 
-    AF[:, kf] = mrdivide(GB[kb, :], G0)
-    AB[:, kb] = mrdivide(GF[kf, :], G0)
-    # AF[:, kf] = np.matmul(GB[kb, :], np.linalg.inv(G0))
-    # AB[:, kb] = np.matmul(GB[kf, :], np.linalg.inv(G0))
+    # equivalent to calling A/B or linsolve(B',A',opts.TRANSA=true)' in MATLAB
+    AF[:, kf] = linsolve_transa(G0.conj().T, GB[kb, :].conj().T).conj().T
+    AB[:, kb] = linsolve_transa(G0.conj().T, GF[kf, :].conj().T).conj().T
+    # AF[:, kf] = (
+    #    spla.solve(G0.conj().T, GB[kb, :].conj().T, transposed=True).conj().T
+    # )
+    # AB[:, kb] = (
+    #    spla.solve(G0.conj().T, GF[kf, :].conj().T, transposed=True).conj().T
+    # )
 
     ### Recursion
     for k in np.arange(2, q + 1):
-        AAF = mrdivide(
-            GB[(r - 1) * n : r * n, :] - np.matmul(AF[:, kf], GB[kb, :]),
-            G0 - np.matmul(AB[:, kb], GB[kb, :]),
-        )  # DF/VB
-        AAB = mrdivide(
-            GF[(k - 1) * n : k * n, :] - np.matmul(AB[:, kb], GF[kf, :]),
-            G0 - np.matmul(AF[:, kf], GF[kf, :]),
-        )  # DB/VF
+        # equivalent to calling A/B or linsolve(B,A',opts.TRANSA=true)' in MATLAB
+        var_A = GB[(r - 1) * n : r * n, :] - np.matmul(AF[:, kf], GB[kb, :])
+        var_B = G0 - np.matmul(AB[:, kb], GB[kb, :])
+        AAF = linsolve_transa(var_B, var_A.conj().T).conj().T
+        var_A = GF[(k - 1) * n : k * n, :] - np.matmul(AB[:, kb], GF[kf, :])
+        var_B = G0 - np.matmul(AF[:, kf], GF[kf, :])
+        AAB = linsolve_transa(var_B, var_A.conj().T).conj().T
+        # A = GB[(r - 1) * n : r * n, :] - np.matmul(AF[:, kf], GB[kb, :])
+        # B = G0 - np.matmul(AB[:, kb], GB[kb, :])
+        # AAF = spla.solve(B, A.conj().T, transposed=True).conj().T  # DF/VB
+        # A = GF[(k - 1) * n : k * n, :] - np.matmul(AB[:, kb], GF[kf, :])
+        # B = G0 - np.matmul(AF[:, kf], GF[kf, :])
+        # AAB = spla.solve(B, A.conj().T, transposed=True).conj().T  # DB/VF
 
         AF_previous = AF[:, kf]
         AB_previous = AB[:, kb]
@@ -288,10 +300,9 @@ def whittle_lwr_recursion(
     return AF, V
 
 
-def var_to_ss_params(AF: NDArray, V: NDArray):
-    """Computes innovations-form parameters for a state-space vector
-    autoregressive (VAR) model from a VAR model's coefficients and residuals'
-    covariance matrix using Aoki's method.
+def var_to_iss(AF: NDArray, V: NDArray):
+    """Computes innovations-form parameters for a state-space model from a VAR
+    model using Aoki's method.
 
     PARAMETERS
     ----------
@@ -306,15 +317,15 @@ def var_to_ss_params(AF: NDArray, V: NDArray):
     RETURNS
     -------
     A : numpy array
-    -   ???
+    -   State transition matrix??
 
     K : numpy array
-    -   ???
+    -   Kalman gain matix??
 
     NOTES
     -----
     -   Aoki's method for computing innovations-form parameters for a
-        state-space VAR model allows for zero-lag coefficients.
+        state-space model allows for zero-lag coefficients.
     -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
         code provided by Stefan Haufe's research group.
     """
@@ -341,8 +352,10 @@ def var_to_ss_params(AF: NDArray, V: NDArray):
     p = AF.shape[1] // m  # number of autoregressive lags
 
     Ip = np.eye(m * p)
-    A = np.vstack((AF, Ip[: (len(Ip) - m), :]))
-    K = np.vstack((np.eye(m), np.zeros(((m * (p - 1)), m))))
+    A = np.vstack((AF, Ip[: (len(Ip) - m), :]))  # state transition matrix?
+    K = np.vstack(
+        (np.eye(m), np.zeros(((m * (p - 1)), m)))
+    )  # Kalman gain matrix?
 
     # O = discrete_lyapunov(A=A, Q=-np.matmul(K, np.matmul(V, K.conj().T)))
     # lambda_0 = (
@@ -352,7 +365,7 @@ def var_to_ss_params(AF: NDArray, V: NDArray):
     return A, K
 
 
-def ss_params_to_gc(
+def iss_to_gc(
     A: NDArray,
     C: NDArray,
     K: NDArray,
@@ -362,26 +375,22 @@ def ss_params_to_gc(
     targets: list[int],
 ) -> NDArray:
     """Computes frequency-domain Granger causality from innovations-form
-    parameters for a state-space vector autoregressive (VAR) model.
+    parameters for a state-space model.
 
     PARAMETERS
     ----------
     A : numpy array
-    -   ??? Matrix of innovations-form state space VAR model parameters with
-        dimensions [m x m].
+    -   State transition matrix?? with dimensions [m x m].
 
     C : numpy array
-    -   Coeffients innovations-form state space VAR model parameters with
-        dimensions [n x m], where 'n' is the number of signals and 'm' the
-        number of signals times the number of lags.
+    -   Observation matrix?? with dimensions [n x m], where 'n' is the number of
+        signals and 'm' the number of signals times the number of lags.
 
     K : numpy array
-    -   ??? Matrix of innovations-form state space VAR model parameters with
-        dimensions [m x n].
+    -   Kalman gain matrix?? with dimensions [m x n].
 
     V : numpy array
-    -   Covariance matrix of the innovations-form state space VAR model with
-        dimensions [n x n].
+    -   Innovations covariance matrix?? with dimensions [n x n].
 
     freqs : list[int | float]
     -   Frequencies of connectivity being analysed.
@@ -394,7 +403,7 @@ def ss_params_to_gc(
 
     RETURNS
     -------
-    gc_vals : numpy array
+    f : numpy array
     -   Spectral Granger causality from the seeds to the targets for each
         frequency.
 
@@ -403,50 +412,51 @@ def ss_params_to_gc(
     -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
         code provided by Stefan Haufe's research group.
     """
-    gc_vals = np.zeros(len(freqs))
-    z = np.exp(-1j * np.pi * np.linspace(0, 1, len(freqs)))
-    H = ss_params_to_tf(A, C, K, z)
+    f = np.zeros(len(freqs))
+    z = np.exp(
+        -1j * np.pi * np.linspace(0, 1, len(freqs))
+    )  # points on a unit circle in the complex plane, one for each frequency
+    H = iss_to_tf(A, C, K, z)  # spectral transfer function
     VSQRT = np.linalg.cholesky(V)
     PVSQRT = np.linalg.cholesky(partial_covariance(V, seeds, targets))
 
     for freq_i in range(len(freqs)):
         HV = np.matmul(H[:, :, freq_i], VSQRT)
-        S = np.matmul(HV, HV.conj().T)
-        S11 = S[np.ix_(targets, targets)]
+        S = np.matmul(
+            HV, HV.conj().T
+        )  # CSD of the projected state variable (Eq. 6)
+        S_tt = S[np.ix_(targets, targets)]  # CSD between targets
         if len(PVSQRT) == 1:
-            HV12 = H[targets, seeds, freq_i] * PVSQRT
-            HV12_by_HV12 = np.outer(HV12, HV12.conj().T)
+            HV_ts = H[targets, seeds, freq_i] * PVSQRT
+            HVH_ts = np.outer(HV_ts, HV_ts.conj().T)
         else:
-            HV12 = np.matmul(H[np.ix_(targets, seeds)][:, :, freq_i], PVSQRT)
-            HV12_by_HV12 = np.matmul(HV12, HV12.conj().T)
+            HV_ts = np.matmul(H[np.ix_(targets, seeds)][:, :, freq_i], PVSQRT)
+            HVH_ts = np.matmul(HV_ts, HV_ts.conj().T)
         if len(targets) == 1:
-            det_S11 = np.real(S11)
-            det_S11_HV12 = np.real(S11 - HV12_by_HV12)
+            numerator = np.real(S_tt)
+            denominator = np.real(S_tt - HVH_ts)
         else:
-            det_S11 = np.real(np.linalg.det(S11))
-            det_S11_HV12 = np.real(np.linalg.det(S11 - HV12_by_HV12))
-        gc_vals[freq_i] = np.log(det_S11) - np.log(det_S11_HV12)
+            numerator = np.real(np.linalg.det(S_tt))
+            denominator = np.real(np.linalg.det(S_tt - HVH_ts))
+        f[freq_i] = np.log(numerator) - np.log(denominator)  # Eq. 11
 
-    return gc_vals
+    return f
 
 
-def ss_params_to_tf(A: NDArray, C: NDArray, K: NDArray, z: NDArray) -> NDArray:
+def iss_to_tf(A: NDArray, C: NDArray, K: NDArray, z: NDArray) -> NDArray:
     """Computes a transfer function (moving-average representation) for
-    innovations-form state-space VAR model parameters.
+    innovations-form state-space model parameters.
 
     PARAMETERS
     ----------
     A : numpy array
-    -   Matrix of innovations-form state space VAR model parameters with
-        dimensions [m x m].
+    -   State transition matrix?? with dimensions [m x m].
 
     C : numpy array
-    -   Matrix of innovations-form state space VAR model parameters with
-        dimensions [n x m].
+    -   Observation matrix?? with dimensions [n x m].
 
     K : numpy array
-    -   Matrix of innovations-form state space VAR model parameters with
-        dimensions [m x n].
+    -   Kalman gain matrix?? with dimensions [m x n].
 
     z : numpy array
     -   Vector of points on a unit circle in the complex plane, with length p.
@@ -500,45 +510,47 @@ def ss_params_to_tf(A: NDArray, C: NDArray, K: NDArray, z: NDArray) -> NDArray:
 
     for k in range(h):
         H[:, :, k] = I_n + np.matmul(
-            C, spla.lu_solve(spla.lu_factor(z[k] * I_m - A), K)
+            C, spla.lu_solve(spla.lu_factor(z[k] * I_m - A), K)  # Eq. 4
         )
 
     return H
 
 
 def partial_covariance(
-    V: NDArray, idcs_1: list[int], idcs_2: list[int]
+    V: NDArray, seeds: list[int], targets: list[int]
 ) -> NDArray:
     """Computes the partial covariance for use in spectral Granger causality
-    calculations.
+    (GC) calculations.
 
     PARAMETERS
     ----------
     V : numpy array
-    -   A positive-definite, symmetric covariance matrix.
+    -   A positive-definite, symmetric innovations covariance matrix.
 
-    idcs_1 : list[int]
-    -   First set of indices to use for the partial covariance. Cannot contain
-        any values in 'idcs_2'.
+    seeds : list[int]
+    -   Indices of entries in 'V' that are seeds in the GC calculation.
 
-    idcs_2 : list[int]
-    -   Second set of indices to use for the partial covariance. Cannot contain
-        any values in 'idcs_1'.
+    targets : list[int]
+    -   Indices of entries in 'V' that are targets in the GC calculation.
 
     RETURNS
     -------
     numpy array
-    -   The partial covariance matrix.
+    -   The partial covariance matrix between the targets given the seeds.
 
     RAISES
     ------
     ValueError
     -   Raised if 'V' is not a two-dimensional matrix.
     -   Raised if 'V' is not a symmetric, positive-definite matrix.
-    -   Raised if 'idcs_1' and 'idcs_2' contain common indices.
+    -   Raised if 'seeds' and 'targets' contain common indices.
 
     NOTES
     -----
+    -   Given a covariance matrix V, the partial covariance matrix of V between
+        indices i and j, given k (V_ij|k), is equivalent to
+        V_ij - V_ik * V_kk^-1 * V_kj. In this case, i and j are seeds, and k is
+        the targets.
     -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
         code provided by Stefan Haufe's research group.
     """
@@ -551,24 +563,24 @@ def partial_covariance(
         raise ValueError(
             "'V' must be a positive-definite, symmetric matrix, but it is not."
         )
-    common_idcs = set.intersection(set(idcs_1), set(idcs_2))
+    common_idcs = set.intersection(set(seeds), set(targets))
     if common_idcs:
         raise ValueError(
             "There are common indices present in both sets of indices, but "
             f"this is not allowed.\n- Common indices: {common_idcs}"
         )
 
-    if len(idcs_2) == 1:
-        W = (1 / np.sqrt(V[idcs_2, idcs_2])) * V[idcs_2, idcs_1]
-        W_by_W = np.outer(W.conj(), W)
+    if len(targets) == 1:
+        W = (1 / np.sqrt(V[targets, targets])) * V[targets, seeds]
+        W = np.outer(W.conj().T, W)
     else:
         W = np.linalg.solve(
-            np.linalg.cholesky(V[np.ix_(idcs_2, idcs_2)]),
-            V[np.ix_(idcs_2, idcs_1)],
+            np.linalg.cholesky(V[np.ix_(targets, targets)]),
+            V[np.ix_(targets, seeds)],
         )
-        W_by_W = W.conj().T.dot(W)
+        W = W.conj().T.dot(W)
 
-    return V[np.ix_(idcs_1, idcs_1)] - W_by_W
+    return V[np.ix_(seeds, seeds)] - W
 
 
 def block_ifft(data: NDArray, n_points: Union[int, None] = None) -> NDArray:
@@ -749,3 +761,8 @@ def multivariate_connectivity_compute_e(data: NDArray, n_seeds: int) -> NDArray:
     E = np.imag(D[0:n_seeds, n_seeds:])
 
     return E
+
+
+# G = loadmat("G_rand.mat")["G"]
+# AF, V = autocovariance_to_full_var(G, enforce_posdef_residuals_cov=True)
+# print("jeff")
