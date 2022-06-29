@@ -22,11 +22,11 @@ import numpy as np
 from numpy.typing import NDArray
 from coh_matlab_functions import reshape
 from coh_signal_processing_computations import (
-    autocovariance_to_full_var,
-    csd_to_autocovariance,
-    iss_to_gc,
+    autocov_to_full_var,
+    csd_to_autocov,
+    full_var_to_iss,
+    iss_to_usgc,
     multivariate_connectivity_compute_e,
-    var_to_iss,
 )
 
 from scipy.io import loadmat
@@ -345,7 +345,7 @@ def granger_causality(
     -   Net TRGC is the recommended method for maximum robustness.
     -   Each group of seeds and targets cannot contain the same indices.
     """
-    autocov = csd_to_autocovariance(csd, n_lags)
+    autocov = csd_to_autocov(csd, n_lags)
 
     return gc_computation(
         autocov=autocov,
@@ -428,7 +428,7 @@ def gc_computation(
         target_idcs_new = np.arange(
             start=len(seed_idcs), stop=len(node_idcs)
         ).tolist()
-        var_coeffs, residuals_cov = autocovariance_to_full_var(
+        var_coeffs, residuals_cov = autocov_to_full_var(
             autocov[np.ix_(node_idcs, node_idcs, np.arange(autocov.shape[2]))],
             enforce_posdef_residuals_cov=True,
         )
@@ -436,8 +436,8 @@ def gc_computation(
             var_coeffs,
             (var_coeffs.shape[0], var_coeffs.shape[0] * var_coeffs.shape[2]),
         )
-        A, K = var_to_iss(AF=var_coeffs_2d, V=residuals_cov)
-        gc_vals[node_i, :] = iss_to_gc(
+        A, K = full_var_to_iss(AF=var_coeffs_2d, V=residuals_cov)
+        gc_vals[node_i, :] = iss_to_usgc(
             A=A,
             C=var_coeffs_2d,
             K=K,
@@ -447,7 +447,7 @@ def gc_computation(
             targets=target_idcs_new,
         )
         if "net" in method:
-            gc_vals[node_i, :] -= iss_to_gc(
+            gc_vals[node_i, :] -= iss_to_usgc(
                 A=A,
                 C=var_coeffs_2d,
                 K=K,

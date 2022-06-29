@@ -17,9 +17,7 @@ from coh_matlab_functions import reshape, kron, linsolve_transa
 from scipy.io import loadmat
 
 
-def csd_to_autocovariance(
-    csd: NDArray, n_lags: Union[int, None] = None
-) -> NDArray:
+def csd_to_autocov(csd: NDArray, n_lags: Union[int, None] = None) -> NDArray:
     """Computes the autocovariance sequence from the cross-spectral density.
 
     PARAMETERS
@@ -99,7 +97,7 @@ def csd_to_autocovariance(
     )
 
 
-def autocovariance_to_full_var(
+def autocov_to_full_var(
     G: NDArray, enforce_posdef_residuals_cov: bool = False
 ) -> tuple[NDArray, NDArray]:
     """Computes the full vector autoregressive (VAR) model from an
@@ -159,7 +157,7 @@ def autocovariance_to_full_var(
         except np.linalg.linalg.LinAlgError as np_error:
             n_lags = G.shape[2]
             if n_lags - 1 > 1:
-                _, V = autocovariance_to_full_var(
+                _, V = autocov_to_full_var(
                     G=G[:, :, : n_lags - 1],
                     enforce_posdef_residuals_cov=True,
                 )
@@ -300,7 +298,7 @@ def whittle_lwr_recursion(
     return AF, V
 
 
-def var_to_iss(AF: NDArray, V: NDArray):
+def full_var_to_iss(AF: NDArray, V: NDArray):
     """Computes innovations-form parameters for a state-space model from a full
     vector autoregressive (VAR) model using Aoki's method.
 
@@ -371,7 +369,7 @@ def var_to_iss(AF: NDArray, V: NDArray):
     return A, K
 
 
-def iss_to_gc(
+def iss_to_usgc(
     A: NDArray,
     C: NDArray,
     K: NDArray,
@@ -380,8 +378,8 @@ def iss_to_gc(
     seeds: list[int],
     targets: list[int],
 ) -> NDArray:
-    """Computes frequency-domain Granger causality from innovations-form
-    parameters for a state-space model.
+    """Computes unconditional spectral Granger causality from innovations-form
+    state-space model parameters.
 
     PARAMETERS
     ----------
@@ -467,7 +465,7 @@ def iss_to_tf(A: NDArray, C: NDArray, K: NDArray, z: NDArray) -> NDArray:
     -   Kalman gain matrix?? with dimensions [m x n].
 
     z : numpy array
-    -   Vector of points on a unit circle in the complex plane, with length p.
+    -   The back-shift operator with length p.
 
     RETURNS
     -------
@@ -482,6 +480,11 @@ def iss_to_tf(A: NDArray, C: NDArray, K: NDArray, z: NDArray) -> NDArray:
 
     NOTES
     -----
+    -   Reference: [1] Barnett, L. & Seth, A.K., 2015, Physical Review, DOI:
+        10.1103/PhysRevE.91.040101.
+    -   In the frequency domain, the back-shift operator, z, is a vector of
+        points on a unit circle in the complex plane. z = e^-iw, where -pi < w
+        <= pi. See [17] of [1].
     -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
         code provided by Stefan Haufe's research group.
     """
@@ -518,7 +521,7 @@ def iss_to_tf(A: NDArray, C: NDArray, K: NDArray, z: NDArray) -> NDArray:
 
     for k in range(h):
         H[:, :, k] = I_n + np.matmul(
-            C, spla.lu_solve(spla.lu_factor(z[k] * I_m - A), K)  # Eq. 4
+            C, spla.lu_solve(spla.lu_factor(z[k] * I_m - A), K)  # Eq. 4 of [1]
         )
 
     return H
