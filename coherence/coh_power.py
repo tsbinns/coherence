@@ -25,13 +25,15 @@ from coh_handle_entries import (
     ordered_list_from_dict,
     rearrange_axes,
 )
+from coh_handle_objects import FillableObject
 from coh_normalisation import norm_percentage_total
 from coh_processing_methods import ProcMethod
 from coh_saving import save_dict, save_object
 
 
-class PowerMorlet(ProcMethod):
-    """Performs power analysis on data using Morlet wavelets.
+class PowerStandard(ProcMethod):
+    """Performs power analysis on data using Welch's method, multitapers, or
+    Morlet wavelets.
 
     PARAMETERS
     ----------
@@ -44,11 +46,10 @@ class PowerMorlet(ProcMethod):
     METHODS
     -------
     process
-    -   Performs Morlet wavelet power analysis using the implementation in
-        mne.time_frequency.tfr_morlet.
+    -   Performs power analysis on the data.
 
     save_object
-    -   Saves the PowerMorlet object as a .pkl file.
+    -   Saves the object as a .pkl file.
 
     save_results
     -   Saves the results and additional information as a file.
@@ -63,11 +64,16 @@ class PowerMorlet(ProcMethod):
         # Initialises inputs of the PowerMorlet object.
         self._sort_inputs()
 
+        # Initialises aspects of the ProcMethod object that will be filled with
+        # information as the data is processed.
+        self._power_method = None
+
         # Initialises aspects of the PowerMorlet object that indicate which
         # methods have been called (starting as 'False'), which can later be
         # updated.
         self._epochs_averaged = False
         self._timepoints_averaged = False
+        self._segments_averaged = False
         self._normalised = False
 
     def _sort_inputs(self) -> None:
@@ -88,183 +94,604 @@ class PowerMorlet(ProcMethod):
 
         super()._sort_inputs()
 
-    def _average_windows(self) -> None:
-        """Averages the power results across windows.
-
-        RAISES
-        ------
-        ProcessingOrderError
-        -   Raised if the windows have already been averaged across.
-        """
-
-        if self._windows_averaged:
-            raise ProcessingOrderError(
-                "Trying to average the results across windows, but this has "
-                "already been done."
-            )
-
-        n_windows = len(self.results)
-        power = []
-        for results in self.results:
-            power.append(results.data)
-        self.results[0].data = np.asarray(power).mean(axis=0)
-        self.results = [self.results[0]]
-
-        self._windows_averaged = True
-        if self._verbose:
-            print(f"Averaging the data over {n_windows} windows.\n")
-
-    def _average_timepoints(self) -> None:
-        """Averages results of the analysis across timepoints.
-
-        RAISES
-        ------
-        ProcessingOrderError
-        -   Raised if the timepoints have already been averaged across.
-        """
-
-        if self._timepoints_averaged:
-            raise ProcessingOrderError(
-                "Trying to average the results across timepoints, but this has "
-                "already been done."
-            )
-
-        timepoints_i = self.results_dims.index("timepoints")
-        n_timepoints = np.shape(self.results[0].data)[timepoints_i]
-        for i, power in enumerate(self.results):
-            self.results[i].data = np.mean(power.data, axis=timepoints_i)
-        self._results_dims.pop(timepoints_i + 1)
-
-        self._timepoints_averaged = True
-        if self._verbose:
-            print(f"Averaging the data over {n_timepoints} timepoints.")
-
-    def process(
+    def process_welch(
         self,
-        freqs: list[Union[int, float]],
-        n_cycles: Union[int, list[int]],
-        use_fft: bool = False,
-        decim: Union[int, slice] = 1,
+        fmin: Union[int, float] = 0,
+        fmax: Union[int, float] = np.inf,
+        tmin: Union[float, None] = None,
+        tmax: Union[float, None] = None,
+        n_fft: int = 256,
+        n_overlap: int = 0,
+        n_per_seg: Union[int, None] = None,
+        proj: bool = False,
+        window_method: Union[str, float, tuple] = "hamming",
+        average_windows: bool = True,
+        average_epochs: bool = True,
+        average_segments: Union[str, None] = "mean",
         n_jobs: int = 1,
-        picks: Optional[list[int]] = None,
-        zero_mean: bool = True,
-        average_windows: bool = False,
-        average_epochs: bool = False,
-        average_timepoints: bool = False,
-        output: str = "power",
     ) -> None:
-        """Performs Morlet wavelet power analysis using the implementation in
-        mne.time_frequency.tfr_morlet.
+        """Calculates the power spectral density of the data with Welch's
+        method, using the implementation in MNE 'time_frequency.psd_welch'.
+
+        Welch's method involves calculating periodograms for a sliding window
+        over time which are then averaged together for each channel/epoch.
 
         PARAMETERS
         ----------
-        freqs : list[realnum]
-        -   The frequencies in Hz to analyse.
+        fmin : int | float; default 0
+        -   The minimum frequency of interest.
 
-        n_cycles : int | list[int]
-        -   The number of cycles globally (if int) or for each frequency (if
-            list[int]).
+        fmax : int | float; default infinite
+        -   The maximum frequency of interest.
 
-        use_fft : bool; default False
-        -   Whether or not to perform the fft based convolution.
+        tmin : float | None; default None
+        -   The minimum time of interest.
 
-        decim : int | slice; default 1
-        -   Decimates data following time-frequency decomposition. Returns
-            data[..., ::decim] if int. Returns data[..., decim]. Warning: may
-            create decimation artefacts.
+        tmax : float | None; default None
+        -   The maximum time of interest.
+
+        n_fft : int; default 256
+        -   The length of the FFT used. Must be >= 'n_per_seg'. If 'n_fft' >
+            'n_per_seg', the segments will be zero-padded.
+
+        n_overlap : int; default 0
+        -   The number of points to overlap between segments, which will be
+            adjusted to be <= the number of time points in the data.
+
+        n_per_seg : int | None; default None
+        -   The length of each Welch segment, windowed by a Hamming window. If
+            'None', 'n_per_seg' is set to equal 'n_fft', in which case 'n_fft'
+            must be <= the number of time points in the data.
+
+        proj : bool; default False
+        -   Whether or not to apply SSP projection vectors.
+
+        window_method : str | float | tuple; default "hamming"
+        -   The windowing function to use. See scipy's 'signal.get_window'
+            function.
+
+        average_windows : bool; default True
+        -   Whether or not to average power results across data windows.
+
+        average_epochs : bool; default True
+        -   Whether or not to average power results across epochs.
+
+        average_segments : str | None; default "mean"
+        -   How to average segments. If "mean", the arithmetic mean is used. If
+            "median", the median is used, corrected for bias relative to the
+            mean. If 'None', the segments are unagreggated.
 
         n_jobs : int; default 1
-        -   The number of jobs to run in parallel on the CPU. If -1, it is set
-            to the number of CPU cores. Requires the joblib package.
-
-        picks : list[int] | None; default None
-        -   The indices of the channels to decompose. If None, all good data
-            channels are decomposed.
-
-        zero_mean : bool; default True
-        -   Gives the wavelet a mean of 0.
-
-        average_windows : bool; default False
-        -   If True, averages the power across windows. If False, returns
-            separate power values for each window.
-
-        average_epochs : bool; default False
-        -   If True, averages the power across epochs. If False, returns
-            separate power values for each epoch.
-
-        average_timepoints : bool; default False
-        -   If True, averages the power across timepoints within each epoch. If
-            False, returns separate power values for each timepoint in the
-            epoch.
-
-        output : str; default 'power'
-        -   Can be 'power' or 'complex'. If 'complex', average_epochs must be
-            False.
+        -   The number of jobs to run in parallel. If '-1', this is set to the
+            number of CPU cores. Requires the 'joblib' package.
 
         RAISES
         ------
         ProcessingOrderError
         -   Raised if the data in the object has already been processed.
         """
-
         if self._processed:
             ProcessingOrderError(
                 "The data in this object has already been processed. "
                 "Initialise a new instance of the object if you want to "
                 "perform other analyses on the data."
             )
+        if self._verbose:
+            print("Performing Welch's power analysis on the data.\n")
 
+        self._get_results_welch(
+            fmin=fmin,
+            fmax=fmax,
+            tmin=tmin,
+            tmax=tmax,
+            n_fft=n_fft,
+            n_overlap=n_overlap,
+            n_per_seg=n_per_seg,
+            proj=proj,
+            window_method=window_method,
+            average_windows=average_windows,
+            average_epochs=average_epochs,
+            average_segments=average_segments,
+            n_jobs=n_jobs,
+        )
+
+        self._processed = True
+        self._power_method = "welch"
+        self.processing_steps["power_welch"] = {
+            "fmin": fmin,
+            "fmax": fmax,
+            "tmin": tmin,
+            "tmax": tmax,
+            "n_fft": n_fft,
+            "n_overlap": n_overlap,
+            "n_per_seg": n_per_seg,
+            "proj": proj,
+            "window_method": window_method,
+            "average_windows": average_windows,
+            "average_epochs": average_epochs,
+            "average_segments": average_segments,
+        }
+
+    def _get_results_welch(
+        self,
+        fmin: Union[int, float],
+        fmax: Union[int, float],
+        tmin: Union[float, None],
+        tmax: Union[float, None],
+        n_fft: int,
+        n_overlap: int,
+        n_per_seg: Union[int, None],
+        proj: bool,
+        window_method: Union[str, float, tuple],
+        average_windows: bool,
+        average_epochs: bool,
+        average_segments: Union[str, None],
+        n_jobs: int,
+    ) -> None:
+        """Calculates the power spectral density of the data with Welch's
+        method, using the implementation in MNE 'time_frequency.psd_welch'.
+
+        Welch's method involves calculating periodograms for a sliding window
+        over time which are then averaged together for each channel/epoch.
+
+        PARAMETERS
+        ----------
+        fmin : int | float; default 0
+        -   The minimum frequency of interest.
+
+        fmax : int | float; default infinite
+        -   The maximum frequency of interest.
+
+        tmin : float | None; default None
+        -   The minimum time of interest.
+
+        tmax : float | None; default None
+        -   The maximum time of interest.
+
+        n_fft : int; default 256
+        -   The length of the FFT used. Must be >= 'n_per_seg'. If 'n_fft' >
+            'n_per_seg', the segments will be zero-padded.
+
+        n_overlap : int; default 0
+        -   The number of points to overlap between segments, which will be
+            adjusted to be <= the number of time points in the data.
+
+        n_per_seg : int | None; default None
+        -   The length of each Welch segment, windowed by a Hamming window. If
+            'None', 'n_per_seg' is set to equal 'n_fft', in which case 'n_fft'
+            must be <= the number of time points in the data.
+
+        proj : bool; default False
+        -   Whether or not to apply SSP projection vectors.
+
+        window_method : str | float | tuple; default "hamming"
+        -   The windowing function to use. See scipy's 'signal.get_window'
+            function.
+
+        average_windows : bool; default True
+        -   Whether or not to average power results across data windows.
+
+        average_epochs : bool; default True
+        -   Whether or not to average power results across epochs.
+
+        average_segments : str | None; default "mean"
+        -   How to average segments. If "mean", the arithmetic mean is used. If
+            "median", the median is used, corrected for bias relative to the
+            mean. If 'None', the segments are unagreggated.
+
+        n_jobs : int; default 1
+        -   The number of jobs to run in parallel. If '-1', this is set to the
+            number of CPU cores. Requires the 'joblib' package.
+        """
+        results = []
+        ch_names = self.signal.data[0].ch_names
+        ch_types = self.signal.data[0].get_channel_types(picks=ch_names)
+        for i, data in enumerate(self.signal.data):
+            if self._verbose:
+                print(
+                    f"\n---=== Computing power for window {i+1} of "
+                    f"{len(self.signal.data)} ===---\n"
+                )
+            psds, freqs = time_frequency.psd_welch(
+                inst=data,
+                fmin=fmin,
+                fmax=fmax,
+                tmin=tmin,
+                tmax=tmax,
+                n_fft=n_fft,
+                n_overlap=n_overlap,
+                n_per_seg=n_per_seg,
+                picks=self.signal.data[0].ch_names,
+                proj=proj,
+                n_jobs=n_jobs,
+                reject_by_annotation=False,
+                average=None,
+                window=window_method,
+                verbose=self._verbose,
+            )
+            results.append(
+                FillableObject(
+                    attrs={
+                        "data": psds,
+                        "freqs": freqs,
+                        "ch_names": ch_names,
+                        "ch_types": ch_types,
+                    }
+                )
+            )
+        self.results = results
+
+        self._results_dims = [
+            "windows",
+            "epochs",
+            "channels",
+            "frequencies",
+            "segments",
+        ]
+        if average_windows:
+            self._average_results_dim("windows")
+        if average_epochs:
+            self._average_results_dim("epochs")
+        if average_segments:
+            self._average_results_dim("segments")
+
+    def process_multitaper(
+        self,
+        fmin: Union[int, float] = 0,
+        fmax: float = np.inf,
+        tmin: Union[float, None] = None,
+        tmax: Union[float, None] = None,
+        bandwidth: Union[float, None] = None,
+        adaptive: bool = False,
+        low_bias: bool = True,
+        normalization: str = "length",
+        proj: bool = False,
+        average_windows: bool = True,
+        average_epochs: bool = True,
+        n_jobs: int = 1,
+    ) -> None:
+        """Calculates the power spectral density of the data with multitapers,
+        using the implementation in MNE 'time_frequency.psd_multitaper'.
+
+        The multitaper method involves calculating the spectral density for
+        orthogonal tapers and then averaging them together for each
+        channel/epoch.
+
+        PARAMETERS
+        ----------
+        fmin : int | float; default 0
+        -   The minimum frequency of interest.
+
+        fmax : int | float; default infinite
+        -   The maximum frequency of interest.
+
+        tmin : float | None; default None
+        -   The minimum time of interest.
+
+        tmax : float | None; default None
+        -   The maximum time of interest.
+
+        bandwidth : float | None; default None
+        -   The bandwidth of the multitaper windowing function, in Hz. If
+            'None', this is set to a window half-bandwidth of 4.
+
+        adaptive : bool; default False
+        -   Whether or not to use adaptive weights to combine the tapered
+            spectra into the power spectral density.
+
+        low_bias : bool; default True.
+        -   Whether or not to use only tapers with more than 90% spectral
+            concentration within bandwidth.
+
+        normalization : str; default "length"
+        -   The normalisation strategy to use. If "length", the power spectra is
+            normalised by the length of the signal. If "full", the power spectra
+            is normalised by the sampling rate and the signal length.
+
+        proj : bool; default False
+        -   Whether or not to apply SSP projection vectors.
+
+        average_windows : bool; default True
+        -   Whether or not to average power results across data windows.
+
+        average_epochs : bool; default True
+        -   Whether or not to average power results across epochs.
+
+        n_jobs : int; default 1
+        -   The number of jobs to run in parallel. If '-1', this is set to the
+            number of CPU cores. Requires the 'joblib' package.
+
+        RAISES
+        ------
+        ProcessingOrderError
+        -   Raised if the data in the object has already been processed.
+        """
+        if self._processed:
+            ProcessingOrderError(
+                "The data in this object has already been processed. "
+                "Initialise a new instance of the object if you want to "
+                "perform other analyses on the data."
+            )
+        if self._verbose:
+            print("Performing multitaper power analysis on the data.\n")
+
+        self._get_results_multitaper(
+            fmin=fmin,
+            fmax=fmax,
+            tmin=tmin,
+            tmax=tmax,
+            bandwidth=bandwidth,
+            adaptive=adaptive,
+            low_bias=low_bias,
+            normalization=normalization,
+            proj=proj,
+            average_windows=average_windows,
+            average_epochs=average_epochs,
+            n_jobs=n_jobs,
+        )
+
+        self._processed = True
+        self._power_method = "multitaper"
+        self.processing_steps["power_multitaper"] = {
+            "fmin": fmin,
+            "fmax": fmax,
+            "tmin": tmin,
+            "tmax": tmax,
+            "bandwidth": bandwidth,
+            "adaptive": adaptive,
+            "low_bias": low_bias,
+            "normalization": normalization,
+            "proj": proj,
+            "average_windows": average_windows,
+            "average_epochs": average_epochs,
+        }
+
+    def _get_results_multitaper(
+        self,
+        fmin: Union[int, float],
+        fmax: float,
+        tmin: Union[float, None],
+        tmax: Union[float, None],
+        bandwidth: Union[float, None],
+        adaptive: bool,
+        low_bias: bool,
+        normalization: str,
+        proj: bool,
+        average_windows: bool,
+        average_epochs: bool,
+        n_jobs: int,
+    ) -> None:
+        """Calculates the power spectral density of the data with multitapers,
+        using the implementation in MNE 'time_frequency.psd_multitaper'.
+
+        The multitaper method involves calculating the spectral density for
+        orthogonal tapers and then averaging them together for each
+        channel/epoch.
+
+        PARAMETERS
+        ----------
+        fmin : int | float; default 0
+        -   The minimum frequency of interest.
+
+        fmax : int | float; default infinite
+        -   The maximum frequency of interest.
+
+        tmin : float | None; default None
+        -   The minimum time of interest.
+
+        tmax : float | None; default None
+        -   The maximum time of interest.
+
+        bandwidth : float | None; default None
+        -   The bandwidth of the multitaper windowing function, in Hz. If
+            'None', this is set to a window half-bandwidth of 4.
+
+        adaptive : bool; default False
+        -   Whether or not to use adaptive weights to combine the tapered
+            spectra into the power spectral density.
+
+        low_bias : bool; default True.
+        -   Whether or not to use only tapers with more than 90% spectral
+            concentration within bandwidth.
+
+        normalization : str; default "length"
+        -   The normalisation strategy to use. If "length", the power spectra is
+            normalised by the length of the signal. If "full", the power spectra
+            is normalised by the sampling rate and the signal length.
+
+        proj : bool; default False
+        -   Whether or not to apply SSP projection vectors.
+
+        average_windows : bool; default True
+        -   Whether or not to average power results across data windows.
+
+        average_epochs : bool; default True
+        -   Whether or not to average power results across epochs.
+
+        n_jobs : int; default 1
+        -   The number of jobs to run in parallel. If '-1', this is set to the
+            number of CPU cores. Requires the 'joblib' package.
+        """
+        results = []
+        ch_names = self.signal.data[0].ch_names
+        ch_types = self.signal.data[0].get_channel_types(picks=ch_names)
+        for i, data in enumerate(self.signal.data):
+            if self._verbose:
+                print(
+                    f"\n---=== Computing power for window {i+1} of "
+                    f"{len(self.signal.data)} ===---\n"
+                )
+            psds, freqs = time_frequency.psd_multitaper(
+                inst=data,
+                fmin=fmin,
+                fmax=fmax,
+                tmin=tmin,
+                tmax=tmax,
+                bandwidth=bandwidth,
+                adaptive=adaptive,
+                low_bias=low_bias,
+                normalization=normalization,
+                picks=ch_names,
+                proj=proj,
+                n_jobs=n_jobs,
+                reject_by_annotation=False,
+                verbose=self._verbose,
+            )
+            results.append(
+                FillableObject(
+                    attrs={
+                        "data": psds,
+                        "freqs": freqs,
+                        "ch_names": ch_names,
+                        "ch_types": ch_types,
+                    }
+                )
+            )
+        self.results = results
+
+        self._results_dims = ["windows", "epochs", "channels", "frequencies"]
+        if average_windows:
+            self._average_results_dim("windows")
+        if average_epochs:
+            self._average_results_dim("epochs")
+
+    def process_morlet(
+        self,
+        freqs: list[Union[int, float]],
+        n_cycles: Union[int, float, list[Union[int, float]]],
+        use_fft: bool = False,
+        zero_mean: bool = True,
+        average_windows: bool = True,
+        average_epochs: bool = True,
+        average_timepoints: bool = True,
+        decim: Union[int, slice] = 1,
+        n_jobs: int = 1,
+    ) -> None:
+        """Calculates a time-frequency representation with Morlet wavelets,
+        using the implementation in MNE 'time_frequency.TFR_morlet'.
+
+        PARAMETERS
+        ----------
+        freqs : list[int | float]
+        -   The frequencies, in Hz, to analyse.
+
+        n_cycles : int | float | list[int | float]
+        -   The number of cycles to use. If an int or float, this number of
+            cycles is used for all frequencies. If a list, each entry should
+            correspond to the number of cycles for an individual frequency.
+
+        use_fft : bool; default False
+        -   Whether or not to use FFT-based convolution.
+
+        zero_mean : bool; default True
+        -   Whether or not to set the mean of the wavelets to 0.
+
+        average_windows : bool; default True
+        -   Whether or not to average the results across windows.
+
+        average_epochs : bool; default True
+        -   Whether or not to average the results across epochs.
+
+        average_timepoints : bool; default True
+        -   Whether or not to average the results across timepoints.
+
+        decim : int | slice : default 1
+        -   The decimation factor to use after time-frequency decomposition to
+            reduce memory usage. If an int, returns [..., ::decim]. If a slice,
+            returns [..., decim].
+
+        n_jobs : int; default 1
+        -   The number of jobs to run in paraller. If '-1', it is set to the
+            number of CPU cores. Requires the 'joblib' package.
+
+        RAISES
+        ------
+        ProcessingOrderError
+        -   Raised if the data in the object has already been processed.
+        """
+        if self._processed:
+            ProcessingOrderError(
+                "The data in this object has already been processed. "
+                "Initialise a new instance of the object if you want to "
+                "perform other analyses on the data."
+            )
         if self._verbose:
             print("Performing Morlet wavelet power analysis on the data.\n")
 
-        self.results = self._get_results(
+        self._get_results_morlet(
             freqs=freqs,
             n_cycles=n_cycles,
             use_fft=use_fft,
+            zero_mean=zero_mean,
+            average_windows=average_windows,
+            average_epochs=average_epochs,
+            average_timepoints=average_timepoints,
             decim=decim,
             n_jobs=n_jobs,
-            picks=picks,
-            zero_mean=zero_mean,
-            average_epochs=average_epochs,
-            output=output,
         )
 
-        self._epochs_averaged = average_epochs
-        self._establish_power_dims()
-        if average_windows:
-            self._average_windows()
-        if average_timepoints:
-            self._average_timepoints()
-
         self._processed = True
+        self._power_method = "morlet"
         self.processing_steps["power_morlet"] = {
             "freqs": freqs,
             "n_cycles": n_cycles,
             "use_fft": use_fft,
-            "decim": decim,
-            "n_jobs": n_jobs,
-            "picks": picks,
             "zero_mean": zero_mean,
             "average_windows": average_windows,
             "average_epochs": average_epochs,
             "average_timepoints": average_timepoints,
-            "output": output,
+            "decim": decim,
         }
 
-    def _get_results(
+    def _get_results_morlet(
         self,
         freqs: list[Union[int, float]],
-        n_cycles: Union[int, list[int]],
+        n_cycles: Union[int, float, list[Union[int, float]]],
         use_fft: bool,
+        zero_mean: bool,
+        average_windows: bool,
+        average_epochs: bool,
+        average_timepoints: bool,
         decim: Union[int, slice],
         n_jobs: int,
-        picks: list[int],
-        zero_mean: bool,
-        average_epochs: bool,
-        output: str,
-    ) -> list:
-        """"""
+    ) -> None:
+        """Calculates a time-frequency representation with Morlet wavelets,
+        using the implementation in MNE 'time_frequency.TFR_morlet'.
 
+        PARAMETERS
+        ----------
+        freqs : list[int | float]
+        -   The frequencies, in Hz, to analyse.
+
+        n_cycles : int | float | list[int | float]
+        -   The number of cycles to use. If an int or float, this number of
+            cycles is used for all frequencies. If a list, each entry should
+            correspond to the number of cycles for an individual frequency.
+
+        use_fft : bool; default False
+        -   Whether or not to use FFT-based convolution.
+
+        zero_mean : bool; default True
+        -   Whether or not to set the mean of the wavelets to 0.
+
+        average_windows : bool; default True
+        -   Whether or not to average the results across windows.
+
+        average_epochs : bool; default True
+        -   Whether or not to average the results across epochs.
+
+        average_timepoints : bool; default True
+        -   Whether or not to average the results across timepoints.
+
+        decim : int | slice : default 1
+        -   The decimation factor to use after time-frequency decomposition to
+            reduce memory usage. If an int, returns [..., ::decim]. If a slice,
+            returns [..., decim].
+
+        n_jobs : int; default 1
+        -   The number of jobs to run in paraller. If '-1', it is set to the
+            number of CPU cores. Requires the 'joblib' package.
+        """
         results = []
         for i, data in enumerate(self.signal.data):
             if self._verbose:
@@ -272,27 +699,33 @@ class PowerMorlet(ProcMethod):
                     f"\n---=== Computing power for window {i+1} of "
                     f"{len(self.signal.data)} ===---\n"
                 )
+            output = time_frequency.tfr_morlet(
+                inst=data,
+                freqs=freqs,
+                n_cycles=n_cycles,
+                use_fft=use_fft,
+                return_itc=False,
+                decim=decim,
+                n_jobs=n_jobs,
+                picks=np.arange(len(self.signal.data[0].ch_names)),
+                zero_mean=zero_mean,
+                average=False,
+                output="power",
+                verbose=self._verbose,
+            )
             results.append(
-                time_frequency.tfr_morlet(
-                    inst=data,
-                    freqs=freqs,
-                    n_cycles=n_cycles,
-                    use_fft=use_fft,
-                    return_itc=False,
-                    decim=decim,
-                    n_jobs=n_jobs,
-                    picks=picks,
-                    zero_mean=zero_mean,
-                    average=average_epochs,
-                    output=output,
-                    verbose=self._verbose,
+                FillableObject(
+                    attrs={
+                        "data": output.data,
+                        "freqs": output.freqs,
+                        "ch_names": output.ch_names,
+                        "ch_types": output.get_channel_types(
+                            picks=output.ch_names
+                        ),
+                    }
                 )
             )
-
-        return results
-
-    def _establish_power_dims(self) -> None:
-        """Establishes the dimensions of the power results."""
+        self.results = results
 
         self._results_dims = [
             "windows",
@@ -301,8 +734,83 @@ class PowerMorlet(ProcMethod):
             "frequencies",
             "timepoints",
         ]
-        if self._epochs_averaged:
-            self._results_dims.pop(self._results_dims.index("epochs"))
+        if average_windows:
+            self._average_results_dim("windows")
+        if average_epochs:
+            self._average_results_dim("epochs")
+        if average_timepoints:
+            self._average_results_dim("timepoints")
+
+    def _average_results_dim(self, dim: str) -> None:
+        """Averages results of the analysis across a results dimension.
+
+        PARAMETERS
+        ----------
+        dim : str
+        -   The dimension of the results to average across. Recognised inputs
+            are: "window"; "epochs"; "frequencies"; and "timepoints".
+
+        RAISES
+        ------
+        NotImplementedError
+        -   Raised if the dimension is not supported.
+        ProcessingOrderError
+        -   Raised if the dimension has already been averaged across.
+        ValueError
+        -   Raised if the dimension is not present in the results to average
+            across.
+        """
+        recognised_inputs = [
+            "windows",
+            "epochs",
+            "frequencies",
+            "timepoints",
+            "segments",
+        ]
+        if dim not in recognised_inputs:
+            raise NotImplementedError(
+                f"The dimension '{dim}' is not supported for averaging. "
+                f"Supported dimensions are {recognised_inputs}."
+            )
+        if getattr(self, f"_{dim}_averaged"):
+            raise ProcessingOrderError(
+                f"Trying to average the results across {dim}, but this has "
+                "already been done."
+            )
+        if dim not in self.results_dims:
+            raise ValueError(
+                f"No {dim} are present in the results to average across."
+            )
+
+        if dim == "windows":
+            n_events = self._average_windows()
+        else:
+            dim_i = self._results_dims.index(dim) - 1
+            n_events = np.shape(self.results[0].data)[dim_i]
+            for i, power in enumerate(self.results):
+                self.results[i].data = np.mean(power.data, axis=dim_i)
+            self._results_dims.pop(dim_i + 1)
+
+        setattr(self, f"_{dim}_averaged", True)
+        if self._verbose:
+            print(f"\nAveraging the data over {n_events} {dim}.")
+
+    def _average_windows(self) -> int:
+        """Averages the power results across windows.
+
+        RETURNS
+        -------
+        n_windows : int
+        -   The number of windows being averaged across.
+        """
+        n_windows = len(self.results)
+        power = []
+        for results in self.results:
+            power.append(results.data)
+        self.results[0].data = np.asarray(power).mean(axis=0)
+        self.results = [self.results[0]]
+
+        return n_windows
 
     def _sort_normalisation_inputs(
         self,
@@ -332,24 +840,22 @@ class PowerMorlet(ProcMethod):
 
         RAISES
         ------
-        UnavailableProcessingError
+        NotImplementedError
         -   Raised if the requested normalisation type is not supported.
         -   Raised if the length of the results dimensions are greater than the
             maximum number supported.
+        ValueError
         -   Raised if the dimension to normalise across is not present in the
             results dimensions.
-
-        ValueError
         -   Raised if a window of results are to be excluded from the
             normalisation around the line noise, but no line noise frequency is
             given.
         """
-
         supported_norm_types = ["percentage_total"]
         max_supported_n_dims = 2
 
         if norm_type not in supported_norm_types:
-            raise UnavailableProcessingError(
+            raise NotImplementedError(
                 "Error when normalising the results of the Morlet power "
                 f"analysis:\nThe normalisation type '{norm_type}' is not "
                 "supported. The supported normalisation types are: "
@@ -357,7 +863,7 @@ class PowerMorlet(ProcMethod):
             )
 
         if len(self.results_dims) > max_supported_n_dims:
-            raise UnavailableProcessingError(
+            raise NotImplementedError(
                 "Error when normalising the results of the Morlet power "
                 "analysis:\nCurrently, normalising the values of results with "
                 f"at most {max_supported_n_dims} is supported, but the results "
@@ -365,7 +871,7 @@ class PowerMorlet(ProcMethod):
             )
 
         if within_dim not in self.results_dims:
-            raise UnavailableProcessingError(
+            raise ValueError(
                 "Error when normalising the results of the Morlet power "
                 f"analysis:\nThe dimension '{within_dim}' is not present in "
                 f"the results of dimensions {self.results_dims}."
@@ -418,13 +924,11 @@ class PowerMorlet(ProcMethod):
         ProcessingOrderError
         -   Raised if the results have already been normalised.
         """
-
         if self._normalised:
             raise ProcessingOrderError(
                 "Error when normalising the results of the Morlet power "
                 "analysis:\nThe results have already been normalised."
             )
-
         self._sort_normalisation_inputs(
             norm_type=norm_type,
             within_dim=within_dim,
@@ -444,7 +948,7 @@ class PowerMorlet(ProcMethod):
                 )
 
         self._normalised = True
-        self.processing_steps["power_morlet_normalisation"] = {
+        self.processing_steps[f"power_{self._power_method}_normalisation"] = {
             "normalisation_type": norm_type,
             "within_dim": within_dim,
             "exclude_line_noise_window": exclude_line_noise_window,
@@ -474,7 +978,6 @@ class PowerMorlet(ProcMethod):
         -   Whether or not the user is asked to confirm to overwrite a
             pre-existing file if one exists.
         """
-
         if ask_before_overwrite is None:
             ask_before_overwrite = self._verbose
 
@@ -493,19 +996,21 @@ class PowerMorlet(ProcMethod):
         dict
         -   The results and additional information stored as a dictionary.
         """
-
         dimensions = self._get_optimal_dims()
         results = self.get_results(dimensions=dimensions)
 
         results = {
-            "power-morlet": results.tolist(),
-            "power-morlet_dimensions": dimensions,
+            f"power-{self._power_method}": results.tolist(),
+            f"power-{self._power_method}_dimensions": dimensions,
             "freqs": self.results[0].freqs.tolist(),
             "ch_names": self.results[0].ch_names,
-            "ch_types": self.results[0].get_channel_types(),
+            "ch_types": self.results[0].ch_types,
             "ch_coords": self.signal.get_coordinates(),
             "ch_regions": ordered_list_from_dict(
                 self.results[0].ch_names, self.extra_info["ch_regions"]
+            ),
+            "ch_subregions": ordered_list_from_dict(
+                self.results[0].ch_names, self.extra_info["ch_subregions"]
             ),
             "ch_hemispheres": ordered_list_from_dict(
                 self.results[0].ch_names, self.extra_info["ch_hemispheres"]
@@ -524,12 +1029,17 @@ class PowerMorlet(ProcMethod):
     def get_results(self, dimensions: Union[list[str], None] = None) -> NDArray:
         """Extracts and returns results.
 
+        PARAMETERS
+        ----------
+        dimensions : list[str] | None
+        -   The order of the dimensions of the results to return. If 'None', the
+            current result dimensions are used.
+
         RETURNS
         -------
         results : numpy array
         -   The results.
         """
-
         ch_names = [self.signal.data[0].ch_names]
         ch_names.extend([results.ch_names for results in self.results])
         if not check_matching_entries(objects=ch_names):
@@ -537,9 +1047,6 @@ class PowerMorlet(ProcMethod):
                 "Error when getting the results:\nThe names and/or order of "
                 "names in the data and results do not match."
             )
-
-        if dimensions is None:
-            dimensions = self.results_dims
 
         if self._windows_averaged:
             results = self.results[0].data
@@ -549,9 +1056,10 @@ class PowerMorlet(ProcMethod):
                 results.append(mne_obj.data)
             results = np.asarray(results)
 
-        results = rearrange_axes(
-            obj=results, old_order=self.results_dims, new_order=dimensions
-        )
+        if dimensions is not None and dimensions != self.results_dims:
+            results = rearrange_axes(
+                obj=results, old_order=self.results_dims, new_order=dimensions
+            )
 
         return deepcopy(results)
 
@@ -585,7 +1093,6 @@ class PowerMorlet(ProcMethod):
         -   By default, this is set to None, in which case the value of the
             verbosity when the Signal object was instantiated is used.
         """
-
         if ask_before_overwrite is None:
             ask_before_overwrite = self._verbose
 
@@ -603,7 +1110,7 @@ class PowerFOOOF(ProcMethod):
 
     PARAMETERS
     ----------
-    signal : PowerMorlet
+    signal : PowerStandard
     -   Power spectra data that will be processed using FOOOF.
 
     verbose : bool; Optional, default True
@@ -625,7 +1132,7 @@ class PowerFOOOF(ProcMethod):
         dictionary.
     """
 
-    def __init__(self, signal: PowerMorlet, verbose: bool = True) -> None:
+    def __init__(self, signal: PowerStandard, verbose: bool = True) -> None:
         super().__init__(signal=signal, verbose=verbose)
 
         # Initialises inputs of the PowerFOOOF object.
