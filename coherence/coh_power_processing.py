@@ -11,17 +11,18 @@ fooof_analysis
     analysis.
 """
 
+import os
 import numpy as np
 from coh_handle_files import (
     generate_analysiswise_fpath,
     generate_sessionwise_fpath,
     load_file,
 )
-from coh_power import PowerFOOOF, PowerMorlet
+from coh_power import PowerFOOOF, PowerStandard
 import coh_signal
 
 
-def morlet_analysis(
+def standard_power_analysis(
     signal: coh_signal.Signal,
     folderpath_processing: str,
     dataset: str,
@@ -66,15 +67,23 @@ def morlet_analysis(
 
     save : bool
     -   Whether or not to save the results of the analysis.
+
+    RAISES
+    ------
+    NotImplementedError
+    -   Raised if the method for performing power analysis specified in the
+        settings is not supported.
     """
 
     ### Analysis setup
     ## Gets the relevant filepaths
     generic_settings_fpath = generate_analysiswise_fpath(
-        f"{folderpath_processing}\\Settings\\Generic", analysis, ".json"
+        os.path.join(folderpath_processing, "Settings", "Generic"),
+        analysis,
+        ".json",
     )
     morlet_fpath = generate_sessionwise_fpath(
-        f"{folderpath_processing}\\Data",
+        os.path.join(folderpath_processing, "Data"),
         dataset,
         subject,
         session,
@@ -88,27 +97,65 @@ def morlet_analysis(
     ## Loads the analysis settings
     analysis_settings = load_file(fpath=generic_settings_fpath)
 
+    supported_methods = ["welch", "multitaper", "morlet"]
+    power_method = analysis_settings["power_method"]
+    if power_method not in supported_methods:
+        raise NotImplementedError(
+            f"The method for calculating power '{power_method}' is not "
+            f"supported. Supported methods are {supported_methods}."
+        )
+
     ### Data processing
     ## Morlet wavelet power analysis
-    morlet = PowerMorlet(signal)
-    morlet.process(
-        freqs=np.arange(
-            analysis_settings["freqs"][0], analysis_settings["freqs"][1] + 1
-        ).tolist(),
-        n_cycles=analysis_settings["n_cycles"],
-        use_fft=analysis_settings["use_fft"],
-        decim=analysis_settings["decim"],
-        n_jobs=analysis_settings["n_jobs"],
-        picks=analysis_settings["picks"],
-        zero_mean=analysis_settings["zero_mean"],
-        average_windows=analysis_settings["average_windows"],
-        average_epochs=analysis_settings["average_epochs"],
-        average_timepoints=analysis_settings["average_timepoints"],
-        output=analysis_settings["output"],
-    )
+    power = PowerStandard(signal)
+    if power_method == "welch":
+        power.process_welch(
+            fmin=analysis_settings["fmin"],
+            fmax=analysis_settings["fmax"],
+            tmin=analysis_settings["tmin"],
+            tmax=analysis_settings["tmax"],
+            n_fft=analysis_settings["n_fft"],
+            n_overlap=analysis_settings["n_overlap"],
+            n_per_seg=analysis_settings["n_per_seg"],
+            proj=analysis_settings["proj"],
+            window_method=analysis_settings["window_method"],
+            average_windows=analysis_settings["average_windows"],
+            average_epochs=analysis_settings["average_epochs"],
+            average_segments=analysis_settings["average_segments"],
+            n_jobs=analysis_settings["n_jobs"],
+        )
+    elif power_method == "multitaper":
+        power.process_multitaper(
+            fmin=analysis_settings["fmin"],
+            fmax=analysis_settings["fmax"],
+            tmin=analysis_settings["tmin"],
+            tmax=analysis_settings["tmax"],
+            bandwidth=analysis_settings["bandwidth"],
+            adaptive=analysis_settings["adaptive"],
+            low_bias=analysis_settings["low_bias"],
+            normalization=analysis_settings["normalization"],
+            proj=analysis_settings["proj"],
+            average_windows=analysis_settings["average_windows"],
+            average_epochs=analysis_settings["average_epochs"],
+            n_jobs=analysis_settings["n_jobs"],
+        )
+    else:
+        power.process_morlet(
+            freqs=np.arange(
+                analysis_settings["freqs"][0], analysis_settings["freqs"][1] + 1
+            ).tolist(),
+            n_cycles=analysis_settings["n_cycles"],
+            use_fft=analysis_settings["use_fft"],
+            zero_mean=analysis_settings["zero_mean"],
+            average_windows=analysis_settings["average_windows"],
+            average_epochs=analysis_settings["average_epochs"],
+            average_timepoints=analysis_settings["average_timepoints"],
+            decim=analysis_settings["decim"],
+            n_jobs=analysis_settings["n_jobs"],
+        )
     if "normalise" in analysis_settings.keys():
         norm_settings = analysis_settings["normalise"]
-        morlet.normalise(
+        power.normalise(
             norm_type=norm_settings["norm_type"],
             within_dim=norm_settings["within_dim"],
             exclude_line_noise_window=norm_settings[
@@ -117,13 +164,13 @@ def morlet_analysis(
             line_noise_freq=norm_settings["line_noise_freq"],
         )
     if save:
-        morlet.save_results(fpath=morlet_fpath)
+        power.save_results(fpath=morlet_fpath)
 
-    return morlet
+    return power
 
 
 def fooof_analysis(
-    signal: PowerMorlet,
+    signal: PowerStandard,
     folderpath_processing: str,
     dataset: str,
     analysis: str,
@@ -137,7 +184,7 @@ def fooof_analysis(
     """
     PARAMETERS
     ----------
-    signal : coh_power.PowerMorlet
+    signal : coh_power.PowerStandard
     -   The power spcetra to analyse.
 
     folderpath_processing : str
