@@ -7,6 +7,22 @@ from numpy.typing import NDArray
 from coh_handle_entries import create_lambda, rearrange_axes
 
 
+class FillableObject:
+    """Creates an empty object that can be filled with attributes.
+
+    PARAMETERS
+    ----------
+    attrs : dict
+    -   The attributes to fill the object with. Keys and values of the
+        dictionary are added as the attributes of the object and their values,
+        respectively.
+    """
+
+    def __init__(self, attrs: dict):
+        for name, value in attrs.items():
+            setattr(self, name, value)
+
+
 def create_extra_info(data: dict) -> dict[dict]:
     """Create a dictionary for holding additional information used in Signal
     objects.
