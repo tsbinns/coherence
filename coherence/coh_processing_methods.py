@@ -72,10 +72,6 @@ class ProcMethod(ABC):
         self._windows_averaged = False
 
     @abstractmethod
-    def process(self) -> None:
-        """Processes the data."""
-
-    @abstractmethod
     def _sort_inputs(self) -> None:
         """Checks the inputs to the processing method object to ensure that they
         match the requirements for processing and assigns inputs."""
@@ -153,6 +149,7 @@ class ProcMethod(ABC):
             "epochs",
             "frequencies",
             "timepoints",
+            "segments",
         ]
 
         return [dim for dim in possible_order if dim in self.results_dims]
