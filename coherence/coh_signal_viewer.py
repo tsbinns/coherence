@@ -185,9 +185,13 @@ class SignalViewer:
         """Plots the raw signals along with the loaded annotations, if
         applicable."""
 
-        self.signal.data[0].plot(scalings="auto", show=False)
-        plt.tight_layout()
-        plt.show(block=True)
+        # If mne-qt-browser is installed
+        self.signal.data[0].plot(scalings="auto", block=True)
+
+        # If mne-qt-browser is not installed
+        # self.signal.data[0].plot(scalings="auto", show=False)
+        # plt.tight_layout()
+        # plt.show(block=True)
 
     def save_annotations(
         self, fpath: str, ask_before_overwrite: bool = True
