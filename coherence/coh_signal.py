@@ -393,7 +393,7 @@ class Signal:
 
         if len(ch_names) != len(ch_hemispheres):
             raise EntryLengthError(
-                "The channel names and regions do not have the same length "
+                "The channel names and hemispheres do not have the same length "
                 f"({len(ch_names)} and {len(ch_hemispheres)}, respectively)."
             )
 
