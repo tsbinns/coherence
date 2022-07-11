@@ -15,9 +15,9 @@ from typing import Union
 from mne import Epochs
 from mne.time_frequency import (
     CrossSpectralDensity,
-    csd_fourier,
-    csd_multitaper,
-    csd_morlet,
+    csd_array_fourier,
+    csd_array_multitaper,
+    csd_array_morlet,
 )
 from mne_connectivity import (
     seed_target_indices,
@@ -36,13 +36,16 @@ from coh_exceptions import (
     UnavailableProcessingError,
 )
 from coh_handle_entries import rearrange_axes
-from coh_processing_methods import ProcConnectivity
+from coh_connectivity_processing_methods import (
+    ProcMultivariateConnectivity,
+    ProcSingularConnectivity,
+)
 from coh_progress_bar import ProgressBar
 import coh_signal
 from coh_saving import save_dict
 
 
-class ConnectivityCoherence(ProcConnectivity):
+class ConnectivityCoherence(ProcSingularConnectivity):
     """Calculates the coherence (standard or imaginary) between signals.
 
     PARAMETERS
@@ -443,8 +446,8 @@ class ConnectivityCoherence(ProcConnectivity):
         self.processing_steps["connectivity_coherence"] = {
             "con_method": con_method,
             "pow_method": pow_method,
-            "seeds": self._seeds_str,
-            "targets": self._targets_str,
+            "seeds": self._seeds,
+            "targets": self._targets,
             "fmin": fmin,
             "fmax": fmax,
             "fskip": fskip,
@@ -516,14 +519,14 @@ class ConnectivityCoherence(ProcConnectivity):
             f"connectivity-{self._con_method}": results.tolist(),
             f"connectivity-{self._con_method}_dimensions": dimensions,
             "freqs": self.results[0].freqs,
-            "seed_names": self._seeds_str,
+            "seed_names": self._seeds,
             "seed_types": self.extra_info["node_ch_types"][0],
             "seed_coords": self.extra_info["node_ch_coords"][0],
             "seed_regions": self.extra_info["node_ch_regions"][0],
             "seed_subregions": self.extra_info["node_ch_subregions"][0],
             "seed_hemispheres": self.extra_info["node_ch_hemispheres"][0],
             "seed_reref_types": self.extra_info["node_ch_reref_types"][0],
-            "target_names": self._targets_str,
+            "target_names": self._targets,
             "target_types": self.extra_info["node_ch_types"][1],
             "target_coords": self.extra_info["node_ch_coords"][1],
             "target_regions": self.extra_info["node_ch_regions"][1],
@@ -539,7 +542,7 @@ class ConnectivityCoherence(ProcConnectivity):
         }
 
 
-class ConnectivityMultivariate(ProcConnectivity):
+class ConnectivityMultivariate(ProcMultivariateConnectivity):
     """Calculates the multivariate connectivity (multivariate interaction
     measure, MIM, or maximised imaginary coherence, MIC) between signals.
 
@@ -1466,7 +1469,7 @@ class ConnectivityMultivariate(ProcConnectivity):
         return topographies
 
 
-class ConnectivityGranger(ProcConnectivity):
+class ConnectivityGranger(ProcMultivariateConnectivity):
     """Calculates Granger causality measures of connectivity between signals.
 
     PARAMETERS
@@ -1522,6 +1525,7 @@ class ConnectivityGranger(ProcConnectivity):
         self._mt_low_bias = None
         self._cwt_decim = None
         self._average_windows = None
+        self._ensure_full_rank_data = None
         self._n_jobs = None
         self._progress_bar = None
         self._csd_matrix_indices = None
@@ -1537,6 +1541,7 @@ class ConnectivityGranger(ProcConnectivity):
         tmin: Union[int, float, None] = None,
         tmax: Union[int, float, None] = None,
         average_windows: bool = True,
+        ensure_full_rank_data: bool = True,
         n_jobs: int = 1,
         cwt_freqs: Union[list[Union[int, float]], None] = None,
         cwt_n_cycles: Union[int, float, list[Union[int, float]]] = 7,
@@ -1601,8 +1606,17 @@ class ConnectivityGranger(ProcConnectivity):
         -   Time to end the connectivity estimation.
         -   If None, the data is used until the end.
 
-        average_windows : bool; default False
+        average_windows : bool; default True
         -   Whether or not to average connectivity results across windows.
+
+        ensure_full_rank_data : bool; default True
+        -   Whether or not to make sure that the data being processed has full
+            rank by performing a singular value decomposition on the data of the
+            seeds and targets and taking only the first n components, where n is
+            equal to number of non-zero singluar values in the decomposition
+            (i.e. the rank of the data).
+        -   If this is not performed, errors can arise when computing Granger
+            causality as assumptions of the method are violated.
 
         n_jobs : int; default 1
         -   The number of epochs to calculate connectivity for in parallel.
@@ -1683,11 +1697,12 @@ class ConnectivityGranger(ProcConnectivity):
         self._mt_low_bias = mt_low_bias
         self._cwt_decim = cwt_decim
         self._average_windows = average_windows
+        self._ensure_full_rank_data = ensure_full_rank_data
         self._n_jobs = n_jobs
 
         self._sort_processing_inputs()
-
         self._get_results()
+        self._processed = True
 
     def _sort_processing_inputs(self) -> None:
         """Checks that inputs for processing the data are appropriate."""
@@ -1700,36 +1715,107 @@ class ConnectivityGranger(ProcConnectivity):
                 f"{supported_cs_methods}."
             )
         super()._sort_seeds_targets()
-        self._sort_csd_indices()
+        self._sort_used_settings()
 
-    def _sort_csd_indices(self) -> None:
-        """Gets the indices of the seeds and targets for each connectivity node
-        that will be taken from the cross-spectral density matrix."""
-        self._csd_matrix_indices = [[], []]
-        for seeds, targets in zip(self._seeds_list, self._targets_list):
-            self._csd_matrix_indices[0].append(
-                [self.signal.data[0].ch_names.index(name) for name in seeds]
-            )
-            self._csd_matrix_indices[1].append(
-                [self.signal.data[0].ch_names.index(name) for name in targets]
-            )
+    def _sort_used_settings(self) -> None:
+        """Collects the settings that are relevant for the processing being
+        performed and adds only these settings to the 'processing_steps'
+        dictionary."""
+        used_settings = {
+            "granger_causality_method": self._gc_method,
+            "cross-spectra_method": self._cs_method,
+            "n_lags": self._n_lags,
+            "average_windows": self._average_windows,
+            "ensure_full_rank_data": self._ensure_full_rank_data,
+            "t_min": self._tmin,
+            "t_max": self._tmax,
+        }
+
+        if self._cs_method == "fourier":
+            add_settings = {
+                "fmin": self._fmt_fmin,
+                "fmax": self._fmt_fmax,
+                "n_fft": self._fmt_n_fft,
+            }
+        elif self._cs_method == "multitaper":
+            add_settings = {
+                "fmin": self._fmt_fmin,
+                "fmax": self._fmt_fmax,
+                "n_fft": self._fmt_n_fft,
+                "bandwidth": self._mt_bandwidth,
+                "adaptive": self._mt_adaptive,
+                "low_bias": self._mt_low_bias,
+            }
+        elif self._cs_method == "cwt_morlet":
+            add_settings = {
+                "n_cycles": self._cwt_n_cycles,
+                "use_fft": self._cwt_use_fft,
+                "decim": self._cwt_decim,
+            }
+        used_settings.update(add_settings)
+
+        self.processing_steps["connectivity_granger"] = used_settings
 
     def _get_results(self) -> None:
         """Performs the connectivity analysis."""
         if self._verbose:
             self._progress_bar = ProgressBar(
-                n_steps=len(self.signal.data) * len(self._indices) * 3,
+                n_steps=len(self.signal.data) * len(self._indices),
                 title="Computing connectivity",
             )
 
-        cross_spectra = self._compute_csd()
-        self._compute_gc(cross_spectra=cross_spectra)
+        first_node = True
+        self._seed_ranks = []
+        self._target_ranks = []
+        for seeds, targets in zip(self._seeds_list, self._targets_list):
+            if self._verbose:
+                print(
+                    f"Computing connectivity.\n- Seeds: {seeds}\n- Targets: "
+                    f"{targets}\n"
+                )
+            seed_data, target_data = self._get_node_data(seeds, targets)
+            if self._ensure_full_rank_data:
+                (
+                    seed_data,
+                    target_data,
+                    seed_rank,
+                    target_rank,
+                ) = self._sort_data_dimensionality(seed_data, target_data)
+            self._seed_ranks.append(seed_rank)
+            self._target_ranks.append(target_rank)
+            data = self._join_seed_target_data(seed_data, target_data)
+            csd = self._compute_csd(data)
+            result = self._compute_gc(
+                cross_spectra=csd,
+                seeds=np.arange(seed_rank).tolist(),
+                targets=np.arange(seed_rank, seed_rank + target_rank).tolist(),
+            )
+            if first_node:
+                granger_causality = result.copy()
+            else:
+                granger_causality = np.concatenate(
+                    (granger_causality, result), axis=1
+                )
+            first_node = False
+        self.results = granger_causality
+
+        if self._progress_bar is not None:
+            self._progress_bar.close()
 
         self._sort_dimensions()
         super()._generate_extra_info()
 
-    def _compute_csd(self) -> list[CrossSpectralDensity]:
-        """Computes the cross-spectral density of the data.
+    def _compute_csd(self, data: list[NDArray]) -> list[CrossSpectralDensity]:
+        """Computes the cross-spectral density of the data for a single node.
+
+        PARAMETERS
+        ----------
+        data : list[numpy ndarray]
+        -   The data of a single seed-target pair consisting of a set of 3D
+            matrices with dimensions [epochs x channels x timepoints] in a list
+            containing the data for individual windows of data.
+        -   Channels corresponding to the seeds should be in indices [0 :
+            n_seeds], and the targets in indices [n_seeds : end].
 
         RETURNS
         -------
@@ -1737,20 +1823,23 @@ class ConnectivityGranger(ProcConnectivity):
         -   The cross-spectra for each window of the data.
         """
         cross_spectra = []
-        for i, data in enumerate(self.signal.data):
+        for win_i, win_data in enumerate(data):
             if self._verbose:
                 print(
                     "Computing the cross-spectral density for window "
-                    f"{i+1} of {len(self.signal.data)}.\n"
+                    f"{win_i+1} of {len(data)}.\n"
                 )
             if self._cs_method == "fourier":
                 cross_spectra.append(
-                    csd_fourier(
-                        epochs=data,
+                    csd_array_fourier(
+                        X=win_data,
+                        sfreq=self.signal.data[0].info["sfreq"],
+                        t0=0,
                         fmin=self._fmt_fmin,
                         fmax=self._fmt_fmax,
                         tmin=self._tmin,
                         tmax=self._tmax,
+                        ch_names=None,
                         n_fft=self._fmt_n_fft,
                         projs=None,
                         n_jobs=self._n_jobs,
@@ -1759,12 +1848,15 @@ class ConnectivityGranger(ProcConnectivity):
                 )
             elif self._cs_method == "multitaper":
                 cross_spectra.append(
-                    csd_multitaper(
-                        epochs=data,
+                    csd_array_multitaper(
+                        X=win_data,
+                        sfreq=self.signal.data[0].info["sfreq"],
+                        t0=0,
                         fmin=self._fmt_fmin,
                         fmax=self._fmt_fmax,
                         tmin=self._tmin,
                         tmax=self._tmax,
+                        ch_names=None,
                         n_fft=self._fmt_n_fft,
                         bandwidth=self._mt_bandwidth,
                         adaptive=self._mt_adaptive,
@@ -1776,11 +1868,14 @@ class ConnectivityGranger(ProcConnectivity):
                 )
             elif self._cs_method == "cwt_morlet":
                 cross_spectra.append(
-                    csd_morlet(
-                        epochs=data,
+                    csd_array_morlet(
+                        X=win_data,
+                        sfreq=self.signal.data[0].info["sfreq"],
                         frequencies=self._cwt_freqs,
+                        t0=0,
                         tmin=self._tmin,
                         tmax=self._tmax,
+                        ch_names=None,
                         n_cycles=self._cwt_n_cycles,
                         use_fft=self._cwt_use_fft,
                         decim=self._cwt_decim,
@@ -1796,21 +1891,40 @@ class ConnectivityGranger(ProcConnectivity):
 
         return cross_spectra
 
-    def _compute_gc(self, cross_spectra: list[CrossSpectralDensity]) -> None:
-        """Computes Granger casuality between signals from the cross-spectral
-        density for each window.
+    def _compute_gc(
+        self,
+        cross_spectra: list[CrossSpectralDensity],
+        seeds: list[int],
+        targets: list[int],
+    ) -> NDArray:
+        """Computes Granger casuality between seeds and targets of a single node
+        for each window.
 
         PARAMETERS
         ----------
         cross_spectra : list[MNE CrossSpectralDensity]
-        -   The cross-spectra between signals for each window.
+        -   The cross-spectra between seeds and targets of a single node for
+            each window, with seeds in indices [0 : n_seeds] and targets in
+            indices [n_seeds : end], for axes 0 and 1.
+
+        seeds : list[int]
+        -   Indices of seeds in the cross-spectra in axes 0 and 1.
+
+        targets : list[int]
+        -   Indices of targets in the cross-spectra in axes 0 and 1.
+
+        RETURNS
+        -------
+        results : numpy ndarray
+        -   The Granger causality results with dimensions [windows x nodes x
+            frequencies].
         """
         results = []
         for i, csd in enumerate(cross_spectra):
             if self._verbose:
                 print(
                     f"Computing Granger causality for window {i+1} of "
-                    f"{len(self.signal.data)}.\n"
+                    f"{len(cross_spectra)}.\n"
                 )
             csd_matrix = np.transpose(
                 np.asarray(
@@ -1823,15 +1937,15 @@ class ConnectivityGranger(ProcConnectivity):
                     csd=csd_matrix,
                     freqs=self._freqs,
                     method=self._gc_method,
-                    seeds=self._csd_matrix_indices[0],
-                    targets=self._csd_matrix_indices[1],
+                    seeds=[seeds],
+                    targets=[targets],
                     n_lags=self._n_lags,
                 )
             )
             if self._progress_bar is not None:
                 self._progress_bar.update_progress()
 
-        self.results = results
+        return np.asarray(results)
 
     def _sort_dimensions(self) -> None:
         """Establishes dimensions of the connectivity results and averages
@@ -1929,6 +2043,7 @@ class ConnectivityGranger(ProcConnectivity):
             f"connectivity-{self._gc_method}_dimensions": dimensions,
             "freqs": self._freqs,
             "seed_names": self._seeds_str,
+            "seed_ranks": self._seed_ranks,
             "seed_types": self.extra_info["node_ch_types"][0],
             "seed_coords": self.extra_info["node_ch_coords"][0],
             "seed_regions": self.extra_info["node_ch_regions"][0],
@@ -1936,6 +2051,7 @@ class ConnectivityGranger(ProcConnectivity):
             "seed_hemispheres": self.extra_info["node_ch_hemispheres"][0],
             "seed_reref_types": self.extra_info["node_ch_reref_types"][0],
             "target_names": self._targets_str,
+            "target_ranks": self._target_ranks,
             "target_types": self.extra_info["node_ch_types"][1],
             "target_coords": self.extra_info["node_ch_coords"][1],
             "target_regions": self.extra_info["node_ch_regions"][1],
