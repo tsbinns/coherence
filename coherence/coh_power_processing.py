@@ -258,7 +258,10 @@ def fooof_analysis(
         min_peak_height=analysis_settings["min_peak_height"],
         peak_threshold=analysis_settings["peak_threshold"],
         aperiodic_modes=data_settings["aperiodic_modes"],
+        freq_bands=analysis_settings["freq_bands"],
+        average_windows=analysis_settings["average_windows"],
         show_fit=analysis_settings["show_fit"],
     )
     if save:
         fooof.save_results(fooof_fpath)
+        fooof.save_aperiodic_modes(specific_settings_fpath)
