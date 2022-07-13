@@ -338,6 +338,7 @@ def granger_processing(
             tmin=analysis_settings["tmin"],
             tmax=analysis_settings["tmax"],
             average_windows=analysis_settings["average_windows"],
+            ensure_full_rank_data=analysis_settings["ensure_full_rank_data"],
             n_jobs=analysis_settings["n_jobs"],
             cwt_freqs=cwt_freqs,
             cwt_n_cycles=analysis_settings["cwt_n_cycles"],
