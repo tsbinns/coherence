@@ -155,18 +155,18 @@ def autocov_to_full_var(
         try:
             np.linalg.cholesky(V)
         except np.linalg.linalg.LinAlgError as np_error:
-            n_lags = G.shape[2]
-            if n_lags - 1 > 1:
-                _, V = autocov_to_full_var(
-                    G=G[:, :, : n_lags - 1],
-                    enforce_posdef_residuals_cov=True,
-                )
-            else:
-                raise ValueError(
-                    "The positive-definite nature of the residuals' covariance "
-                    "matrix is being enforced, however no positive-definite "
-                    "matrix can be found."
-                ) from np_error
+            # n_lags = G.shape[2]
+            # if n_lags - 1 > 1:
+            #    _, V = autocov_to_full_var(
+            #        G=G[:, :, : n_lags - 1],
+            #        enforce_posdef_residuals_cov=True,
+            #    )
+            # else:
+            raise ValueError(
+                "The positive-definite nature of the residuals' covariance "
+                "matrix is being enforced, however no positive-definite "
+                "matrix can be found."
+            ) from np_error
 
     return AF, V
 
