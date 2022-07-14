@@ -1148,6 +1148,7 @@ class PowerFOOOF(ProcMethod):
         self.average_windows = None
         self.show_fit = None
         self.fooof_results = None
+        self.freqs = None
 
     def _sort_inputs(self) -> None:
         """Checks the inputs to the PowerFOOOF object to ensure that they
@@ -1343,7 +1344,7 @@ class PowerFOOOF(ProcMethod):
                 self.signal.results[0].freqs[-1],
             ]
         self.freq_range = freq_range
-        self.freqs = np.arange(freq_range[0], freq_range[1] + 1)
+        self.freqs = self.signal.results[0].freqs
 
         if aperiodic_modes is None:
             aperiodic_modes = []
@@ -1641,7 +1642,7 @@ class PowerFOOOF(ProcMethod):
         )
         peak_params = self._get_fband_peaks(model.get_results().peak_params)
         return {
-            "periodic_component": model._spectrum_flat,
+            "periodic_component": model._peak_fit,
             "aperiodic_component": model._spectrum_peak_rm,
             "r_squared": model.get_results().r_squared,
             "error": model.get_results().error,
@@ -1788,15 +1789,28 @@ class PowerFOOOF(ProcMethod):
             verbose=self._verbose,
         )
 
-    def get_results(self) -> dict:
+    def get_results(self, return_lists: bool = False) -> dict:
         """Returns the results dictionary.
+
+        PARAMETERS
+        ----------
+        return_lists : bool; default False
+        -   Whether or not to return the results as lists, or numpy ndarrays.
 
         RETURNS
         -------
         dict
         -   The results dictionary of the FOOOF analysis.
         """
-        return deepcopy(self.results)
+        results = deepcopy(self.results)
+        for key, value in results.items():
+            if return_lists:
+                value = [val.tolist() for val in value]
+            if self._windows_averaged:
+                value = value[0]
+            results[key] = value
+
+        return results
 
     def results_as_dict(self) -> dict:
         """Organises the results and additional information into a dictionary.
@@ -1806,11 +1820,12 @@ class PowerFOOOF(ProcMethod):
         -   A dictionary of results and additional information.
         """
         ch_names = self.signal.results[0].ch_names
-        results = self._results_as_lists()
+        results = self.get_results(return_lists=True)
         return {
             "power-fooof_periodic": results["periodic_component"],
             "power-fooof_aperiodic": results["aperiodic_component"],
-            "power-fooof_peaks": results["peak_params"],
+            "power-fooof_band_names": list(self.freq_bands.keys()),
+            "power-fooof_band_peaks": results["peak_params"],
             "r_squared": results["r_squared"],
             "error": results["error"],
             "freqs": self.freqs.tolist(),
@@ -1836,21 +1851,6 @@ class PowerFOOOF(ProcMethod):
             "processing_steps": self.processing_steps,
             "subject_info": self.signal.signal.data[0].info["subject_info"],
         }
-
-    def _results_as_lists(self) -> dict[list[list]]:
-        """Converts the results from a dictionary whose values are lists of
-        numpy ndarrays to lists of lists.
-
-        RETURNS
-        -------
-        results : dict[list[list]]
-        -   The results whose values are lists of lists
-        """
-        results = deepcopy(self.results)
-        for key, value in results.items():
-            results[key] = [val.tolist() for val in value]
-
-        return results
 
     def save_results(
         self,
