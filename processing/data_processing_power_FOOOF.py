@@ -7,22 +7,24 @@ from pathlib import Path
 
 cd_path = Path(__file__).absolute().parent.parent
 sys.path.append(os.path.join(cd_path, "coherence"))
-from coh_power_processing import fooof_analysis, morlet_analysis
+from coh_power_processing import fooof_analysis, standard_power_analysis
 from coh_loading import load_preprocessed_dict
 
 
 ### Info about the data to analyse
 FOLDERPATH_PREPROCESSING = (
-    "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN\\Preprocessing"
+    "\\\\?\\C:\\Users\\User\\OneDrive - Charité - Universitätsmedizin Berlin\\"
+    "PROJECT ECOG-LFP Coherence\\Analysis\\Preprocessing"
 )
 FOLDERPATH_PROCESSING = (
-    "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN\\Processing"
+    "\\\\?\\C:\\Users\\User\\OneDrive - Charité - Universitätsmedizin Berlin\\"
+    "PROJECT ECOG-LFP Coherence\\Analysis\\Processing"
 )
 DATASET = "BIDS_Berlin_ECOG_LFP"
 PREPROCESSING = "preprocessed-for_fooof"
 POWER_ANALYSIS = "pow_morlet_prefooof"
 FOOOF_ANALYSIS = "pow_fooof"
-SUBJECT = "003"
+SUBJECT = "006"
 SESSION = "EcogLfpMedOff01"
 TASK = "Rest"
 ACQUISITION = "StimOff"
@@ -42,7 +44,7 @@ if __name__ == "__main__":
         run=RUN,
     )
 
-    power = morlet_analysis(
+    power = standard_power_analysis(
         preprocessed,
         FOLDERPATH_PROCESSING,
         DATASET,

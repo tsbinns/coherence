@@ -90,8 +90,10 @@ def coherence_processing(
     ## Coherence analysis
     if analysis_settings["cwt_freqs"] is not None:
         cwt_freqs = np.arange(
-            analysis_settings["cwt_freqs"][0],
-            analysis_settings["cwt_freqs"][1] + 1,
+            analysis_settings["cwt_freq_range"][0],
+            analysis_settings["cwt_freq_range"][1]
+            + analysis_settings["cwt_freq_resolution"],
+            analysis_settings["cwt_freq_resolution"],
         )
     for method in analysis_settings["con_methods"]:
         coherence = ConnectivityCoherence(signal)
@@ -207,8 +209,10 @@ def multivariate_processing(
     ## Multivariate connectivity analysis
     if analysis_settings["cwt_freqs"] is not None:
         cwt_freqs = np.arange(
-            analysis_settings["cwt_freqs"][0],
-            analysis_settings["cwt_freqs"][1] + 1,
+            analysis_settings["cwt_freq_range"][0],
+            analysis_settings["cwt_freq_range"][1]
+            + analysis_settings["cwt_freq_resolution"],
+            analysis_settings["cwt_freq_resolution"],
         )
     for con_method in analysis_settings["con_methods"]:
         multivariate = ConnectivityMultivariate(signal)
@@ -324,8 +328,10 @@ def granger_processing(
     ## Coherence analysis
     if analysis_settings["cwt_freqs"] is not None:
         cwt_freqs = np.arange(
-            analysis_settings["cwt_freqs"][0],
-            analysis_settings["cwt_freqs"][1] + 1,
+            analysis_settings["cwt_freq_range"][0],
+            analysis_settings["cwt_freq_range"][1]
+            + analysis_settings["cwt_freq_resolution"],
+            analysis_settings["cwt_freq_resolution"],
         )
     for gc_method in analysis_settings["gc_methods"]:
         coherence = ConnectivityGranger(signal)
@@ -338,6 +344,7 @@ def granger_processing(
             tmin=analysis_settings["tmin"],
             tmax=analysis_settings["tmax"],
             average_windows=analysis_settings["average_windows"],
+            ensure_full_rank_data=analysis_settings["ensure_full_rank_data"],
             n_jobs=analysis_settings["n_jobs"],
             cwt_freqs=cwt_freqs,
             cwt_n_cycles=analysis_settings["cwt_n_cycles"],
