@@ -142,7 +142,10 @@ def standard_power_analysis(
     else:
         power.process_morlet(
             freqs=np.arange(
-                analysis_settings["freqs"][0], analysis_settings["freqs"][1] + 1
+                analysis_settings["freq_range"][0],
+                analysis_settings["freq_range"][1]
+                + analysis_settings["freq_resolution"],
+                analysis_settings["freq_resolution"],
             ).tolist(),
             n_cycles=analysis_settings["n_cycles"],
             use_fft=analysis_settings["use_fft"],
