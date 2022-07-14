@@ -18,7 +18,7 @@ FOLDERPATH_ANALYSIS = (
     "\\\\?\\C:\\Users\\User\\OneDrive - Charité - Universitätsmedizin Berlin\\"
     "PROJECT ECOG-LFP Coherence\\Analysis\\Analysis"
 )
-ANALYSIS = "con_multivar_whole-MedOffOn"
+ANALYSIS = "con_granger_whole-MedOffOn"
 
 
 if __name__ == "__main__":

@@ -19,8 +19,8 @@ FOLDERPATH_PROCESSING = (
     "C:\\Users\\User\\OneDrive\\My Documents\\Data\\ICN\\Processing"
 )
 DATASET = "BIDS_Berlin_ECOG_LFP"
-PREPROCESSING = "preprocessed-FOOOF_Moritz"
-POWER_ANALYSIS = "pow_morlet"
+PREPROCESSING = "preprocessed-for_fooof"
+POWER_ANALYSIS = "pow_morlet_prefooof"
 FOOOF_ANALYSIS = "pow_fooof"
 SUBJECT = "003"
 SESSION = "EcogLfpMedOff01"
