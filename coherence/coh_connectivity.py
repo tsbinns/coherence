@@ -542,9 +542,10 @@ class ConnectivityCoherence(ProcSingularConnectivity):
         }
 
 
-class ConnectivityMultivariate(ProcMultivariateConnectivity):
-    """Calculates the multivariate connectivity (multivariate interaction
-    measure, MIM, or maximised imaginary coherence, MIC) between signals.
+class ConnectivityMIMMIC(ProcMultivariateConnectivity):
+    """Calculates the multivariate connectivity measures multivariate
+    interaction measure (MIM) or maximised imaginary coherence (MIC) between
+    signals.
 
     PARAMETERS
     ----------
@@ -1470,7 +1471,7 @@ class ConnectivityMultivariate(ProcMultivariateConnectivity):
 
 
 class ConnectivityGranger(ProcMultivariateConnectivity):
-    """Calculates Granger causality measures of connectivity between signals.
+    """Calculates multivariate spectral Granger causality between signals.
 
     PARAMETERS
     ----------

@@ -7,7 +7,7 @@ from pathlib import Path
 
 cd_path = Path(__file__).absolute().parent.parent
 sys.path.append(os.path.join(cd_path, "coherence"))
-from coh_connectivity_processing import multivariate_processing
+from coh_connectivity_processing import mim_mic_processing
 from coh_loading import load_preprocessed_dict
 
 

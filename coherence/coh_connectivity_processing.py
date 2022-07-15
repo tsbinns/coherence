@@ -10,7 +10,7 @@ from coh_handle_files import (
 from coh_connectivity import (
     ConnectivityCoherence,
     ConnectivityGranger,
-    ConnectivityMultivariate,
+    ConnectivityMIMMIC,
 )
 import coh_signal
 
@@ -27,7 +27,7 @@ def coherence_processing(
     run: str,
     save: bool,
 ) -> None:
-    """Peforms processing to generate, and optionally save, coherence results.
+    """Peforms processing to generate coherence results.
 
     PARAMETERS
     ----------
@@ -133,7 +133,7 @@ def coherence_processing(
             coherence.save_results(coherence_fpath)
 
 
-def multivariate_processing(
+def mim_mic_processing(
     signal: coh_signal.Signal,
     folderpath_processing: str,
     dataset: str,
@@ -145,8 +145,9 @@ def multivariate_processing(
     run: str,
     save: bool,
 ) -> None:
-    """Peforms processing to generate, and optionally save, multivariate
-    conectivity results.
+    """Peforms processing to generate multivariate conectivity results for the
+    multivariate interaction measure (MIM) and/or the maximised imaginary
+    coherence (MIC).
 
     PARAMETERS
     ----------
@@ -215,7 +216,7 @@ def multivariate_processing(
             analysis_settings["cwt_freq_resolution"],
         )
     for con_method in analysis_settings["con_methods"]:
-        multivariate = ConnectivityMultivariate(signal)
+        multivariate = ConnectivityMIMMIC(signal)
         multivariate.process(
             con_method=con_method,
             cohy_method=analysis_settings["cohy_method"],
@@ -264,7 +265,7 @@ def granger_processing(
     run: str,
     save: bool,
 ) -> None:
-    """Peforms processing to generate, and optionally save, Granger causality
+    """Peforms processing to generate multivariate spectral Granger causality
     results.
 
     PARAMETERS
