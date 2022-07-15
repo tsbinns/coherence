@@ -1843,3 +1843,35 @@ def create_lambda(obj: Any) -> Any:
     """Creates a lambda from an object, useful for when the object has been
     created in a for loop."""
     return lambda: obj
+
+
+def check_svd_params(n_signals: int, take_n_components: int) -> None:
+    """Checks that the parameters used for a singular value decomposition (SVD)
+    are compatible with the data being used.
+
+    PARAMETERS
+    ----------
+    n_signals : int
+    -   The number of signals in the data the SVD is being performed on. This is
+        the maximum number of components that can be taken from the SVD.
+
+    take_n_components : int
+    -   The number of components being taken from the SVD.
+
+    RAISES
+    ------
+    ValueError
+    -   Raised if 0 components are being taken from the SVD, or the number of
+        components being taken are greater than the number of signals (i.e. the
+        maximum number of components available).
+    """
+    if take_n_components == 0:
+        raise ValueError(
+            "0 components are being taken from the singular value "
+            "decomposition, but this must be at least 1."
+        )
+    if take_n_components > n_signals:
+        raise ValueError(
+            f"At most {n_signals} components can be taken from the singular "
+            f"value decomposition, but {take_n_components} are being taken."
+        )

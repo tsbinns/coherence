@@ -29,7 +29,8 @@ from numpy.typing import NDArray
 import numpy as np
 from coh_connectivity_computations import (
     granger_causality,
-    mim_mic,
+    max_imaginary_coherence,
+    multivariate_interaction_measure,
 )
 from coh_exceptions import (
     ProcessingOrderError,
@@ -938,13 +939,23 @@ class ConnectivityMIMMIC(ProcMultivariateConnectivity):
                     f"{con_i+1} of {len(self._indices[0])}.\n"
                 )
             cohy_matrix = self._get_cohy_matrix(data, indices)
-            results = mim_mic(
-                data=cohy_matrix,
-                method=self._con_method,
-                n_seeds=len(self._seeds_list[con_i]),
-                n_targets=len(self._targets_list[con_i]),
-                return_topographies=self._return_topographies,
-            )
+            if self._con_method == "mim":
+                results = multivariate_interaction_measure(
+                    C=cohy_matrix,
+                    n_seeds=len(self._seeds_list[con_i]),
+                    n_targets=len(self._targets_list[con_i]),
+                    n_seed_components=,
+                    n_target_components=,
+                )
+            elif self._con_method == "mic":
+                results = max_imaginary_coherence(
+                    C=cohy_matrix,
+                    n_seeds=len(self._seeds_list[con_i]),
+                    n_targets=len(self._targets_list[con_i]),
+                    n_seed_components=,
+                    n_target_components=,
+                    return_topographies=self._return_topographies
+                )
             if self._return_topographies and self._con_method == "mic":
                 connectivity.append(results[0])
                 topographies[0].append(results[1][0])

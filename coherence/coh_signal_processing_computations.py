@@ -11,7 +11,7 @@ from typing import Union
 import numpy as np
 from scipy import linalg as spla
 from numpy.typing import NDArray
-from coh_handle_entries import check_posdef
+from coh_handle_entries import check_posdef, check_svd_params
 from coh_matlab_functions import reshape, kron, linsolve_transa
 
 from scipy.io import loadmat
@@ -725,21 +725,105 @@ def discrete_lyapunov(A: NDArray, Q: NDArray) -> NDArray:
     return X
 
 
-def multivariate_connectivity_compute_e(data: NDArray, n_seeds: int) -> NDArray:
+def mim_mic_cross_spectra_svd(
+    C: NDArray,
+    n_seeds: int,
+    n_seed_components: Union[int, None] = None,
+    n_target_components: Union[int, None] = None,
+) -> tuple[NDArray, NDArray, NDArray]:
+    """Performs dimensionality reduction on a connectivity cross-spectra using
+    singular value decomposition (SVD), if requested.
+
+    PARAMETERS
+    ----------
+    C : numpy ndarray
+    -   A 2D array of coherency values between all possible connections of seeds
+        and targets, for a single frequency. Has the dimensions [n_signals x
+        n_signals], where n_signals = n_seeds + n_targets.
+
+    n_seeds : int
+    -   Number of seed signals. Entries in both dimensions of 'C' from [0 :
+        n_seeds] are taken as the coherency values for seed signals. Entries
+        from [n_seeds : end] are taken as the coherency values for target
+        signals.
+
+    n_seed_components : int | None; default None
+    -   The number of components to take from the SVD of the seed data.
+    -   If 'None', no SVD is performed on the seed data.
+
+    n_target_components : int | None; default None
+    -   The number of components to take from the SVD of the target data.
+    -   If 'None', no SVD is performed on the target data.
+
+    RETURNS
+    -------
+    C_bar : numpy ndarray
+    -   The transformed coherency values with dimensions [n_signals x
+        n_signals], where n_signals = n_seed_components + n_target_components.
+    -   If both 'n_seed_components' and 'n_target_components' are 'None', the
+        original connectivity matrix 'C' is returned.
+
+    U_bar_aa : numpy ndarray
+    -   The real part of the matrix U from the SVD on the seed data with
+        dimensions [n_seeds x n_seed_components].
+    -   If 'n_seed_components' is 'None', an identity matrix for a matrix of
+        size [n_seeds x n_seeds] is returned.
+
+    U_bar_bb : numpy ndarray
+    -   The real part of the matrix U from the SVD on the target data with
+        dimensions [n_targets x n_target_components].
+    -   If 'n_target_components' is 'None', an identity matrix for a matrix of
+        size [n_targets x n_targets] is returned.
+    """
+    check_svd_params(n_signals=n_seeds, take_n_components=n_seed_components)
+    check_svd_params(
+        n_signals=C.shape[0] - n_seeds, take_n_components=n_target_components
+    )
+
+    C_aa = C[:n_seeds, :n_seeds]
+    C_ab = C[:n_seeds, n_seeds:]
+    C_bb = C[n_seeds:, n_seeds:]
+    C_ba = C[n_seeds:, :n_seeds]
+
+    # Eq. 32
+    if n_seed_components is not None:
+        U_aa, _, _ = np.linalg.svd(C_aa, full_matrices=False)
+        U_bar_aa = U_aa[:, :n_seed_components]
+    else:
+        U_bar_aa = np.identity(C_aa.shape[0])
+    if n_target_components is not None:
+        U_bb, _, _ = np.linalg.svd(C_bb, full_matrices=False)
+        U_bar_bb = U_bb[:, :n_target_components]
+    else:
+        U_bar_bb = np.identity(C_bb.shape[0])
+
+    # Eq. 33
+    C_bar_aa = np.matmul(U_bar_aa.T, np.matmul(C_aa, U_bar_aa))
+    C_bar_ab = np.matmul(U_bar_aa.T, np.matmul(C_ab, U_bar_bb))
+    C_bar_bb = np.matmul(U_bar_bb.T, np.matmul(C_bb, U_bar_bb))
+    C_bar_ba = np.matmul(U_bar_bb.T, np.matmul(C_ba, U_bar_aa))
+    C_bar = np.vstack(
+        (np.hstack((C_bar_aa, C_bar_ab)), np.hstack((C_bar_ba, C_bar_bb)))
+    )
+
+    return C_bar, np.real(U_bar_aa), np.real(U_bar_bb)
+
+
+def mim_mic_compute_e(C: NDArray, n_seeds: int) -> NDArray:
     """Computes 'E' as the imaginary part of the transformed connectivity matrix
     'D' derived from the original connectivity matrix 'C' between the seed and
     target signals.
     -   Designed for use with the methods 'max_imaginary_coherence' and
         'multivariate_interaction_measure'.
 
-    data : numpy array
+    C : numpy array
     -   Coherency values between all possible connections of seeds and targets,
         for a single frequency. Has the dimensions [signals x signals].
 
     n_seeds : int
-    -   Number of seed signals. Entries in both dimensions of 'data' from
-        '0 : n_seeds' are taken as the coherency values for seed signals.
-        Entries from 'n_seeds : end' are taken as the coherency values for
+    -   Number of seed signals. Entries in both dimensions of 'C' from
+        [0 : n_seeds] are taken as the coherency values for seed signals.
+        Entries from [n_seeds : end] are taken as the coherency values for
         target signals.
 
     RETURNS
@@ -750,28 +834,25 @@ def multivariate_connectivity_compute_e(data: NDArray, n_seeds: int) -> NDArray:
 
     NOTES
     -----
-    -   Follows the approach set out in Ewald et al., 2012, Neuroimage. DOI:
+    -   References: [1] Ewald et al., 2012, NeuroImage. DOI:
         10.1016/j.neuroimage.2011.11.084.
     -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
         code provided by Franziska Pellegrini of Stefan Haufe's research group.
     """
-    # Equation 2
-    C_aa = data[0:n_seeds, 0:n_seeds]
-    C_ab = data[0:n_seeds, n_seeds:]
-    C_bb = data[n_seeds:, n_seeds:]
-    C_ba = data[n_seeds:, 0:n_seeds]
-    C = np.vstack((np.hstack((C_aa, C_ab)), np.hstack((C_ba, C_bb))))
-
     # Equation 3
     T = np.zeros(C.shape)
-    T[0:n_seeds, 0:n_seeds] = spla.fractional_matrix_power(np.real(C_aa), -0.5)
-    T[n_seeds:, n_seeds:] = spla.fractional_matrix_power(np.real(C_bb), -0.5)
+    T[:n_seeds, :n_seeds] = spla.fractional_matrix_power(
+        np.real(C[:n_seeds, :n_seeds]), -0.5
+    )  # real(C_aa)^-1/2
+    T[n_seeds:, n_seeds:] = spla.fractional_matrix_power(
+        np.real(C[n_seeds:, n_seeds:]), -0.5
+    )  # real(C_bb)^-1/2
 
     # Equation 4
     D = np.matmul(T, np.matmul(C, T))
 
     # 'E' as the imaginary part of 'D' between seeds and targets
-    E = np.imag(D[0:n_seeds, n_seeds:])
+    E = np.imag(D[:n_seeds, n_seeds:])
 
     return E
 

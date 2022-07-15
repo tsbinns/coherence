@@ -26,106 +26,46 @@ from coh_signal_processing_computations import (
     csd_to_autocov,
     full_var_to_iss,
     iss_to_usgc,
-    multivariate_connectivity_compute_e,
+    mim_mic_compute_e,
+    mim_mic_cross_spectra_svd,
 )
 
 from scipy.io import loadmat
 
 
-def mim_mic(
-    data: NDArray,
-    method: str,
+def multivariate_interaction_measure(
+    C: NDArray,
     n_seeds: int,
     n_targets: int,
-    return_topographies: bool = False,
-) -> NDArray:
-    """Method for directing to different multivariate connectivity methods.
-
-    PARAMETERS
-    ----------
-    data : numpy array
-    -   A three-dimensional matrix with dimensions [nodes x nodes x frequencies]
-        containing coherency values for all possible connections between signals
-        in two groups: A and B. The number of nodes is equal to the number of
-        signals in group A ('n_group_a') plus the number of signals in group B
-        ('n_group_b').
-
-    method : str
-    -   The multivariate connectivity metric to compute.
-    -   Supported inputs are: "mim" for multivariate interaction measure; "mic"
-        for maximised imaginary coherence.
-
-    n_seeds : int
-    -   Number of seed signals. Entries in the first two dimensions of 'data'
-        from '0 : n_seeds' are taken as the coherency values for seed signals.
-
-    n_targets : int
-    -   Number of target signals. Entries in the first two dimensions of 'data'
-        from 'n_seeds : n_targets' are taken as the coherency values for target
-        signals.
-
-    return_topographies : bool; default True
-    -   Whether or not to return spatial topographies of connectivity for the
-        signals when calculating maximised imaginary coherence.
-
-    RETURNS
-    -------
-    results : numpy array | tuple(numpy array, tuple(numpy array))
-    -   If 'method' is not "mim", the output is a vector of the computed
-        multivariate connectivity values for each frequency in 'data'.
-    -   If 'return_topographies' is 'True' and 'method' is "mim", the output
-        contains in position zero a vector of the computed multivariate
-        connectivity values for each frequency in 'data', as well as spatial
-        topographies of the connectivity for signals in groups A and B,
-        respectively, in position one.
-
-    RAISES
-    ------
-    NotImplementedError
-    -   Raised if the requested method is not supported.
-    """
-    supported_methods = ["mim", "mic"]
-    if method not in supported_methods:
-        raise NotImplementedError(
-            "Error when computing multivariate connectivity metrics:\nThe "
-            f"method '{method}' is not supported. Supported methods are "
-            f"{supported_methods}."
-        )
-
-    if method == "mim":
-        results = multivariate_interaction_measure(
-            data=data, n_seeds=n_seeds, n_targets=n_targets
-        )
-    else:
-        results = max_imaginary_coherence(
-            data=data,
-            n_seeds=n_seeds,
-            n_targets=n_targets,
-            return_topographies=return_topographies,
-        )
-
-    return results
-
-
-def multivariate_interaction_measure(
-    data: NDArray, n_seeds: int, n_targets: int
+    n_seed_components: Union[int, None] = None,
+    n_target_components: Union[int, None] = None,
 ) -> NDArray:
     """Computes the multivariate interaction measure between two groups of
     signals.
 
-    data : numpy array
+    C : numpy array
     -   Coherency values between all possible connections of two groups of
         signals, A and B, across frequencies. Has the dimensions [signals x
         signals x frequencies].
 
     n_seeds : int
-    -   Number of seed signals. Entries in the first two dimensions of 'data'
-        from '0 : n_seeds' are taken as the coherency values for seed signals.
+    -   Number of seed signals. Entries in the first two dimensions of 'C' from
+        [0 : n_seeds] are taken as the coherency values for seed signals.
 
     n_targets : int
-    -   Number of target signals. Entries in the first two dimensions of 'data'
-        from 'n_seeds : n_targets' are taken as the coherency values for target
-        signals.
+    -   Number of target signals. Entries in the first two dimensions of 'C'
+        from ['n_seeds : n_targets'] are taken as the coherency values for
+        target signals.
+
+    n_seed_components : int | None; default None
+    -   The number of components that should be taken from the seed data after
+        dimensionality reduction using singular value decomposition (SVD).
+    -   If 'None', no dimensionality reduction is performed on the seed data.
+
+    n_target_components : int | None; default None
+    -   The number of components that should be taken from the target data after
+        dimensionality reduction using SVD.
+    -   If 'None', no dimensionality reduction is performed on the target data.
 
     RETURNS
     -------
@@ -142,34 +82,40 @@ def multivariate_interaction_measure(
 
     NOTES
     -----
-    -   Follows the approach set out in Ewald et al., 2012, Neuroimage. DOI:
+    -   References: [1] Ewald et al., 2012, Neuroimage. DOI:
         10.1016/j.neuroimage.2011.11.084.
     -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
         code provided by Franziska Pellegrini of Stefan Haufe's research group.
     """
-    if len(data.shape) != 3:
+    if len(C.shape) != 3:
         raise ValueError(
             "Error when computing MIC:\nThe data must be a three-dimensional "
             "array containing connectivity values across frequencies, but the "
-            f"data has {len(data.shape)} dimensions."
+            f"data has {len(C.shape)} dimensions."
         )
     n_signals = n_seeds + n_targets
-    if (n_signals, n_signals) != data.shape[0:2]:
+    if (n_signals, n_signals) != C.shape[0:2]:
         raise ValueError(
             "Error when calculating the multivariate interaction measure:\nThe "
             f"data for each frequency must be a [{n_signals} x {n_signals}] "
             "square matrix containing all connectivities between the "
             f"{n_seeds} seed and {n_targets} target signals in, but it is a "
-            f"[{np.shape(data)[0]} x {np.shape(data)[1]}] matrix."
+            f"[{np.shape(C)[0]} x {np.shape(C)[1]}] matrix."
         )
 
-    n_freqs = data.shape[2]
+    n_freqs = C.shape[2]
     mim = np.empty(n_freqs)
     for freq_i in range(n_freqs):
-        # Equations 2-4
-        E = multivariate_connectivity_compute_e(
-            data=data[:, :, freq_i], n_seeds=n_seeds
+        # Eqs. 32 & 33
+        C_bar, U_bar_aa, _ = mim_mic_cross_spectra_svd(
+            C=C[:, :, freq_i],
+            n_seeds=n_seeds,
+            n_seed_components=n_seed_components,
+            n_target_components=n_target_components,
         )
+
+        # Eqs. 3 & 4
+        E = mim_mic_compute_e(C=C_bar, n_seeds=U_bar_aa.shape[1])
 
         # Equation 14
         mim[freq_i] = np.trace(np.matmul(E, np.conj(E).T))
@@ -178,26 +124,38 @@ def multivariate_interaction_measure(
 
 
 def max_imaginary_coherence(
-    data: NDArray,
+    C: NDArray,
     n_seeds: int,
     n_targets: int,
+    n_seed_components: Union[int, None] = None,
+    n_target_components: Union[int, None] = None,
     return_topographies: bool = True,
 ) -> Union[NDArray, list[NDArray]]:
     """Computes the maximised imaginary coherence between two groups of signals.
 
-    data : numpy array
+    C : numpy array
     -   Coherency values between all possible connections of two groups of
         signals, A and B, across frequencies. Has the dimensions [signals x
         signals x frequencies].
 
     n_seeds : int
-    -   Number of seed signals. Entries in the first two dimensions of 'data'
-        from '0 : n_seeds' are taken as the coherency values for seed signals.
+    -   Number of seed signals. Entries in the first two dimensions of 'C' from
+        [0 : n_seeds] are taken as the coherency values for seed signals.
 
     n_targets : int
-    -   Number of target signals. Entries in the first two dimensions of 'data'
-        from 'n_seeds : n_targets' are taken as the coherency values for target
+    -   Number of target signals. Entries in the first two dimensions of 'C'
+        from [n_seeds : n_targets] are taken as the coherency values for target
         signals.
+
+    n_seed_components : int | None; default None
+    -   The number of components that should be taken from the seed data after
+        dimensionality reduction using singular value decomposition (SVD).
+    -   If 'None', no dimensionality reduction is performed on the seed data.
+
+    n_target_components : int | None; default None
+    -   The number of components that should be taken from the target data after
+        dimensionality reduction using SVD.
+    -   If 'None', no dimensionality reduction is performed on the target data.
 
     return_topographies : bool; default True
     -   Whether or not to return spatial topographies of connectivity for the
@@ -224,42 +182,50 @@ def max_imaginary_coherence(
 
     NOTES
     -----
-    -   Follows the approach set out in [1] Ewald et al. (2012), NeuroImage.
-        DOI: 10.1016/j.neuroimage.2011.11.084.
+    -   References: [1] Ewald et al. (2012), NeuroImage. DOI:
+        10.1016/j.neuroimage.2011.11.084; [2] Nikulin et al. (2011), NeuroImage,
+        DOI: 10.1016/j.neuroimage.2011.01.057.
     -   Spatial topographies are computed using the weight vectors alpha and
         beta (see [1]) by multiplying the real part of the coherency
-        cross-spectrum 'data' by weight vectors, as in Eq. 20 of Nikulin et al.
-        (2011), NeuroImage, DOI: 10.1016/j.neuroimage.2011.01.057, with the
-        absolute values then taken.
+        cross-spectrum 'C' by weight vectors, as in Eq. 20 of [2], with the
+        absolute values then taken. If dimensionality reduction is performed,
+        weight vectors are recovered in the original sensor space using Eqs. 46
+        & 47 of [1].
     -   Translated into Python by Thomas Samuel Binns (@tsbinns) from MATLAB
         code provided by Franziska Pellegrini of Stefan Haufe's research group.
     """
-    if len(data.shape) != 3:
+    if len(C.shape) != 3:
         raise ValueError(
             "Error when computing MIC:\nThe data must be a three-dimensional "
             "array containing connectivity values across frequencies, but the "
-            f"data has {len(data.shape)} dimensions."
+            f"data has {len(C.shape)} dimensions."
         )
     n_signals = n_seeds + n_targets
-    if (n_signals, n_signals) != data.shape[0:2]:
+    if (n_signals, n_signals) != C.shape[0:2]:
         raise ValueError(
             "Error when calculating the multivariate interaction measure:\nThe "
             f"data for each frequency must be a [{n_signals} x {n_signals}] "
             "square matrix containing all connectivities between the "
             f"{n_seeds} signals in group A and the {n_targets} signals in "
-            f"group B, but it is a [{data.shape[0]} x {data.shape[1]}] "
+            f"group B, but it is a [{C.shape[0]} x {C.shape[1]}] "
             "matrix."
         )
 
-    n_freqs = data.shape[2]
+    n_freqs = C.shape[2]
     mic = np.empty(n_freqs)
     topos_a = []
     topos_b = []
     for freq_i in range(n_freqs):
-        # Equations 2-4
-        E = multivariate_connectivity_compute_e(
-            data=data[:, :, freq_i], n_seeds=n_seeds
+        # Eqs. 32 & 33
+        C_bar, U_bar_aa, U_bar_bb = mim_mic_cross_spectra_svd(
+            C=C[:, :, freq_i],
+            n_seeds=n_seeds,
+            n_seed_components=n_seed_components,
+            n_target_components=n_target_components,
         )
+
+        # Eqs. 3 & 4
+        E = mim_mic_compute_e(C=C_bar, n_seeds=U_bar_aa.shape[1])
 
         # Weights for signals in the groups
         w_a, V_a = np.linalg.eig(np.matmul(E, np.conj(E).T))
@@ -267,20 +233,31 @@ def max_imaginary_coherence(
         alpha = V_a[:, w_a.argmax()]
         beta = V_b[:, w_b.argmax()]
 
-        # Equation 7
+        # Eq. 7
         mic[freq_i] = np.abs(
             np.matmul(np.conj(alpha).T, np.matmul(E, beta))
             / np.linalg.norm(alpha)
             * np.linalg.norm(beta)
         )
 
+        # Eqs. 46 & 47
         if return_topographies:
             topos_a.append(
-                np.abs(np.real(data[:n_seeds, :n_seeds, freq_i]).dot(alpha))
-            )  # C_aa * alpha
+                np.abs(
+                    np.matmul(
+                        np.real(C[:n_seeds, :n_seeds, freq_i]),
+                        U_bar_aa.dot(alpha),
+                    )
+                )
+            )  # C_aa * U_bar_aa * alpha
             topos_b.append(
-                np.abs(np.real(data[n_seeds:, n_seeds:, freq_i]).dot(beta))
-            )  # C_bb * beta
+                np.abs(
+                    np.matmul(
+                        np.real(C[n_seeds:, n_seeds:, freq_i]),
+                        U_bar_bb.dot(beta),
+                    )
+                )
+            )  # C_bb * U_bar_bb * beta
 
     if return_topographies:
         topos_a = np.transpose(topos_a, (1, 0))
