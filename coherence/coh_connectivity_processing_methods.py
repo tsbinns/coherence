@@ -534,6 +534,8 @@ class ProcMultivariateConnectivity(ProcConnectivity):
         self._targets_list = None
         self._seeds_str = None
         self._targets_str = None
+        self._seed_ranks = None
+        self._target_ranks = None
         self._comb_names_str = None
         self._comb_names_list = None
 
@@ -657,79 +659,74 @@ class ProcMultivariateConnectivity(ProcConnectivity):
         self._comb_names_list = unique_names_list
         self._indices = tuple(indices)
 
-    def _get_node_data(
-        self, seeds: list[str], targets: list[str]
-    ) -> tuple[NDArray, NDArray]:
-        """Gets the data of the seeds and targets for a given node.
+    def _extract_data(self, names: list[str]) -> NDArray:
+        """Gets the data for a set of channels.
 
         PARAMETERS
         ----------
-        seeds : list[str]
-        -   Names of the seeds for a given node.
-
-        targets : list[str]
-        -   Names of the targets for a given node.
+        names : list[str]
+        -   Names of the channels whose data should be returned.
 
         RETURNS
         -------
         numpy ndarray
-        -   A 4D matrices of the seed data with dimensions [windows x epochs x
-            channels x timepoints].
-
-        numpy ndarray
-        -   A 4D matrices of the target data with dimensions [windows x epochs x
-            channels x timepoints].
+        -   A 4D matrix of the channels' data with dimensions [windows x
+            epochs x channels x timepoints].
         """
-        seed_data = []
-        target_data = []
+        data = []
         for win_data in self.signal.data:
-            seed_data.append(win_data.get_data(picks=seeds))
-            target_data.append(win_data.get_data(picks=targets))
-        return np.asarray(seed_data), np.asarray(target_data)
+            data.append(win_data.get_data(picks=names))
+        return np.asarray(data)
 
     def _sort_data_dimensionality(
-        self, seed_data: NDArray, target_data: NDArray
+        self, data: NDArray, data_type: str = ""
     ) -> NDArray:
-        """Ensures that the data of the seeds and targets for a given node is
-        full rank."""
-        seed_data_comb, seed_dims = self._recombine_data(data=seed_data)
-        target_data_comb, target_dims = self._recombine_data(data=target_data)
+        """Ensures that the data is full rank, performing a singular value
+        decomposition (SVD) and taking only the number of components with
+        non-zero singular values if the data lacks full rank.
 
-        seed_rank = np.linalg.matrix_rank(seed_data_comb)
-        target_rank = np.linalg.matrix_rank(seed_data_comb)
-        if seed_rank != seed_data_comb.shape[0]:
-            seed_data_comb, seed_rank = self._get_full_rank_data(
-                data=seed_data_comb
-            )
+        PARAMETERS
+        ----------
+        data : numpy ndarray
+        -   A 4D matrix of the data with dimensions [windows x epochs x channels
+            x timepoints].
+
+        data_type : str; default ""
+        -   The name of the data type being processed, e.g. "seed", "target",
+            etc..., for use in raising warnings about non-full rank data.
+
+        RETURNS
+        -------
+        sorted_data : numpy ndarray
+        -   A 4D matrix of the data with dimensions [windows x epochs x rank x
+            timepoints]. If the data has full rank, no SVD is performed and the
+            original data is returned.
+
+        data_rank : int
+        -   The rank of the data.
+
+        U_mk : numpy ndarray
+        -   The matrix U from the SVD on the data with dimensions [channels x
+            rank]. If the data had full rank, the identity matrix is returned.
+        """
+        data_combined, data_dims = self._recombine_data(data)
+        data_rank = np.linalg.matrix_rank(data_combined)
+        if data_rank != data_combined.shape[0]:
+            data_combined, _, U_mk = self._get_full_rank_data(data_combined)
             if self._verbose:
                 print(
-                    f"The seed data lacks full rank (rank {seed_rank} of "
-                    f"{seed_data.shape[2]} components). Taking only "
-                    f"those {seed_rank} components with non-zero singular "
-                    "values.\n"
+                    f"The {data_type} data lacks full rank (rank {data_rank} "
+                    f"of {data.shape[2]} components). Taking only those "
+                    f"{data_rank} components with non-zero singular values.\n"
                 )
-        if target_rank != target_data_comb.shape[0]:
-            target_data_comb, target_rank = self._get_full_rank_data(
-                data=target_data_comb
-            )
-            if self._verbose:
-                print(
-                    f"The target data lacks full rank (rank {target_rank} of "
-                    f"{target_data.shape[2]} components). Taking only "
-                    f"those {target_rank} components with non-zero singular "
-                    "values.\n"
-                )
-        seed_dims = [seed_rank, *seed_dims[1:]]
-        target_dims = [target_rank, *target_dims[1:]]
-
-        seed_data = self._restore_data(
-            data=seed_data_comb, dimensions=seed_dims
-        )
-        target_data = self._restore_data(
-            data=target_data_comb, dimensions=target_dims
+        else:
+            U_mk = np.identity(data.shape[2])
+        data_dims = [data_rank, *data_dims[1:]]
+        sorted_data = self._restore_data_dimensions(
+            data=data_combined, dimensions=data_dims
         )
 
-        return seed_data, target_data, seed_rank, target_rank
+        return sorted_data, data_rank, U_mk
 
     def _recombine_data(self, data: NDArray) -> tuple[NDArray, list[int]]:
         """Recombines windowed and epoched data into a 2D matrix with dimensions
@@ -758,11 +755,13 @@ class ProcMultivariateConnectivity(ProcConnectivity):
         )
         return recombined_data, [n_channels, n_windows, n_epochs, n_timepoints]
 
-    def _get_full_rank_data(self, data: NDArray) -> tuple[NDArray, int]:
-        """Performs a single value decomposition on the data and takes only the
-        number of components equal to the number of non-zero singular values
-        (i.e. the rank of the matrix), ensuring that the returned data has full
-        rank.
+    def _get_full_rank_data(
+        self, data: NDArray
+    ) -> tuple[NDArray, int, NDArray]:
+        """Performs a single value decomposition (SVD) on the data and takes
+        only the number of components equal to the number of non-zero singular
+        values (i.e. the rank of the matrix), ensuring that the returned data
+        has full rank.
 
         PARAMETERS
         ----------
@@ -771,17 +770,23 @@ class ProcMultivariateConnectivity(ProcConnectivity):
 
         RETURNS
         -------
-        full_rank_data : numpy ndarray
-        -   Data with dimensions [data rank x timepoints].
+        V : numpy ndarray
+        -   Full rank data with dimensions [rank x timepoints]. Derived from V
+            of the SVD.
 
         rank : int
         -   The rank of the data.
+
+        U : numpy array
+        -   Data with dimensions [channels x rank]. Derived from U of the SVD.
         """
         rank = np.linalg.matrix_rank(data)
-        _, _, V = np.linalg.svd(data, full_matrices=False)
-        return V[:rank, :], rank
+        U, _, V = np.linalg.svd(data, full_matrices=False)
+        return V[:rank, :], rank, U[:, :rank]
 
-    def _restore_data(self, data: NDArray, dimensions: list[int]) -> NDArray:
+    def _restore_data_dimensions(
+        self, data: NDArray, dimensions: list[int]
+    ) -> NDArray:
         """Converts the recombined data back into its windowed and epoched form.
 
         PARAMETERS

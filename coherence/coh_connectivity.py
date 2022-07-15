@@ -1765,24 +1765,26 @@ class ConnectivityGranger(ProcMultivariateConnectivity):
             )
 
         first_node = True
-        self._seed_ranks = []
-        self._target_ranks = []
         for seeds, targets in zip(self._seeds_list, self._targets_list):
             if self._verbose:
                 print(
                     f"Computing connectivity.\n- Seeds: {seeds}\n- Targets: "
                     f"{targets}\n"
                 )
-            seed_data, target_data = self._get_node_data(seeds, targets)
+            seed_data = self._extract_data(seeds)
+            target_data = self._extract_data(targets)
             if self._ensure_full_rank_data:
-                (
-                    seed_data,
-                    target_data,
-                    seed_rank,
-                    target_rank,
-                ) = self._sort_data_dimensionality(seed_data, target_data)
-            self._seed_ranks.append(seed_rank)
-            self._target_ranks.append(target_rank)
+                if first_node:
+                    self._seed_ranks = []
+                    self._target_ranks = []
+                seed_data, seed_rank, _ = self._sort_data_dimensionality(
+                    data=seed_data, data_type="seed"
+                )
+                target_data, target_rank, _ = self._sort_data_dimensionality(
+                    data=target_data, data_type="target"
+                )
+                self._seed_ranks.append(seed_rank)
+                self._target_ranks.append(target_rank)
             data = self._join_seed_target_data(seed_data, target_data)
             csd = self._compute_csd(data)
             result = self._compute_gc(
@@ -1791,11 +1793,9 @@ class ConnectivityGranger(ProcMultivariateConnectivity):
                 targets=np.arange(seed_rank, seed_rank + target_rank).tolist(),
             )
             if first_node:
-                granger_causality = result.copy()
+                results = result.copy()
             else:
-                granger_causality = np.concatenate(
-                    (granger_causality, result), axis=1
-                )
+                results = np.concatenate((results, result), axis=1)
             first_node = False
         self.results = granger_causality
 
