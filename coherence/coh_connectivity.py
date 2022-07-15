@@ -1778,18 +1778,17 @@ class ConnectivityGranger(ProcMultivariateConnectivity):
                 if first_node:
                     self._seed_ranks = []
                     self._target_ranks = []
-                seed_data, seed_rank, _ = self._sort_data_dimensionality(
-                    data=seed_data, data_type="seed"
+                (
+                    seed_data,
+                    seed_rank,
+                    target_data,
+                    target_rank,
+                ) = self._check_data_rank(
+                    seed_data=seed_data, target_data=target_data
                 )
-                target_data, target_rank, _ = self._sort_data_dimensionality(
-                    data=target_data, data_type="target"
-                )
-                self._seed_ranks.append(seed_rank)
-                self._target_ranks.append(target_rank)
             data = self._join_seed_target_data(seed_data, target_data)
-            csd = self._compute_csd(data)
             result = self._compute_gc(
-                cross_spectra=csd,
+                cross_spectra=self._compute_csd(data),
                 seeds=np.arange(seed_rank).tolist(),
                 targets=np.arange(seed_rank, seed_rank + target_rank).tolist(),
             )
@@ -1805,6 +1804,53 @@ class ConnectivityGranger(ProcMultivariateConnectivity):
 
         self._sort_dimensions()
         super()._generate_extra_info()
+
+    def _check_data_rank(
+        self, seed_data: NDArray, target_data: NDArray
+    ) -> tuple[NDArray, int, NDArray, int]:
+        """Checks whether the seed and target data for a node has full rank,
+        performing a singular value decomposition (SVD) on the data if not and
+        returning only the number of components equal to the number of non-zero
+        singular values of the data.
+
+        PARAMETERS
+        ----------
+        seed_data : numpy ndarray
+        -   A 4D matrix of the seed data with dimensions [windows x epochs x
+            channels x timepoints].
+
+        target_data : numpy ndarray
+        -   A 4D matrix of the target data with dimensions [windows x epochs x
+            channels x timepoints].
+
+        RETURNS
+        -------
+        seed_data : numpy ndarray
+        -   A 4D matrix of the seed data with dimensions [windows x epochs x
+            rank x timepoints]. If the data has full rank, the data is not
+            altered, else data with full rank is returned.
+
+        target_data : numpy ndarray
+        -   A 4D matrix of the target data with dimensions [windows x epochs x
+            rank x timepoints]. If the data has full rank, the data is not
+            altered, else data with full rank is returned.
+
+        seed_rank : int
+        -   The rank of the seed data.
+
+        target_rank : int
+        -   The rank of the target data.
+        """
+        seed_data, seed_rank, _ = self._sort_data_dimensionality(
+            data=seed_data, data_type="seed"
+        )
+        target_data, target_rank, _ = self._sort_data_dimensionality(
+            data=target_data, data_type="target"
+        )
+        self._seed_ranks.append(seed_rank)
+        self._target_ranks.append(target_rank)
+
+        return seed_data, target_data, seed_rank, target_rank
 
     def _compute_csd(self, data: list[NDArray]) -> list[CrossSpectralDensity]:
         """Computes the cross-spectral density of the data for a single node.
@@ -2033,13 +2079,13 @@ class ConnectivityGranger(ProcMultivariateConnectivity):
 
         RETURNS
         -------
-        dict
+        results_dict : dict
         -   The results and additional information stored as a dictionary.
         """
         dimensions = self._get_optimal_dims()
         results = super().get_results(dimensions=dimensions)
 
-        return {
+        results_dict = {
             f"connectivity-{self._gc_method}": results.tolist(),
             f"connectivity-{self._gc_method}_dimensions": dimensions,
             "freqs": self._freqs,
@@ -2066,3 +2112,7 @@ class ConnectivityGranger(ProcMultivariateConnectivity):
             "processing_steps": self.processing_steps,
             "subject_info": self.signal.data[0].info["subject_info"],
         }
+        if not self._ensure_full_rank_data:
+            remove_keys = ["seed_ranks", "target_ranks"]
+            for key in remove_keys:
+                del results_dict[key]
