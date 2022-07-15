@@ -670,8 +670,8 @@ class ProcMultivariateConnectivity(ProcConnectivity):
         RETURNS
         -------
         numpy ndarray
-        -   A 4D matrix of the channels' data with dimensions [windows x
-            epochs x channels x timepoints].
+        -   A 4D matrix of the channels' data with dimensions [windows x epochs
+            x channels x timepoints].
         """
         data = []
         for win_data in self.signal.data:
