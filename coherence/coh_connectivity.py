@@ -29,7 +29,7 @@ from numpy.typing import NDArray
 import numpy as np
 from coh_connectivity_computations import (
     granger_causality,
-    multivariate_connectivity,
+    mim_mic,
 )
 from coh_exceptions import (
     ProcessingOrderError,
@@ -938,7 +938,7 @@ class ConnectivityMIMMIC(ProcMultivariateConnectivity):
                     f"{con_i+1} of {len(self._indices[0])}.\n"
                 )
             cohy_matrix = self._get_cohy_matrix(data, indices)
-            results = multivariate_connectivity(
+            results = mim_mic(
                 data=cohy_matrix,
                 method=self._con_method,
                 n_seeds=len(self._seeds_list[con_i]),

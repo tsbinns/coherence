@@ -32,7 +32,7 @@ from coh_signal_processing_computations import (
 from scipy.io import loadmat
 
 
-def multivariate_connectivity(
+def mim_mic(
     data: NDArray,
     method: str,
     n_seeds: int,
