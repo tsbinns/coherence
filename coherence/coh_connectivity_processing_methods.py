@@ -539,6 +539,7 @@ class ProcMultivariateConnectivity(ProcConnectivity):
         self._target_ranks = None
         self._comb_names_str = None
         self._comb_names_list = None
+        self._ensure_full_rank_data = None
 
     @abstractmethod
     def process(self) -> None:
