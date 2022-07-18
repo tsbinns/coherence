@@ -20,7 +20,8 @@ from typing import Union
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from mne_connectivity import seed_target_indices
+from mne_connectivity import seed_target_indices, SpectralConnectivity
+from coh_exceptions import ProcessingOrderError
 from coh_handle_entries import (
     combine_vals_list,
     get_eligible_idcs_lists,
@@ -678,6 +679,53 @@ class ProcMultivariateConnectivity(ProcConnectivity):
             data.append(win_data.get_data(picks=names))
         return np.asarray(data)
 
+    def _check_data_rank(
+        self, seed_data: NDArray, target_data: NDArray
+    ) -> tuple[NDArray, int, NDArray, int]:
+        """Checks whether the seed and target data for a node has full rank,
+        performing a singular value decomposition (SVD) on the data if not and
+        returning only the number of components equal to the number of non-zero
+        singular values of the data.
+
+        PARAMETERS
+        ----------
+        seed_data : numpy ndarray
+        -   A 4D matrix of the seed data with dimensions [windows x epochs x
+            channels x timepoints].
+
+        target_data : numpy ndarray
+        -   A 4D matrix of the target data with dimensions [windows x epochs x
+            channels x timepoints].
+
+        RETURNS
+        -------
+        seed_data : numpy ndarray
+        -   A 4D matrix of the seed data with dimensions [windows x epochs x
+            rank x timepoints]. If the data has full rank, the data is not
+            altered, else data with full rank is returned.
+
+        target_data : numpy ndarray
+        -   A 4D matrix of the target data with dimensions [windows x epochs x
+            rank x timepoints]. If the data has full rank, the data is not
+            altered, else data with full rank is returned.
+
+        seed_rank : int
+        -   The rank of the seed data.
+
+        target_rank : int
+        -   The rank of the target data.
+        """
+        seed_data, seed_rank = self._sort_data_dimensionality(
+            data=seed_data, data_type="seed"
+        )
+        target_data, target_rank = self._sort_data_dimensionality(
+            data=target_data, data_type="target"
+        )
+        self._seed_ranks.append(seed_rank)
+        self._target_ranks.append(target_rank)
+
+        return seed_data, target_data, seed_rank, target_rank
+
     def _sort_data_dimensionality(
         self, data: NDArray, data_type: str = ""
     ) -> NDArray:
@@ -704,29 +752,54 @@ class ProcMultivariateConnectivity(ProcConnectivity):
 
         data_rank : int
         -   The rank of the data.
-
-        U_mk : numpy ndarray
-        -   The matrix U from the SVD on the data with dimensions [channels x
-            rank]. If the data had full rank, the identity matrix is returned.
         """
-        data_combined, data_dims = self._recombine_data(data)
-        data_rank = np.linalg.matrix_rank(data_combined)
+        data_combined, data_rank, data_dims = self._check_data_dimensionality(
+            data
+        )
         if data_rank != data_combined.shape[0]:
-            data_combined, _, U_mk = self._get_full_rank_data(data_combined)
+            data_combined, _, _ = self._get_full_rank_data(data_combined)
             if self._verbose:
                 print(
                     f"The {data_type} data lacks full rank (rank {data_rank} "
                     f"of {data.shape[2]} components). Taking only those "
                     f"{data_rank} components with non-zero singular values.\n"
                 )
-        else:
-            U_mk = np.identity(data.shape[2])
         data_dims = [data_rank, *data_dims[1:]]
         sorted_data = self._restore_data_dimensions(
             data=data_combined, dimensions=data_dims
         )
 
-        return sorted_data, data_rank, U_mk
+        return sorted_data, data_rank
+
+    def _check_data_dimensionality(
+        self, data: NDArray
+    ) -> tuple[NDArray, int, list[int]]:
+        """Converts windowed and epoched data into standard timeseries data and
+        checks whether the data has full rank.
+
+        PARAMETERS
+        ----------
+        data : numpy ndarray
+        -   A 4D matrix of the data with dimensions [windows x epochs x channels
+            x timepoints].
+
+        RETURNS
+        -------
+        data_combined : numpy ndarray
+        -   A 2D matrix of the data with dimensions [channels x timepoints].
+
+        data_rank : int
+        -   The rank of the data.
+
+        data_dims : list[int]
+        -   The dimensions of the data prior to being recombined into standard
+            timeseries data, consisting of [channels, windows, epochs,
+            timepoints].
+        """
+        data_combined, data_dims = self._recombine_data(data)
+        data_rank = np.linalg.matrix_rank(data_combined)
+
+        return data_combined, data_rank, data_dims
 
     def _recombine_data(self, data: NDArray) -> tuple[NDArray, list[int]]:
         """Recombines windowed and epoched data into a 2D matrix with dimensions
@@ -834,6 +907,79 @@ class ProcMultivariateConnectivity(ProcConnectivity):
         for win_i in range(joined_data.shape[0]):
             data.append(joined_data[win_i, :, :, :])
         return data
+
+    def _multivariate_to_mne(
+        self,
+        data: NDArray,
+        freqs: NDArray,
+        n_epochs_used: int,
+        connectivity_method=str,
+    ) -> SpectralConnectivity:
+        """Converts results of the multivariate connectivity analysis stored as
+        a numpy array into an MNE SpectralConnectivity object.
+
+        PARAMETERS
+        ----------
+        data : numpy array
+        -   Results of the multivariate connectivity analysis with dimensions
+            [nodes x frequencies].
+
+        freqs : numpy array
+        -   The frequencies in the connectivity data.
+
+        n_epochs_used : int
+        -   The number of epochs used to compute connectivity.
+
+        connectivity_method : str
+        -   The name of the method used to compute the connectivity.
+
+        RETURNS
+        -------
+        MNE SpectralConnectivity
+        -   Results converted to an appropriate MNE object.
+        """
+        return SpectralConnectivity(
+            data=data,
+            freqs=freqs,
+            n_nodes=len(self._seeds_list),
+            names=self._comb_names_str,
+            indices=self._indices,
+            method=connectivity_method,
+            n_epochs_used=n_epochs_used,
+        )
+
+    def _average_windows_results(self) -> None:
+        """Averages the connectivity results across windows.
+
+        RAISES
+        ------
+        ProcessingOrderError
+        -   Raised if the windows have already been averaged across.
+        """
+        if self._windows_averaged:
+            raise ProcessingOrderError(
+                "Error when averaging the connectivity results across "
+                "windows:\nResults have already been averaged across windows."
+            )
+
+        n_windows = len(self.results)
+        self.results = [
+            SpectralConnectivity(
+                data=np.asarray(
+                    [data.get_data() for data in self.results]
+                ).mean(axis=0),
+                freqs=self.results[0].freqs,
+                n_nodes=self.results[0].n_nodes,
+                names=self.results[0].names,
+                indices=self.results[0].indices,
+                method=self.results[0].method,
+                n_epochs_used=self.results[0].n_epochs_used,
+            )
+        ]
+
+        self._windows_averaged = True
+        if self._verbose:
+            print(f"Averaging the data over {n_windows} windows.\n")
 
     def _generate_extra_info(self) -> None:
         """Generates additional information related to the connectivity
