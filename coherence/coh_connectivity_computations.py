@@ -228,8 +228,8 @@ def max_imaginary_coherence(
         E = mim_mic_compute_e(C=C_bar, n_seeds=U_bar_aa.shape[1])
 
         # Weights for signals in the groups
-        w_a, V_a = np.linalg.eig(np.matmul(E, np.conj(E).T))
-        w_b, V_b = np.linalg.eig(np.matmul(np.conj(E).T, E))
+        w_a, V_a = np.linalg.eigh(np.matmul(E, np.conj(E).T))
+        w_b, V_b = np.linalg.eigh(np.matmul(np.conj(E).T, E))
         alpha = V_a[:, w_a.argmax()]
         beta = V_b[:, w_b.argmax()]
 
