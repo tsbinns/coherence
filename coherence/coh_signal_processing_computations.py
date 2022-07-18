@@ -775,11 +775,6 @@ def mim_mic_cross_spectra_svd(
     -   If 'n_target_components' is 'None', an identity matrix for a matrix of
         size [n_targets x n_targets] is returned.
     """
-    check_svd_params(n_signals=n_seeds, take_n_components=n_seed_components)
-    check_svd_params(
-        n_signals=C.shape[0] - n_seeds, take_n_components=n_target_components
-    )
-
     C_aa = C[:n_seeds, :n_seeds]
     C_ab = C[:n_seeds, n_seeds:]
     C_bb = C[n_seeds:, n_seeds:]
@@ -787,12 +782,17 @@ def mim_mic_cross_spectra_svd(
 
     # Eq. 32
     if n_seed_components is not None:
-        U_aa, _, _ = np.linalg.svd(C_aa, full_matrices=False)
+        check_svd_params(n_signals=n_seeds, take_n_components=n_seed_components)
+        U_aa, _, _ = np.linalg.svd(np.real(C_aa), full_matrices=False)
         U_bar_aa = U_aa[:, :n_seed_components]
     else:
         U_bar_aa = np.identity(C_aa.shape[0])
     if n_target_components is not None:
-        U_bb, _, _ = np.linalg.svd(C_bb, full_matrices=False)
+        check_svd_params(
+            n_signals=C.shape[0] - n_seeds,
+            take_n_components=n_target_components,
+        )
+        U_bb, _, _ = np.linalg.svd(np.real(C_bb), full_matrices=False)
         U_bar_bb = U_bb[:, :n_target_components]
     else:
         U_bar_bb = np.identity(C_bb.shape[0])
@@ -806,7 +806,7 @@ def mim_mic_cross_spectra_svd(
         (np.hstack((C_bar_aa, C_bar_ab)), np.hstack((C_bar_ba, C_bar_bb)))
     )
 
-    return C_bar, np.real(U_bar_aa), np.real(U_bar_bb)
+    return C_bar, U_bar_aa, U_bar_bb
 
 
 def mim_mic_compute_e(C: NDArray, n_seeds: int) -> NDArray:
