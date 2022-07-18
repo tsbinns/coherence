@@ -208,7 +208,7 @@ def mim_mic_processing(
 
     ### Data processing
     ## Multivariate connectivity analysis
-    if analysis_settings["cwt_freqs"] is not None:
+    if analysis_settings["cwt_freq_range"] is not None:
         cwt_freqs = np.arange(
             analysis_settings["cwt_freq_range"][0],
             analysis_settings["cwt_freq_range"][1]
@@ -327,7 +327,7 @@ def granger_processing(
 
     ### Data processing
     ## Coherence analysis
-    if analysis_settings["cwt_freqs"] is not None:
+    if analysis_settings["cwt_freq_range"] is not None:
         cwt_freqs = np.arange(
             analysis_settings["cwt_freq_range"][0],
             analysis_settings["cwt_freq_range"][1]

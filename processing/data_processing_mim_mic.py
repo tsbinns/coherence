@@ -43,7 +43,7 @@ if __name__ == "__main__":
         run=RUN,
     )
 
-    multivariate_processing(
+    mim_mic_processing(
         preprocessed,
         FOLDERPATH_PROCESSING,
         DATASET,
