@@ -12,7 +12,6 @@ ConectivityMultivariate : subclass of the abstract base class 'ProcMethod'
 
 from copy import deepcopy
 from typing import Union
-from mne import Epochs
 from mne.time_frequency import (
     CrossSpectralDensity,
     csd_array_fourier,
@@ -627,6 +626,7 @@ class ConnectivityMIMMIC(ProcMultivariateConnectivity):
         cwt_freqs: Union[Union[list, NDArray], None] = None,
         cwt_n_cycles: Union[int, float, NDArray] = 7,
         average_windows: bool = False,
+        ensure_full_rank_data: bool = True,
         return_topographies: bool = False,
         block_size: int = 1000,
         n_jobs: int = 1,
@@ -734,6 +734,13 @@ class ConnectivityMIMMIC(ProcMultivariateConnectivity):
         average_windows : bool; default False
         -   Whether or not to average connectivity results across windows.
 
+        ensure_full_rank_data : bool; default True
+        -   Whether or not to make sure that the data being processed has full
+            rank by performing a singular value decomposition on the data of the
+            seeds and targets and taking only the first n components, where n is
+            equal to number of non-zero singluar values in the decomposition
+            (i.e. the rank of the data).
+
         return_topographies: bool; default False
         -   Whether or not to return spatial topographies of connectivity for
             the signals.
@@ -768,6 +775,7 @@ class ConnectivityMIMMIC(ProcMultivariateConnectivity):
         self._cwt_freqs = cwt_freqs
         self._cwt_n_cycles = cwt_n_cycles
         self._average_windows = average_windows
+        self._ensure_full_rank_data = ensure_full_rank_data
         self._block_size = block_size
         self._n_jobs = n_jobs
         if return_topographies and self._con_method == "mic":
@@ -826,22 +834,64 @@ class ConnectivityMIMMIC(ProcMultivariateConnectivity):
                 title="Computing connectivity",
             )
 
-        connectivity = []
-        topographies = [[], []]
-        for win_i, win_data in enumerate(self.signal.data):
+        first_node = True
+        if self._return_topographies:
+            topographies = [[], []]
+            for win_i in range(len(self.signal.data)):
+                topographies[0].append([])
+                topographies[1].append([])
+        for seeds, targets in zip(self._seeds_list, self._targets_list):
             if self._verbose:
                 print(
-                    f"Computing connectivity for window {win_i+1} of "
-                    f"{len(self.signal.data)}.\n"
+                    f"Computing connectivity.\n- Seeds: {seeds}\n- Targets: "
+                    f"{targets}\n"
                 )
-            coherency = self._get_cohy(win_data)
-            con_results, topo_results = self._get_multivariate_results(
-                coherency
+            n_seeds = len(seeds)
+            n_targets = len(targets)
+            seed_data = self._extract_data(seeds)
+            target_data = self._extract_data(targets)
+            if self._ensure_full_rank_data:
+                if first_node:
+                    self._seed_ranks = []
+                    self._target_ranks = []
+                _, seed_rank, _ = self._check_data_dimensionality(seed_data)
+                _, target_rank, _ = self._check_data_dimensionality(target_data)
+                self._seed_ranks.append(seed_rank)
+                self._target_ranks.append(target_rank)
+            else:
+                seed_rank = n_seeds
+                target_rank = n_targets
+            data = self._join_seed_target_data(seed_data, target_data)
+            coherency = self._compute_cohy(data)
+            connectivity, topography = self._compute_mim_mic(
+                coherency=coherency,
+                seeds=np.arange(n_seeds).tolist(),
+                targets=np.arange(n_seeds, n_seeds + n_targets).tolist(),
+                n_seed_components=seed_rank,
+                n_target_components=target_rank,
             )
-            connectivity.append(con_results)
-            topographies[0].append(topo_results[0])
-            topographies[1].append(topo_results[1])
-        self.results = connectivity
+            if first_node:
+                connectivities = connectivity.copy()
+            else:
+                connectivities = np.concatenate(
+                    (connectivities, connectivity), axis=1
+                )
+            if self._return_topographies:
+                for win_i in range(len(self.signal.data)):
+                    topographies[0][win_i].append(topography[0][win_i])
+                    topographies[1][win_i].append(topography[1][win_i])
+            first_node = False
+
+        self.results = []
+        for win_connectivity in connectivities:
+            self.results.append(
+                self._multivariate_to_mne(
+                    data=win_connectivity,
+                    freqs=coherency[0].freqs,
+                    n_epochs_used=self.signal.data[0].get_data().shape[0],
+                    connectivity_method=self._con_method,
+                )
+            )
         if self._return_topographies:
             self.seed_topographies = np.asarray(topographies[0], dtype=object)
             self.target_topographies = np.asarray(topographies[1], dtype=object)
@@ -850,132 +900,176 @@ class ConnectivityMIMMIC(ProcMultivariateConnectivity):
             self._progress_bar.close()
 
         self._sort_dimensions()
-        super()._generate_extra_info()
+        self._generate_extra_info()
 
-    def _get_cohy(self, data: Epochs) -> SpectralConnectivity:
-        """For the data of a single window, calculates the coherency between all
-        seeds and targets for use in computing multivariate measures using the
-        implementation of MNE's 'spectral_connectivity_epochs'.
-        -   Any resulting temporal data is averaged over to give a single
-            connectivity value per seed-target pair.
+    def _compute_cohy(self, data: list[NDArray]) -> list[SpectralConnectivity]:
+        """Computes the coherency between all seeds and targets of a single
+        node.
 
         PARAMETERS
         ----------
-        data : MNE Epochs
-        -   The data for a single window.
+        data : list[numpy ndarray]
+        -   The data of a single seed-target pair consisting of a set of 3D
+            matrices with dimensions [epochs x channels x timepoints] in a list
+            containing the data for individual windows of data.
+        -   Channels corresponding to the seeds should be in indices [0 :
+            n_seeds], and the targets in indices [n_seeds : end].
 
         RETURNS
         -------
-        coherency : MNE SpectralConnectivity
-        -   The coherency between all channels in the data.
+        coherency : list[MNE SpectralConnectivity]
+        -   The coherency for each window of data.
         """
         coherency = []
-        if self._verbose:
-            print("Computing coherency for the data.")
-
-        coherency = spectral_connectivity_epochs(
-            data=data,
-            method="cohy",
-            indices=seed_target_indices(
-                np.arange(len(data.ch_names)), np.arange(len(data.ch_names))
-            ),
-            sfreq=data.info["sfreq"],
-            mode=self._cohy_method,
-            fmin=self._fmin,
-            fmax=self._fmax,
-            fskip=self._fskip,
-            faverage=self._faverage,
-            tmin=self._tmin,
-            tmax=self._tmax,
-            mt_bandwidth=self._mt_bandwidth,
-            mt_adaptive=self._mt_adaptive,
-            mt_low_bias=self._mt_low_bias,
-            cwt_freqs=self._cwt_freqs,
-            cwt_n_cycles=self._cwt_n_cycles,
-            block_size=self._block_size,
-            n_jobs=self._n_jobs,
-            verbose=self._verbose,
-        )
-        if isinstance(coherency, SpectroTemporalConnectivity):
-            coherency = SpectralConnectivity(
-                data=np.mean(coherency.get_data(), axis=-1),
-                freqs=coherency.freqs,
-                n_nodes=coherency.n_nodes,
-                names=coherency.names,
-                indices=coherency.indices,
-                method=coherency.method,
-                n_epochs_used=coherency.n_epochs_used,
+        for win_i, win_data in enumerate(data):
+            if self._verbose:
+                print(
+                    f"Computing the coherency for window {win_i+1} of "
+                    f"{len(data)}.\n"
+                )
+            result = spectral_connectivity_epochs(
+                data=win_data,
+                names=None,
+                method="cohy",
+                indices=seed_target_indices(
+                    np.arange(win_data.shape[1]), np.arange(win_data.shape[1])
+                ),
+                sfreq=self.signal.data[0].info["sfreq"],
+                mode=self._cohy_method,
+                fmin=self._fmin,
+                fmax=self._fmax,
+                fskip=self._fskip,
+                faverage=self._faverage,
+                tmin=self._tmin,
+                tmax=self._tmax,
+                mt_bandwidth=self._mt_bandwidth,
+                mt_adaptive=self._mt_adaptive,
+                mt_low_bias=self._mt_low_bias,
+                cwt_freqs=self._cwt_freqs,
+                cwt_n_cycles=self._cwt_n_cycles,
+                block_size=self._block_size,
+                n_jobs=self._n_jobs,
+                verbose=self._verbose,
             )
-        if self._progress_bar is not None:
-            self._progress_bar.update_progress()
+            if isinstance(result, SpectroTemporalConnectivity):
+                result = SpectralConnectivity(
+                    data=np.mean(result.get_data(), axis=-1),
+                    freqs=result.freqs,
+                    n_nodes=result.n_nodes,
+                    names=result.names,
+                    indices=result.indices,
+                    method=result.method,
+                    n_epochs_used=result.n_epochs_used,
+                )
+            coherency.append(result)
+            if self._progress_bar is not None:
+                self._progress_bar.update_progress()
 
         return coherency
 
-    def _get_multivariate_results(self, data: SpectralConnectivity) -> None:
-        """For a single window, computes the multivariate connectivity results
-        using the coherency data.
+    def _compute_mim_mic(
+        self,
+        coherency: list[SpectralConnectivity],
+        seeds: list[int],
+        targets: list[int],
+        n_seed_components: Union[int, None],
+        n_target_components: Union[int, None],
+    ) -> tuple[NDArray, Union[list[list[NDArray]], None]]:
+        """Computes the multivariate interaction measure (MIM) or maximised
+        imaginary coherence (MIC) between the seeds and targets of a single
+        node.
 
         PARAMETERS
         ----------
-        data : MNE SpectralConnectivity
-        -   The coherency data for a single window.
+        coherency : list[MNE SpectralConnectivity]
+        -   The coherency between seeds and targets of a single node for each
+            window, with seeds in indices [0 : n_seeds] and targets in indices
+            [n_seeds : end], for axes 0 and 1.
+
+        seeds : list[int]
+        -   Indices of seeds in the cross-spectra in axes 0 and 1.
+
+        targets : list[int]
+        -   Indices of targets in the cross-spectra in axes 0 and 1.
+
+        n_seed_components : int | None
+        -   The number of components that should be taken from the seed data
+            after dimensionality reduction using singular value decomposition
+            (SVD).
+        -   If 'None', no dimensionality reduction is performed on the seed
+            data.
+
+        n_target_components : int | None
+        -   The number of components that should be taken from the target data
+            after dimensionality reduction using SVD.
+        -   If 'None', no dimensionality reduction is performed on the target
+            data.
 
         RETURNS
         -------
-        results : MNE SpectralConnectivity
-        -   The multivariate connectivity results of a single window for all
-            seed-target pairs.
+        connectivity : numpy ndarray
+        -   The MIM or MIC results with dimensions [windows x nodes x
+            frequencies].
 
-        topographies : list[list[numpy array]]
-        -   The spatial topographies of seeds and targets, respectively, for all
-            seed-target pairs in a single window.
+        topography : list[numpy array] | None
+        -   The topography results consisting of two arrays within a list where
+            the arrays are the spatial topographies for the seeds and targets,
+            respectively, with dimensions [windows x nodes x frequencies].
+        -   If topography results are not computed, 'None' is returned.
         """
         connectivity = []
-        topographies = [[], []]
-        for con_i, indices in enumerate(self._cohy_matrix_indices):
+        if self._return_topographies:
+            topography = [[], []]
+        else:
+            topography = None
+
+        if len(seeds) == n_seed_components:
+            n_seed_components = None
+        if len(targets) == n_target_components:
+            n_target_components = None
+
+        for win_i, win_cohy in enumerate(coherency):
             if self._verbose:
                 print(
-                    f"Computing '{self._con_method}' for seed-target group "
-                    f"{con_i+1} of {len(self._indices[0])}.\n"
+                    f"Computing connectivity for window {win_i+1} of "
+                    f"{len(coherency)}.\n"
                 )
-            cohy_matrix = self._get_cohy_matrix(data, indices)
+            cohy_matrix = self._get_cohy_matrix(win_cohy)
             if self._con_method == "mim":
                 results = multivariate_interaction_measure(
                     C=cohy_matrix,
-                    n_seeds=len(self._seeds_list[con_i]),
-                    n_targets=len(self._targets_list[con_i]),
-                    n_seed_components=,
-                    n_target_components=,
+                    n_seeds=len(seeds),
+                    n_targets=len(targets),
+                    n_seed_components=n_seed_components,
+                    n_target_components=n_target_components,
                 )
             elif self._con_method == "mic":
                 results = max_imaginary_coherence(
                     C=cohy_matrix,
-                    n_seeds=len(self._seeds_list[con_i]),
-                    n_targets=len(self._targets_list[con_i]),
-                    n_seed_components=,
-                    n_target_components=,
-                    return_topographies=self._return_topographies
+                    n_seeds=len(seeds),
+                    n_targets=len(targets),
+                    n_seed_components=n_seed_components,
+                    n_target_components=n_target_components,
+                    return_topographies=self._return_topographies,
                 )
             if self._return_topographies and self._con_method == "mic":
                 connectivity.append(results[0])
-                topographies[0].append(results[1][0])
-                topographies[1].append(results[1][1])
+                topography[0].append(results[1][0])
+                topography[1].append(results[1][1])
             else:
                 connectivity.append(results)
             if self._progress_bar is not None:
                 self._progress_bar.update_progress()
 
-        results = self._multivariate_to_mne(
-            data=np.asarray(connectivity),
-            freqs=data.freqs,
-            n_epochs_used=data.n_epochs_used,
+        connectivity = np.asarray(connectivity)
+        connectivity = np.reshape(
+            connectivity,
+            (connectivity.shape[0], 1, connectivity.shape[1]),
         )
 
-        return results, topographies
+        return connectivity, topography
 
-    def _get_cohy_matrix(
-        self, data: SpectralConnectivity, indices: list[list[int]]
-    ) -> NDArray:
+    def _get_cohy_matrix(self, data: SpectralConnectivity) -> NDArray:
         """Converts the coherency data from a two-dimensional matrix into into a
         three-dimensional matrix with dimensions [nodes x nodes x frequencies],
         where the nodes are picked based on the specified indices.
@@ -986,10 +1080,6 @@ class ConnectivityMIMMIC(ProcMultivariateConnectivity):
         -   MNE connectivity object containing the coherency values between all
             channels.
 
-        indices : list[list[int]]
-        -   Indices of the seeds and targets that should be picked from 'data'
-            for conversion into the three-dimensional matrix.
-
         RETURNS
         -------
         data_matrix : numpy Array
@@ -997,64 +1087,16 @@ class ConnectivityMIMMIC(ProcMultivariateConnectivity):
             possible connections between the seed-target pairs in the first two
             dimensions, and frequencies in the third dimension.
         """
-        node_idcs = []
-        node_idx = 0
-        for seed_idx_data, target_idx_data in zip(
-            data.indices[0], data.indices[1]
-        ):
-            for seed_idx_indices, target_idx_indices in zip(
-                indices[0], indices[1]
-            ):
-                if (
-                    seed_idx_data == seed_idx_indices
-                    and target_idx_data == target_idx_indices
-                ):
-                    node_idcs.append(node_idx)
-            node_idx += 1
-
         data_vals = data.get_data()
-        n_nodes = int(np.sqrt(len(indices[0])))
+        n_nodes = int(np.sqrt(data_vals.shape[0]))
         n_freqs = len(data.freqs)
         data_matrix = np.empty((n_nodes, n_nodes, n_freqs), dtype="complex128")
         for freq_i in range(n_freqs):
             data_matrix[:, :, freq_i] = np.reshape(
-                data_vals[node_idcs, freq_i], (n_nodes, n_nodes)
+                data_vals[:, freq_i], (n_nodes, n_nodes)
             )
 
         return data_matrix
-
-    def _multivariate_to_mne(
-        self, data: NDArray, freqs: NDArray, n_epochs_used: int
-    ) -> SpectralConnectivity:
-        """Converts results of the multivariate connectivity analysis stored as
-        a numpy array into an MNE SpectralConnectivity object.
-
-        PARAMETERS
-        ----------
-        data : numpy array
-        -   Results of the multivariate connectivity analysis with dimensions
-            [nodes x frequencies].
-
-        freqs : numpy array
-        -   The frequencies in the connectivity data.
-
-        n_epochs_used : int
-        -   The number of epochs used to compute connectivity.
-
-        RETURNS
-        -------
-        MNE SpectralConnectivity
-        -   Results converted to an appropriate MNE object.
-        """
-        return SpectralConnectivity(
-            data=data,
-            freqs=freqs,
-            n_nodes=len(self._seeds_list),
-            names=self._comb_names_str,
-            indices=self._indices,
-            method=self._con_method,
-            n_epochs_used=n_epochs_used,
-        )
 
     def _sort_dimensions(self) -> None:
         """Establishes dimensions of the connectivity results and averages
@@ -1067,7 +1109,6 @@ class ConnectivityMIMMIC(ProcMultivariateConnectivity):
             "channels",
             "frequencies",
         ]
-
         if self._average_windows:
             self._average_windows_results()
 
@@ -1079,37 +1120,13 @@ class ConnectivityMIMMIC(ProcMultivariateConnectivity):
         ProcessingOrderError
         -   Raised if the windows have already been averaged across.
         """
-        if self._windows_averaged:
-            raise ProcessingOrderError(
-                "Error when averaging the connectivity results across "
-                "windows:\nResults have already been averaged across windows."
-            )
 
-        n_windows = len(self.results)
-        connectivity = []
-        for results in self.results:
-            connectivity.append(results.get_data())
-        connectivity = np.asarray(connectivity).mean(axis=0)
+        super()._average_windows_results()
         if self._return_topographies:
             self.seed_topographies = [np.mean(self.seed_topographies, axis=0)]
             self.target_topographies = [
                 np.mean(self.target_topographies, axis=0)
             ]
-        self.results = [
-            SpectralConnectivity(
-                data=connectivity,
-                freqs=self.results[0].freqs,
-                n_nodes=self.results[0].n_nodes,
-                names=self.results[0].names,
-                indices=self.results[0].indices,
-                method=self.results[0].method,
-                n_epochs_used=self.results[0].n_epochs_used,
-            )
-        ]
-
-        self._windows_averaged = True
-        if self._verbose:
-            print(f"Averaging the data over {n_windows} windows.\n")
 
     @property
     def topography_results_dims(self) -> list[str]:
@@ -1537,7 +1554,6 @@ class ConnectivityGranger(ProcMultivariateConnectivity):
         self._mt_low_bias = None
         self._cwt_decim = None
         self._average_windows = None
-        self._ensure_full_rank_data = None
         self._n_jobs = None
         self._progress_bar = None
         self._csd_matrix_indices = None
@@ -1791,12 +1807,15 @@ class ConnectivityGranger(ProcMultivariateConnectivity):
                     self._target_ranks = []
                 (
                     seed_data,
-                    seed_rank,
                     target_data,
+                    seed_rank,
                     target_rank,
                 ) = self._check_data_rank(
                     seed_data=seed_data, target_data=target_data
                 )
+            else:
+                seed_rank = len(seeds)
+                target_rank = len(targets)
             data = self._join_seed_target_data(seed_data, target_data)
             result = self._compute_gc(
                 cross_spectra=self._compute_csd(data),
@@ -1808,60 +1827,23 @@ class ConnectivityGranger(ProcMultivariateConnectivity):
             else:
                 results = np.concatenate((results, result), axis=1)
             first_node = False
-        self.results = granger_causality
+
+        self.results = []
+        for win_connectivity in results:
+            self.results.append(
+                self._multivariate_to_mne(
+                    data=win_connectivity,
+                    freqs=self._freqs,
+                    n_epochs_used=self.signal.data[0].get_data().shape[0],
+                    connectivity_method=self._gc_method,
+                )
+            )
 
         if self._progress_bar is not None:
             self._progress_bar.close()
 
         self._sort_dimensions()
-        super()._generate_extra_info()
-
-    def _check_data_rank(
-        self, seed_data: NDArray, target_data: NDArray
-    ) -> tuple[NDArray, int, NDArray, int]:
-        """Checks whether the seed and target data for a node has full rank,
-        performing a singular value decomposition (SVD) on the data if not and
-        returning only the number of components equal to the number of non-zero
-        singular values of the data.
-
-        PARAMETERS
-        ----------
-        seed_data : numpy ndarray
-        -   A 4D matrix of the seed data with dimensions [windows x epochs x
-            channels x timepoints].
-
-        target_data : numpy ndarray
-        -   A 4D matrix of the target data with dimensions [windows x epochs x
-            channels x timepoints].
-
-        RETURNS
-        -------
-        seed_data : numpy ndarray
-        -   A 4D matrix of the seed data with dimensions [windows x epochs x
-            rank x timepoints]. If the data has full rank, the data is not
-            altered, else data with full rank is returned.
-
-        target_data : numpy ndarray
-        -   A 4D matrix of the target data with dimensions [windows x epochs x
-            rank x timepoints]. If the data has full rank, the data is not
-            altered, else data with full rank is returned.
-
-        seed_rank : int
-        -   The rank of the seed data.
-
-        target_rank : int
-        -   The rank of the target data.
-        """
-        seed_data, seed_rank, _ = self._sort_data_dimensionality(
-            data=seed_data, data_type="seed"
-        )
-        target_data, target_rank, _ = self._sort_data_dimensionality(
-            data=target_data, data_type="target"
-        )
-        self._seed_ranks.append(seed_rank)
-        self._target_ranks.append(target_rank)
-
-        return seed_data, target_data, seed_rank, target_rank
+        self._generate_extra_info()
 
     def _compute_csd(self, data: list[NDArray]) -> list[CrossSpectralDensity]:
         """Computes the cross-spectral density of the data for a single node.
@@ -1978,15 +1960,15 @@ class ConnectivityGranger(ProcMultivariateConnectivity):
             frequencies].
         """
         results = []
-        for i, csd in enumerate(cross_spectra):
+        for win_i, win_csd in enumerate(cross_spectra):
             if self._verbose:
                 print(
-                    f"Computing Granger causality for window {i+1} of "
+                    f"Computing Granger causality for window {win_i+1} of "
                     f"{len(cross_spectra)}.\n"
                 )
             csd_matrix = np.transpose(
                 np.asarray(
-                    [csd.get_data(frequency=freq) for freq in self._freqs]
+                    [win_csd.get_data(frequency=freq) for freq in self._freqs]
                 ),
                 (1, 2, 0),
             )
@@ -2008,41 +1990,9 @@ class ConnectivityGranger(ProcMultivariateConnectivity):
     def _sort_dimensions(self) -> None:
         """Establishes dimensions of the connectivity results and averages
         across windows, if requested."""
-        self._results_dims = ["windows", "channels", "frequencies"]
-
+        self._results_dims = ["windows", "nodes", "frequencies"]
         if self._average_windows:
             self._average_windows_results()
-
-    def _average_windows_results(self) -> None:
-        """Averages the connectivity results across windows.
-
-        RAISES
-        ------
-        ProcessingOrderError
-        -   Raised if the windows have already been averaged across.
-        """
-        if self._windows_averaged:
-            raise ProcessingOrderError(
-                "Error when averaging the connectivity results across "
-                "windows:\nResults have already been averaged across windows."
-            )
-
-        n_windows = len(self.results)
-        self.results = [
-            SpectralConnectivity(
-                data=np.asarray([data for data in self.results]).mean(axis=0),
-                freqs=self._freqs,
-                n_nodes=len(self._comb_names_str),
-                names=self._comb_names_str,
-                indices=self._indices,
-                method=self._gc_method,
-                n_epochs_used=self.signal.data[0].get_data().shape[0],
-            )
-        ]
-
-        self._windows_averaged = True
-        if self._verbose:
-            print(f"Averaging the data over {n_windows} windows.\n")
 
     def save_results(
         self,
