@@ -1705,8 +1705,10 @@ class PowerFOOOF(ProcMethod):
             for each frequency band.
         -   If no peak is present for a given band, all parameters are 'NaN'.
         """
+        fband_names = []
         fband_peak_params = []
-        for band in self.freq_bands.values():
+        for name, band in self.freq_bands.items():
+            fband_names.append(name)
             fband_peak_params.append(
                 get_band_peak(
                     peak_params=peak_params,
@@ -1716,8 +1718,64 @@ class PowerFOOOF(ProcMethod):
                     thresh_param="PW",
                 )
             )
+        if self._verbose:
+            fband_peak_params = self._choose_fband_peaks(
+                peak_params=fband_peak_params, fband_names=fband_names
+            )
 
         return np.asarray(fband_peak_params)
+
+    def _choose_fband_peaks(
+        self, peak_params: list[NDArray], fband_names: list[str]
+    ) -> list[NDArray]:
+        """Asks the user to choose which peaks in the frequency bands should be
+        retained, and which should be discarded.
+
+        PARAMETERS
+        ----------
+        peak_params : list[numpy ndarray]
+        -   The parameters for each peak in a list, where each entry consists of
+            an array containing the center frequency, power, and bandwidth of
+            the peak, respectively.
+
+        fband_names : list[str]
+        -   The names of the frequency bands in 'peak_params'.
+
+        RETURNS
+        -------
+        new_peak_params : list[numpy ndarray]
+        -   The parameters for each retained peak in a list, where each entry
+            consists of an array containing the center frequency, power, and
+            bandwidth of the peak, respectively.
+        """
+        new_peak_params = []
+        accepted_inputs = ["y", "n"]
+        for name, peak in zip(fband_names, peak_params):
+            if not np.isnan(peak).all():
+                answered = False
+                while not answered:
+                    keep_peak = input(
+                        f"There is a peak in the {name} band with the following "
+                        f"parameters (in Hz):\n- Center frequency: {peak[0]}\n- "
+                        f"Power: {peak[1]}\n- Bandwidth: {peak[2]}\nShould this "
+                        "peak be retained? y/n: "
+                    )
+                    if keep_peak in accepted_inputs:
+                        answered = True
+                    else:
+                        print(
+                            f"Error, {keep_peak} is not a recognised input.\nThe "
+                            f"recognised inputs are {accepted_inputs}.\nPlease try "
+                            "again."
+                        )
+                if keep_peak == "y":
+                    new_peak_params.append(peak)
+                else:
+                    new_peak_params.append(np.asarray([np.nan, np.nan, np.nan]))
+            else:
+                new_peak_params.append(peak)
+
+        return new_peak_params
 
     def _combine_results_over_channels(
         self, results: dict[list]
