@@ -106,12 +106,8 @@ def get_analysis_settings(
     extract_from_dicts = {
         "metadata": ["sub", "med", "stim", "ses", "task", "run"]
     }
-
+    discard_keys = analysis_settings["discard_keys"]
     identical_keys = ["freqs"]
-    discard_keys = [
-        "samp_freq",
-        "subject_info",
-    ]
 
     return (
         analysis_settings,

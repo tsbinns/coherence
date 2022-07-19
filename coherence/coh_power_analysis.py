@@ -1,106 +1,167 @@
-"""Analyses power results.
+"""Analyses power results."""
 
-METHODS
--------
-morlet_analysis
--   Analyses Morlet wavelet power results.
-"""
-
-from collections import OrderedDict
-from coh_process_results import load_results_of_type
+from coh_handle_files import generate_fpath_from_analysed
+from coh_process_results import load_results_of_types
+from coh_settings import get_analysis_settings
 
 
-def morlet_analysis(
-    results_folderpath: str,
-    to_analyse: dict[str],
-    analysis_steps: OrderedDict,
+def power_standard_analysis(
+    folderpath_processing: str,
+    folderpath_analysis: str,
+    analysis: str,
+    save: bool,
 ) -> None:
-    """Analyses Morlet wavelet power results.
+    """Analyses standard power results.
 
     PARAMETERS
     ----------
-    results_folderpath : str
-    -   Folderpath to where the results are located.
+    folderpath_processing : str
+    -   Folderpath to the location where the results of the data processing are
+        located.
 
-    to_analyse : dict[str]
-    -   Dictionary in which each entry represents a different piece of results.
-    -   Contains the keys: 'sub' (subject ID); 'ses' (session name); 'task'
-        (task name); 'acq' (acquisition type); and 'run' (run number).
+    folderpath_analysis : str
+    -   Folderpath to the location where the analysis settings are located and
+        where the output of the analysis should be saved, if applicable.
 
-    analysis_steps : OrderedDict
-    -   Instructions for how to analyse the results. Each key should be the type
-        of processing to apply to the results, with the entry declaring the
-        attributes of the results to apply this processing to.
-    -   The order in which the entries occur is the order in which the
-        processing will be applied.
-    -   E.g. {"average": "run", "average": "session", "average": "subject"}
-        would average the results across runs, then sessions, then subjects.
+    analysis : str
+    -   Name of the analysis being performed, used for loading the analysis
+        settings and, optionally, saving the output of the analysis.
+
+    save : bool
+    -   Whether or not to save the output of the analysis.
     """
+    ## Loads the analysis settings
+    (
+        analysis_settings,
+        extract_from_dicts,
+        identical_keys,
+        discard_keys,
+    ) = get_analysis_settings(
+        settings_fpath=(f"{folderpath_analysis}\\Settings\\{analysis}.json")
+    )
+    to_analyse = analysis_settings["to_analyse"]
+    result_types = analysis_settings["result_types"]
+    steps = analysis_settings["steps"]
+    band_measures = analysis_settings["freq_band_measures"]
+    band_data_keys = analysis_settings["freq_band_data_keys"]
+    var_measures = analysis_settings["var_measures"]
+    freq_bands = analysis_settings["freq_bands"]
 
-    extract_from_dicts = {
-        "metadata": ["sub", "med", "stim", "ses", "task", "run"]
-    }
-    identical_entries = ["freqs"]
-    discard_entries = ["samp_freq", "subject_info", "power_morlet_dimensions"]
-
-    results = load_results_of_type(
-        results_folderpath=results_folderpath,
+    results = load_results_of_types(
+        folderpath_processing=f"{folderpath_processing}\\Data",
         to_analyse=to_analyse,
-        result_type="power-morlet",
+        result_types=result_types,
         extract_from_dicts=extract_from_dicts,
-        identical_entries=identical_entries,
-        discard_entries=discard_entries,
+        identical_keys=identical_keys,
+        discard_keys=discard_keys,
     )
 
-    for analysis, attribute in analysis_steps.items():
-        print("jeff")
-        # if analysis == "average":
-        # results.average(over_keys=attribute, data_keys=, group_keys=, identical_keys=)
+    if freq_bands is not None:
+        results.freq_band_results(
+            bands=freq_bands,
+            attributes=band_data_keys,
+            measures=band_measures,
+        )
+
+    for step in steps:
+        if freq_bands is not None:
+            step["identical_keys"].extend(["fband_labels", "fband_freqs"])
+        if step["method"] == "average":
+            results.average(
+                over_key=step["over_key"],
+                data_keys=step["data_keys"],
+                group_keys=step["group_keys"],
+                over_entries=step["over_entries"],
+                identical_keys=step["identical_keys"],
+                var_measures=var_measures,
+            )
+
+    if save:
+        results_fpath = generate_fpath_from_analysed(
+            analysed=to_analyse,
+            parent_folderpath=f"{folderpath_analysis}\\Results",
+            analysis=analysis,
+            ftype="json",
+        )
+        results.save_results(fpath=results_fpath)
 
 
-def fooof_analysis(
-    results_folderpath: str,
-    to_analyse: dict[str],
-    analysis_steps: OrderedDict,
+def power_fooof_analysis(
+    folderpath_processing: str,
+    folderpath_analysis: str,
+    analysis: str,
+    save: bool,
 ) -> None:
-    """Analyses FOOOF power results.
+    """Analyses standard power results.
 
     PARAMETERS
     ----------
-    results_folderpath : str
-    -   Folderpath to where the results are located.
+    folderpath_processing : str
+    -   Folderpath to the location where the results of the data processing are
+        located.
 
-    to_analyse : dict[str]
-    -   Dictionary in which each entry represents a different piece of results.
-    -   Contains the keys: 'sub' (subject ID); 'ses' (session name); 'task'
-        (task name); 'acq' (acquisition type); and 'run' (run number).
+    folderpath_analysis : str
+    -   Folderpath to the location where the analysis settings are located and
+        where the output of the analysis should be saved, if applicable.
 
-    analysis_steps : OrderedDict
-    -   Instructions for how to analyse the results. Each key should be the type
-        of processing to apply to the results, with the entry declaring the
-        attributes of the results to apply this processing to.
-    -   The order in which the entries occur is the order in which the
-        processing will be applied.
-    -   E.g. {"average": "run", "average": "session", "average": "subject"}
-        would average the results across runs, then sessions, then subjects.
+    analysis : str
+    -   Name of the analysis being performed, used for loading the analysis
+        settings and, optionally, saving the output of the analysis.
+
+    save : bool
+    -   Whether or not to save the output of the analysis.
     """
+    ## Loads the analysis settings
+    (
+        analysis_settings,
+        extract_from_dicts,
+        identical_keys,
+        discard_keys,
+    ) = get_analysis_settings(
+        settings_fpath=(f"{folderpath_analysis}\\Settings\\{analysis}.json")
+    )
+    to_analyse = analysis_settings["to_analyse"]
+    result_types = analysis_settings["result_types"]
+    steps = analysis_settings["steps"]
+    band_measures = analysis_settings["freq_band_measures"]
+    band_data_keys = analysis_settings["freq_band_data_keys"]
+    var_measures = analysis_settings["var_measures"]
+    freq_bands = analysis_settings["freq_bands"]
 
-    extract_from_dicts = {
-        "metadata": ["sub", "med", "stim", "ses", "task", "run"]
-    }
-    identical_entries = ["freqs"]
-    discard_entries = ["samp_freq", "subject_info"]
-
-    results = load_results_of_type(
-        results_folderpath=results_folderpath,
+    results = load_results_of_types(
+        folderpath_processing=f"{folderpath_processing}\\Data",
         to_analyse=to_analyse,
-        result_type="power-fooof",
+        result_types=result_types,
         extract_from_dicts=extract_from_dicts,
-        identical_entries=identical_entries,
-        discard_entries=discard_entries,
+        identical_keys=identical_keys,
+        discard_keys=discard_keys,
     )
 
-    for analysis, attribute in analysis_steps.items():
-        print("jeff")
-        # if analysis == "average":
-        # results.average(over_keys=attribute, data_keys=, group_keys=, identical_keys=)
+    if freq_bands is not None:
+        results.freq_band_results(
+            bands=freq_bands,
+            attributes=band_data_keys,
+            measures=band_measures,
+        )
+
+    for step in steps:
+        if freq_bands is not None:
+            step["identical_keys"].extend(["fband_labels", "fband_freqs"])
+        if step["method"] == "average":
+            results.average(
+                over_key=step["over_key"],
+                data_keys=step["data_keys"],
+                group_keys=step["group_keys"],
+                over_entries=step["over_entries"],
+                identical_keys=step["identical_keys"],
+                var_measures=var_measures,
+            )
+
+    if save:
+        results_fpath = generate_fpath_from_analysed(
+            analysed=to_analyse,
+            parent_folderpath=f"{folderpath_analysis}\\Results",
+            analysis=analysis,
+            ftype="json",
+        )
+        results.save_results(fpath=results_fpath)

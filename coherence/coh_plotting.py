@@ -286,8 +286,7 @@ class LinePlot(Plotting):
             print(f"Discarding the following keys from the results: {keys}\n")
 
     def _check_identical_keys(self) -> None:
-        """Checks that keys in the results marked as identical are
-        identical."""
+        """Checks that keys in the results marked as identical are identical."""
 
         for key in self.identical_keys:
             values = deepcopy(self._results[key])

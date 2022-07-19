@@ -82,7 +82,7 @@ def standard_power_analysis(
         analysis,
         ".json",
     )
-    morlet_fpath = generate_sessionwise_fpath(
+    power_fpath = generate_sessionwise_fpath(
         os.path.join(folderpath_processing, "Data"),
         dataset,
         subject,
@@ -167,7 +167,7 @@ def standard_power_analysis(
             line_noise_freq=norm_settings["line_noise_freq"],
         )
     if save:
-        power.save_results(fpath=morlet_fpath)
+        power.save_results(fpath=power_fpath)
 
     return power
 

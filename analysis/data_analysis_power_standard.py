@@ -7,7 +7,7 @@ from pathlib import Path
 
 cd_path = Path(__file__).absolute().parent.parent
 sys.path.append(os.path.join(cd_path, "coherence"))
-from coh_power_analysis import power_fooof_analysis
+from coh_power_analysis import power_standard_analysis
 from coh_handle_files import load_file
 
 
@@ -20,12 +20,12 @@ FOLDERPATH_ANALYSIS = (
     "\\\\?\\C:\\Users\\User\\OneDrive - Charité - Universitätsmedizin Berlin\\"
     "PROJECT ECOG-LFP Coherence\\Analysis\\Analysis"
 )
-ANALYSIS = "pow_fooof_whole-MedOffOn"
+ANALYSIS = "pow_standard_regional-MedOffOn"
 
 
 if __name__ == "__main__":
 
-    analysed = power_fooof_analysis(
+    analysed = power_standard_analysis(
         folderpath_processing=FOLDERPATH_PROCESSING,
         folderpath_analysis=FOLDERPATH_ANALYSIS,
         analysis=ANALYSIS,

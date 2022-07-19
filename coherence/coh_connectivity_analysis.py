@@ -1,10 +1,4 @@
-"""Analyses connectivity results.
-
-METHODS
--------
-coherence_analysis
--   Analyses coherence results.
-"""
+"""Analyses connectivity results."""
 
 from coh_handle_files import generate_fpath_from_analysed
 from coh_process_results import load_results_of_types
@@ -17,7 +11,7 @@ def connectivity_analysis(
     analysis: str,
     save: bool,
 ) -> None:
-    """Analyses coherence results.
+    """Analyses connectivity results.
 
     PARAMETERS
     ----------
@@ -36,7 +30,6 @@ def connectivity_analysis(
     save : bool
     -   Whether or not to save the output of the analysis.
     """
-
     ## Loads the analysis settings
     (
         analysis_settings,
