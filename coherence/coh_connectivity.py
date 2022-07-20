@@ -125,18 +125,33 @@ class ConnectivityCoherence(ProcSingularConnectivity):
         for results in self.results:
             coherence.append(results.get_data())
         coherence = np.asarray(coherence).mean(axis=0)
-        self.results = [
-            SpectroTemporalConnectivity(
-                data=coherence,
-                freqs=self.results[0].freqs,
-                times=self.results[0].times,
-                n_nodes=self.results[0].n_nodes,
-                names=self.results[0].names,
-                indices=self.results[0].indices,
-                method=self.results[0].method,
-                n_epochs_used=self.results[0].n_epochs_used,
-            )
-        ]
+        if isinstance(self.results, SpectroTemporalConnectivity):
+            self.results = [
+                SpectroTemporalConnectivity(
+                    data=coherence,
+                    freqs=self.results[0].freqs,
+                    times=self.results[0].times,
+                    n_nodes=self.results[0].n_nodes,
+                    names=self.results[0].names,
+                    indices=self.results[0].indices,
+                    method=self.results[0].method,
+                    spec_method=self._pow_method,
+                    n_epochs_used=self.results[0].n_epochs_used,
+                )
+            ]
+        else:
+            self.results = [
+                SpectralConnectivity(
+                    data=coherence,
+                    freqs=self.results[0].freqs,
+                    n_nodes=self.results[0].n_nodes,
+                    names=self.results[0].names,
+                    indices=self.results[0].indices,
+                    method=self.results[0].method,
+                    spec_method=self._pow_method,
+                    n_epochs_used=self.results[0].n_epochs_used,
+                )
+            ]
 
         self._windows_averaged = True
         if self._verbose:
@@ -258,16 +273,29 @@ class ConnectivityCoherence(ProcSingularConnectivity):
                 )
             )
             if self._con_method == "imcoh":
-                connectivity[i] = SpectroTemporalConnectivity(
-                    data=np.abs(connectivity[i].get_data()),
-                    freqs=connectivity[i].freqs,
-                    times=connectivity[i].times,
-                    n_nodes=connectivity[i].n_nodes,
-                    names=connectivity[i].names,
-                    indices=connectivity[i].indices,
-                    method=connectivity[i].method,
-                    n_epochs_used=connectivity[i].n_epochs_used,
-                )
+                if isinstance(connectivity[i], SpectroTemporalConnectivity):
+                    connectivity[i] = SpectroTemporalConnectivity(
+                        data=np.abs(connectivity[i].get_data()),
+                        freqs=connectivity[i].freqs,
+                        times=connectivity[i].times,
+                        n_nodes=connectivity[i].n_nodes,
+                        names=connectivity[i].names,
+                        indices=connectivity[i].indices,
+                        method=connectivity[i].method,
+                        spec_method=self._pow_method,
+                        n_epochs_used=connectivity[i].n_epochs_used,
+                    )
+                else:
+                    connectivity[i] = SpectralConnectivity(
+                        data=np.abs(connectivity[i].get_data()),
+                        freqs=connectivity[i].freqs,
+                        n_nodes=connectivity[i].n_nodes,
+                        names=connectivity[i].names,
+                        indices=connectivity[i].indices,
+                        method=connectivity[i].method,
+                        spec_method=self._pow_method,
+                        n_epochs_used=connectivity[i].n_epochs_used,
+                    )
             if self._progress_bar is not None:
                 self._progress_bar.update_progress()
         self.results = connectivity
@@ -2077,3 +2105,5 @@ class ConnectivityGranger(ProcMultivariateConnectivity):
             remove_keys = ["seed_ranks", "target_ranks"]
             for key in remove_keys:
                 del results_dict[key]
+
+        return results_dict
