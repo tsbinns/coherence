@@ -264,6 +264,7 @@ def fooof_analysis(
         freq_bands=analysis_settings["freq_bands"],
         average_windows=analysis_settings["average_windows"],
         show_fit=analysis_settings["show_fit"],
+        choose_peaks=analysis_settings["choose_peaks"],
     )
     if save:
         fooof.save_results(fooof_fpath, "json")

@@ -1149,6 +1149,7 @@ class PowerFOOOF(ProcMethod):
         self.show_fit = None
         self.fooof_results = None
         self.freqs = None
+        self.choose_peaks = None
 
     def _sort_inputs(self) -> None:
         """Checks the inputs to the PowerFOOOF object to ensure that they
@@ -1180,6 +1181,7 @@ class PowerFOOOF(ProcMethod):
         freq_bands: Union[dict[list[Union[int, float]]], None] = None,
         average_windows: bool = True,
         show_fit: bool = False,
+        choose_peaks: bool = False,
     ) -> None:
         """Performs FOOOF analysis on the power data.
 
@@ -1228,9 +1230,13 @@ class PowerFOOOF(ProcMethod):
         average_windows : bool; default True
         -   Whether or not to average results across windows.
 
-        show_fit : bool; default True
+        show_fit : bool; default False
         -   Whether or not to show the user the FOOOF model fits for the
             channels.
+
+        choose_peaks : bool; default False
+        -   Whether or not to ask the user to choose which frequency band peaks
+            should be included in the results.
         """
 
         if self._processed:
@@ -1250,6 +1256,7 @@ class PowerFOOOF(ProcMethod):
             freq_bands=freq_bands,
             average_windows=average_windows,
             show_fit=show_fit,
+            choose_peaks=choose_peaks,
         )
 
         if self._verbose:
@@ -1279,6 +1286,7 @@ class PowerFOOOF(ProcMethod):
         freq_bands: Union[dict[list[Union[int, float]]], None],
         average_windows: bool,
         show_fit: bool,
+        choose_peaks: bool,
     ) -> None:
         """Sorts and assigns inputs for the FOOOF processing.
 
@@ -1331,6 +1339,10 @@ class PowerFOOOF(ProcMethod):
         -   Whether or not to show the user the FOOOF model fits for the
             channels.
 
+        choose_peaks : bool
+        -   Whether or not to ask the user to choose which frequency band peaks
+            should be included in the results.
+
         RAISES
         ------
         ValueError
@@ -1377,6 +1389,7 @@ class PowerFOOOF(ProcMethod):
         self.peak_threshold = peak_threshold
         self.average_windows = average_windows
         self.show_fit = show_fit
+        self.choose_peaks = choose_peaks
 
     def _get_results(
         self,
@@ -1722,7 +1735,7 @@ class PowerFOOOF(ProcMethod):
                     thresh_param="PW",
                 )
             )
-        if self._verbose:
+        if self.choose_peaks:
             fband_peak_params = self._choose_fband_peaks(
                 peak_params=fband_peak_params, fband_names=fband_names
             )
@@ -2002,6 +2015,11 @@ class PowerFOOOF(ProcMethod):
         """
         n_channs = len(self.signal.results[0].ch_names)
         n_fbands = len(self.freq_bands.keys())
+        if self._windows_averaged:
+            peak_reshape_dims = n_channs * n_fbands
+        else:
+            peak_reshape_dims = (n_channs * n_fbands, n_windows)
+        n_windows = len(self.aperiodic_modes)
         ch_names = []
         r_squared = []
         error = []
@@ -2026,13 +2044,13 @@ class PowerFOOOF(ProcMethod):
         )
 
         results["peak_central_freq"] = np.reshape(
-            results["peak_central_freq"], (n_channs * n_fbands)
+            results["peak_central_freq"], peak_reshape_dims
         ).tolist()
         results["peak_power"] = np.reshape(
-            results["peak_power"], (n_channs * n_fbands)
+            results["peak_power"], peak_reshape_dims
         ).tolist()
         results["peak_bandwidth"] = np.reshape(
-            results["peak_bandwidth"], (n_channs * n_fbands)
+            results["peak_bandwidth"], peak_reshape_dims
         ).tolist()
 
         return results
