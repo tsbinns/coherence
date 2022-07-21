@@ -1,4 +1,4 @@
-"""Processes ECoG and LFP data to generate power spectra."""
+"""Processes ECoG and LFP data to generate FOOOF power spectra."""
 
 
 import os
