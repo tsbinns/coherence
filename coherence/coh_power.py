@@ -1394,7 +1394,9 @@ class PowerFOOOF(ProcMethod):
             "r_squared": [],
             "error": [],
             "aperiodic_params": [],
-            "peak_params": [],
+            "peak_central_freq": [],
+            "peak_power": [],
+            "peak_bandwidth": [],
         }
         for win_i, aperiodic_modes in enumerate(self.aperiodic_modes):
             for key in results.keys():
@@ -1647,7 +1649,9 @@ class PowerFOOOF(ProcMethod):
             "r_squared": model.get_results().r_squared,
             "error": model.get_results().error,
             "aperiodic_params": aperiodic_params,
-            "peak_params": peak_params,
+            "peak_central_freq": peak_params[:, 0],
+            "peak_power": peak_params[:, 1],
+            "peak_bandwidth": peak_params[:, 2],
         }
 
     def _sort_aperiodic_params(self, aperiodic_params: NDArray) -> NDArray:
@@ -1848,7 +1852,8 @@ class PowerFOOOF(ProcMethod):
         )
 
     def get_results(self, return_lists: bool = False) -> dict:
-        """Returns the results dictionary.
+        """Returns results dictionaries for the periodic and aperiodic
+        components, and the frequency band peaks.
 
         PARAMETERS
         ----------
@@ -1857,8 +1862,8 @@ class PowerFOOOF(ProcMethod):
 
         RETURNS
         -------
-        dict
-        -   The results dictionary of the FOOOF analysis.
+        results : dict
+        -   A dictionary of results and additional information.
         """
         results = deepcopy(self.results)
         for key, value in results.items():
@@ -1870,20 +1875,43 @@ class PowerFOOOF(ProcMethod):
 
         return results
 
-    def results_as_dict(self) -> dict:
+    def results_as_dict(self) -> tuple[dict, dict]:
         """Organises the results and additional information into a dictionary.
 
         RETURNS
+        -------
+        component_results : dict
+        -   A dictionary of periodic and aperiodic component results and
+            additional information.
+
+        peak_results : dict
+        -   A dictionary of frequency band peak results and additional
+            information.
+        """
+        results = self.get_results(return_lists=True)
+        component_results = self._component_results_as_dict(results)
+        peak_results = self._peak_results_as_dict(results)
+
+        return component_results, peak_results
+
+    def _component_results_as_dict(self, results: dict) -> dict:
+        """Organises the periodic and aperiodic component results and additional
+        information into a dictionary.
+
+        PARAMETERS
+        ----------
+        results : dict
+        -   The raw results dictionary.
+
+        RETURNS
+        -------
         dict
         -   A dictionary of results and additional information.
         """
         ch_names = self.signal.results[0].ch_names
-        results = self.get_results(return_lists=True)
         return {
             "power-fooof_periodic": results["periodic_component"],
             "power-fooof_aperiodic": results["aperiodic_component"],
-            "power-fooof_band_names": list(self.freq_bands.keys()),
-            "power-fooof_band_peaks": results["peak_params"],
             "r_squared": results["r_squared"],
             "error": results["error"],
             "freqs": self.freqs.tolist(),
@@ -1910,10 +1938,109 @@ class PowerFOOOF(ProcMethod):
             "subject_info": self.signal.signal.data[0].info["subject_info"],
         }
 
+    def _peak_results_as_dict(self, results: dict) -> dict:
+        """Organises the frequency band peak results and additional information
+        into a dictionary.
+
+        PARAMETERS
+        ----------
+        results : dict
+        -   The raw results dictionary.
+
+        RETURNS
+        -------
+        dict
+        -   A dictionary of results and additional information.
+        """
+        results = self._prepare_peak_results_dict(results)
+        ch_names = results["ch_names"]
+        return {
+            "power-fooof_peak_central_freq": results["peak_central_freq"],
+            "power-fooof_peak_power": results["peak_power"],
+            "power-fooof_peak_bandwidth": results["peak_bandwidth"],
+            "freq_band_names": results["fband_names"],
+            "freq_band_lower_freq": results["fband_lower_bounds"],
+            "freq_band_upper_freq": results["fband_upper_bounds"],
+            "r_squared": results["r_squared"],
+            "error": results["error"],
+            "ch_names": ch_names,
+            "ch_types": self.signal.signal.data[0].get_channel_types(
+                picks=ch_names
+            ),
+            "ch_coords": self.signal.signal.get_coordinates(picks=ch_names),
+            "ch_regions": ordered_list_from_dict(
+                ch_names, self.extra_info["ch_regions"]
+            ),
+            "ch_subregions": ordered_list_from_dict(
+                ch_names, self.extra_info["ch_subregions"]
+            ),
+            "ch_hemispheres": ordered_list_from_dict(
+                ch_names, self.extra_info["ch_hemispheres"]
+            ),
+            "ch_reref_types": ordered_list_from_dict(
+                ch_names, self.extra_info["ch_reref_types"]
+            ),
+            "samp_freq": self.signal.signal.data[0].info["sfreq"],
+            "metadata": self.extra_info["metadata"],
+            "processing_steps": self.processing_steps,
+            "subject_info": self.signal.signal.data[0].info["subject_info"],
+        }
+
+    def _prepare_peak_results_dict(self, results: dict) -> dict:
+        """Prepares variables that will be stored in the frequency band peak
+        results dictionary.
+
+        PARAMETERS
+        ----------
+        results : dict
+        -   The raw results dictionary.
+
+        RETURNS
+        -------
+        results : dict
+        -   The modified dictionary for use in storing the peak results.
+        """
+        n_channs = len(self.signal.results[0].ch_names)
+        n_fbands = len(self.freq_bands.keys())
+        ch_names = []
+        r_squared = []
+        error = []
+        for name, r_sqr, err in zip(
+            self.signal.results[0].ch_names,
+            results["r_squared"],
+            results["error"],
+        ):
+            ch_names.extend([name] * n_fbands)
+            r_squared.extend([r_sqr] * n_fbands)
+            error.extend([err] * n_fbands)
+        results["ch_names"] = ch_names
+        results["r_squared"] = r_squared
+        results["error"] = error
+
+        results["fband_names"] = list(self.freq_bands.keys()) * n_channs
+        results["fband_lower_bounds"] = (
+            np.asarray(list(self.freq_bands.values()))[:, 0].tolist() * n_channs
+        )
+        results["fband_upper_bounds"] = (
+            np.asarray(list(self.freq_bands.values()))[:, 1].tolist() * n_channs
+        )
+
+        results["peak_central_freq"] = np.reshape(
+            results["peak_central_freq"], (n_channs * n_fbands)
+        ).tolist()
+        results["peak_power"] = np.reshape(
+            results["peak_power"], (n_channs * n_fbands)
+        ).tolist()
+        results["peak_bandwidth"] = np.reshape(
+            results["peak_bandwidth"], (n_channs * n_fbands)
+        ).tolist()
+
+        return results
+
     def save_results(
         self,
         fpath: str,
-        ftype: Union[str, None] = None,
+        ftype: str,
         ask_before_overwrite: Union[bool, None] = None,
     ) -> None:
         """Saves the FOOOF analysis results and additional information as a
@@ -1922,16 +2049,15 @@ class PowerFOOOF(ProcMethod):
         PARAMETERS
         ----------
         fpath : str
-        -   Location where the data should be saved.
+        -   Location where the data should be saved, without the filetype
+            specified.
 
-        ftype : str | None; default None
+        ftype : str
         -   The filetype of the data that will be saved, without the leading
             period. E.g. for saving the file in the json format, this would be
             "json", not ".json".
         -   The information being saved must be an appropriate type for saving
             in this format.
-        -   If None, the filetype is determined based on 'fpath', and so the
-            extension must be included in the path.
 
         ask_before_overwrite : bool | None; default the object's verbosity
         -   If True, the user is asked to confirm whether or not to overwrite a
@@ -1944,9 +2070,19 @@ class PowerFOOOF(ProcMethod):
         if ask_before_overwrite is None:
             ask_before_overwrite = self._verbose
 
+        component_results, peak_results = self.results_as_dict()
+
         save_dict(
-            to_save=self.results_as_dict(),
+            to_save=component_results,
             fpath=fpath,
+            ftype=ftype,
+            ask_before_overwrite=ask_before_overwrite,
+            verbose=self._verbose,
+        )
+
+        save_dict(
+            to_save=peak_results,
+            fpath=f"{fpath}_peaks",
             ftype=ftype,
             ask_before_overwrite=ask_before_overwrite,
             verbose=self._verbose,

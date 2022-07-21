@@ -244,7 +244,7 @@ def fooof_analysis(
         acquisition,
         run,
         f"power-{analysis}",
-        ".json",
+        "",
     )
 
     ## Loads the analysis settings
@@ -266,5 +266,5 @@ def fooof_analysis(
         show_fit=analysis_settings["show_fit"],
     )
     if save:
-        fooof.save_results(fooof_fpath)
+        fooof.save_results(fooof_fpath, "json")
         fooof.save_aperiodic_modes(specific_settings_fpath)
