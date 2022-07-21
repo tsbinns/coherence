@@ -1175,7 +1175,7 @@ class ConnectivityMIMMIC(ProcMultivariateConnectivity):
     def save_results(
         self,
         fpath: str,
-        ftype: Union[str, None] = None,
+        ftype: str,
         ask_before_overwrite: Union[bool, None] = None,
     ) -> None:
         """Saves the results and additional information as a file.
@@ -1183,16 +1183,15 @@ class ConnectivityMIMMIC(ProcMultivariateConnectivity):
         PARAMETERS
         ----------
         fpath : str
-        -   Location where the data should be saved.
+        -   Location where the data should be saved, without the filetype
+            specified.
 
-        ftype : str | None; default None
+        ftype : str
         -   The filetype of the data that will be saved, without the leading
             period. E.g. for saving the file in the json format, this would be
             "json", not ".json".
         -   The information being saved must be an appropriate type for saving
             in this format.
-        -   If None, the filetype is determined based on 'fpath', and so the
-            extension must be included in the path.
 
         ask_before_overwrite : bool | None; default the object's verbosity
         -   If True, the user is asked to confirm whether or not to overwrite a
