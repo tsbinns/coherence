@@ -22,7 +22,7 @@ FOLDERPATH_PREPROCESSING = (
 )
 DATASET = "BIDS_Berlin_ECOG_LFP"
 ANALYSIS = "for_annotations"
-SUBJECT = "012"
+SUBJECT = "014"
 SESSION = "EcogLfpMedOff01"
 TASK = "Rest"
 ACQUISITION = "StimOff"

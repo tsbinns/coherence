@@ -22,7 +22,7 @@ FOLDERPATH_PROCESSING = (
 )
 DATASET = "BIDS_Berlin_ECOG_LFP"
 PREPROCESSING = "preprocessed-for_fooof"
-POWER_ANALYSIS = "pow_morlet_prefooof"
+POWER_ANALYSIS = "pow_multitaper_prefooof"
 FOOOF_ANALYSIS = "pow_fooof"
 SUBJECT = "006"
 SESSION = "EcogLfpMedOff01"

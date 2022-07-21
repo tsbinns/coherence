@@ -18,7 +18,7 @@ FOLDERPATH_PLOTTING = (
     "\\\\?\\C:\\Users\\User\\OneDrive - Charité - Universitätsmedizin Berlin\\"
     "PROJECT ECOG-LFP Coherence\\Analysis\\Plotting"
 )
-PLOTTING = "pow_standard_regional-MedOffOn"
+PLOTTING = "pow_standard_whole-MedOffOn"
 
 
 if __name__ == "__main__":

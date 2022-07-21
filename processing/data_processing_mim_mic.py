@@ -21,10 +21,10 @@ FOLDERPATH_PROCESSING = (
     "PROJECT ECOG-LFP Coherence\\Analysis\\Processing"
 )
 DATASET = "BIDS_Berlin_ECOG_LFP"
-PREPROCESSING = "preprocessed-with_notch_filter"
-ANALYSIS = "con_multivar_whole"
+PREPROCESSING = "preprocessed-for_general"
+ANALYSIS = "con_mim_mic_whole"
 SUBJECT = "006"
-SESSION = "EcogLfpMedOff01"
+SESSION = "EcogLfpMedOn02"
 TASK = "Rest"
 ACQUISITION = "StimOff"
 RUN = "1"
